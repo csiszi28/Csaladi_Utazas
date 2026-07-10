@@ -3,6 +3,7 @@ node_modules
 .turbo
 dist
 packages/database/src/generated
+apps/web/src/generated
 .env
 .env.local
 .env.*.local

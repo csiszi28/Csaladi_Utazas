@@ -2,6 +2,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import withSerwistInit from "@serwist/next";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { PrismaPlugin } = require("@prisma/nextjs-monorepo-workaround-plugin");
 import type { NextConfig } from "next";
 
 const monorepoRoot = path.join(process.cwd(), "../..");
@@ -18,10 +20,20 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@csaladi-utazas/shared", "@csaladi-utazas/database"],
+  serverExternalPackages: ["@prisma/client", "@csaladi-utazas/database"],
+  transpilePackages: ["@csaladi-utazas/shared"],
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
-    "/**/*": ["packages/database/src/generated/prisma/**/*"],
+    "/**/*": [
+      "packages/database/src/generated/prisma/**/*",
+      "apps/web/src/generated/prisma/**/*",
+    ],
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.plugins = [...config.plugins, new PrismaPlugin()];
+    }
+    return config;
   },
   experimental: {
     serverActions: {

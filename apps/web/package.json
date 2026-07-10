@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/sync-prisma-client.mjs",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
@@ -42,6 +43,7 @@
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@prisma/nextjs-monorepo-workaround-plugin": "^7.8.0",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/node": "^22.15.32",
     "@types/react": "^19.1.8",
