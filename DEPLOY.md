@@ -10,9 +10,9 @@
 1. [vercel.com](https://vercel.com) → **Add New Project** → importáld a GitHub repót.
 2. **Root Directory:** `apps/web` (fontos monorepo esetén!)
 3. A `apps/web/vercel.json` automatikusan beállítja:
-   - Install: `cd ../.. && corepack pnpm install`
-   - Build: `cd ../.. && corepack pnpm turbo build --filter=@csaladi-utazas/web`
-4. **Deploy** — az első build valószínűleg env hiány miatt hibázhat; add hozzá a változókat, majd **Redeploy**.
+   - Install: `cd ../.. && pnpm install` (monorepo gyökérből)
+   - Build: `pnpm build` (Next.js build az apps/web mappában)
+4. **Deploy** — az első build után ellenőrizd: Deployments → zöld **Ready** státusz kell!
 
 ## 3. Környezeti változók (Vercel → Settings → Environment Variables)
 
@@ -73,6 +73,12 @@ node scripts/generate-icons.mjs
 | Auth redirect hiba | Supabase Redirect URLs + `NEXT_PUBLIC_SITE_URL` |
 | PWA nem telepíthető | HTTPS kell (Vercel ad), manifest + 192/512 ikonok |
 | Service worker nincs dev-ben | Szándékos — csak production buildben aktív |
+| **„Valami hiba történt”** éles oldalon | Nyisd meg: `https://<domain>/api/health` — hiányzó env vagy DB hiba |
+| **404 DEPLOYMENT_NOT_FOUND** | Nincs sikeres deploy — Vercel → Deployments → nézd a build logot, majd Redeploy |
+| Build failed (turbo/pnpm) | Root Directory = `apps/web`, vercel.json: `pnpm build` |
+| Server Components render error | Vercel env változók + Redeploy; Supabase migrációk |
+| `missingEnv` a health válaszban | Add hozzá a 6 env változót, pipáld: Production + Preview |
+| `database.ok: false` | DATABASE_URL (6543 pooler), jelszó URL-kódolás, init.sql + rls.sql |
 
 ## 8. Egyéni domain (opcionális, ingyenes Vercel tieren)
 
