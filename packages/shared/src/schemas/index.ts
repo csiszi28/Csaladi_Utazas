@@ -29,14 +29,16 @@ export const IDEA_AMOUNT_SCOPE_LABELS: Record<IdeaAmountScope, string> = {
 
 export const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export const familyMemberSchema = z
-  .object({
-    name: z.string().min(1, "A név kötelező").max(100),
-    email: z.string().trim().max(200).optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.email && data.email.length > 0) {
-      const check = z.string().email().safeParse(data.email);
+const familyMemberBaseSchema = z.object({
+  name: z.string().min(1, "A név kötelező").max(100),
+  email: z.string().trim().max(200).optional(),
+});
+
+function withFamilyMemberEmailRefine<T extends z.ZodTypeAny>(schema: T) {
+  return schema.superRefine((data, ctx) => {
+    const email = (data as { email?: string }).email;
+    if (email && email.length > 0) {
+      const check = z.string().email().safeParse(email);
       if (!check.success) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -46,11 +48,13 @@ export const familyMemberSchema = z
       }
     }
   });
+}
 
+export const familyMemberSchema = withFamilyMemberEmailRefine(familyMemberBaseSchema);
 export const createFamilyMemberSchema = familyMemberSchema;
-export const updateFamilyMemberSchema = familyMemberSchema.extend({
-  id: z.string().uuid(),
-});
+export const updateFamilyMemberSchema = withFamilyMemberEmailRefine(
+  familyMemberBaseSchema.extend({ id: z.string().uuid() })
+);
 
 const tripBaseSchema = z.object({
   title: z.string().min(1, "A megnevezés kötelező").max(200),
@@ -142,6 +146,7 @@ const tripIdeaBaseSchema = z.object({
   currency: z.enum(CURRENCIES).default("HUF"),
   amountScope: z.enum(IDEA_AMOUNT_SCOPES).default("TOTAL"),
   category: z.enum(COST_CATEGORIES).default("OTHER"),
+  interestedParticipantIds: z.array(z.string().uuid()).default([]),
 });
 
 export const tripIdeaSchema = tripIdeaBaseSchema;
@@ -198,7 +203,8 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email("Érvényes e-mail cím szükséges"),
 });
 
-export const DOCUMENT_CATEGORIES = [
+/** Utazás szintű dokumentumok (útlevél, biztosítás stb.) */
+export const TRIP_DOCUMENT_CATEGORIES = [
   "PASSPORT",
   "INSURANCE",
   "VOUCHER",
@@ -206,9 +212,24 @@ export const DOCUMENT_CATEGORIES = [
   "OTHER",
 ] as const;
 
-export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+/** Programhoz kapcsolódó dokumentumok */
+export const PROGRAM_DOCUMENT_CATEGORIES = [
+  "PROGRAM_TICKET",
+  "PROGRAM_BOOKING",
+  "PROGRAM_MAP",
+  "PROGRAM_INFO",
+  "PROGRAM_RECEIPT",
+  "OTHER",
+] as const;
 
-export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
+/** @deprecated Használd a TRIP_DOCUMENT_CATEGORIES-t */
+export const DOCUMENT_CATEGORIES = TRIP_DOCUMENT_CATEGORIES;
+
+export type TripDocumentCategory = (typeof TRIP_DOCUMENT_CATEGORIES)[number];
+export type ProgramDocumentCategory = (typeof PROGRAM_DOCUMENT_CATEGORIES)[number];
+export type DocumentCategory = TripDocumentCategory | ProgramDocumentCategory;
+
+export const TRIP_DOCUMENT_CATEGORY_LABELS: Record<TripDocumentCategory, string> = {
   PASSPORT: "Útlevél / személyi",
   INSURANCE: "Biztosítás",
   VOUCHER: "Szállás / voucher",
@@ -216,14 +237,44 @@ export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
   OTHER: "Egyéb",
 };
 
+export const PROGRAM_DOCUMENT_CATEGORY_LABELS: Record<ProgramDocumentCategory, string> = {
+  PROGRAM_TICKET: "Belépő / jegy",
+  PROGRAM_BOOKING: "Foglalás / voucher",
+  PROGRAM_MAP: "Térkép / helyszín",
+  PROGRAM_INFO: "Programleírás / tájékoztató",
+  PROGRAM_RECEIPT: "Nyugta / számla",
+  OTHER: "Egyéb",
+};
+
+export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
+  ...TRIP_DOCUMENT_CATEGORY_LABELS,
+  ...PROGRAM_DOCUMENT_CATEGORY_LABELS,
+};
+
+/** Összes érvényes kategória (szűrők, validáció) */
+export const ALL_DOCUMENT_CATEGORIES = [
+  ...TRIP_DOCUMENT_CATEGORIES.filter((c) => c !== "OTHER"),
+  ...PROGRAM_DOCUMENT_CATEGORIES,
+] as const;
+
 /** Utazás szintű dokumentumokhoz ajánlott kategóriák (checklista) */
-export const TRIP_DOCUMENT_CHECKLIST: DocumentCategory[] = [
+export const TRIP_DOCUMENT_CHECKLIST: TripDocumentCategory[] = [
   "PASSPORT",
   "INSURANCE",
   "VOUCHER",
 ];
 
-export const documentCategorySchema = z.enum(DOCUMENT_CATEGORIES);
+export const documentCategorySchema = z.enum(ALL_DOCUMENT_CATEGORIES);
+
+export function getDocumentCategoriesForContext(
+  context: "trip" | "program"
+): readonly DocumentCategory[] {
+  return context === "program" ? PROGRAM_DOCUMENT_CATEGORIES : TRIP_DOCUMENT_CATEGORIES;
+}
+
+export function getDefaultDocumentCategory(context: "trip" | "program"): DocumentCategory {
+  return context === "program" ? "PROGRAM_TICKET" : "OTHER";
+}
 
 export const duplicateTripSchema = z.object({
   sourceTripId: z.string().uuid(),
@@ -243,6 +294,10 @@ export const claimFamilyMemberSchema = z.object({
 });
 
 export const linkFamilyMemberSchema = z.object({
+  familyMemberId: z.string().uuid(),
+});
+
+export const familyMemberLinkProposalSchema = z.object({
   familyMemberId: z.string().uuid(),
 });
 

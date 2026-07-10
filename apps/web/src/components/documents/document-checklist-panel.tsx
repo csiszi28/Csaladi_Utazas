@@ -99,7 +99,7 @@ export function DocumentChecklistPanel({
 
       <p className="text-xs text-muted-foreground">
         A „Teljes család (közös)” feltöltés mindenkinél teljesítettnek számít az adott
-        kategóriában ({Object.values(DOCUMENT_CATEGORY_LABELS).slice(0, 3).join(", ")}…).
+        kategóriában ({TRIP_DOCUMENT_CHECKLIST.map((c) => DOCUMENT_CATEGORY_LABELS[c]).slice(0, 3).join(", ")}…).
       </p>
     </div>
   );

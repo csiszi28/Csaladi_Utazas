@@ -35,6 +35,38 @@ async function findAccessibleIdea(ideaId: string, userId: string) {
   return idea;
 }
 
+async function syncIdeaInterests(
+  ideaId: string,
+  tripId: string,
+  participantIds: string[]
+) {
+  const uniqueIds = [...new Set(participantIds)];
+
+  for (const familyMemberId of uniqueIds) {
+    const isParticipant = await assertTripParticipant(tripId, familyMemberId);
+    if (!isParticipant) {
+      throw new Error("A családtag nem résztvevő az utazáson");
+    }
+  }
+
+  await prisma.tripIdeaInterest.deleteMany({
+    where: {
+      ideaId,
+      ...(uniqueIds.length > 0 ? { familyMemberId: { notIn: uniqueIds } } : {}),
+    },
+  });
+
+  for (const familyMemberId of uniqueIds) {
+    await prisma.tripIdeaInterest.upsert({
+      where: {
+        ideaId_familyMemberId: { ideaId, familyMemberId },
+      },
+      create: { ideaId, familyMemberId },
+      update: {},
+    });
+  }
+}
+
 export async function createTripIdea(data: {
   tripId: string;
   title: string;
@@ -43,6 +75,7 @@ export async function createTripIdea(data: {
   currency?: string;
   amountScope?: string;
   category?: string;
+  interestedParticipantIds?: string[];
 }): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
   const parsed = tripIdeaSchema.safeParse(data);
@@ -68,6 +101,20 @@ export async function createTripIdea(data: {
     },
   });
 
+  try {
+    await syncIdeaInterests(
+      idea.id,
+      parsed.data.tripId,
+      parsed.data.interestedParticipantIds ?? []
+    );
+  } catch (err) {
+    await prisma.tripIdea.delete({ where: { id: idea.id } });
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Érvénytelen résztvevők",
+    };
+  }
+
   invalidateTripsAndReports(user.id, parsed.data.tripId);
   return { success: true, data: { id: idea.id } };
 }
@@ -81,6 +128,7 @@ export async function updateTripIdea(data: {
   currency?: string;
   amountScope?: string;
   category?: string;
+  interestedParticipantIds?: string[];
 }): Promise<ActionResult> {
   const user = await requireUser();
   const parsed = updateTripIdeaSchema.safeParse(data);
@@ -105,6 +153,19 @@ export async function updateTripIdea(data: {
       category: parsed.data.category ?? "OTHER",
     },
   });
+
+  try {
+    await syncIdeaInterests(
+      parsed.data.id,
+      parsed.data.tripId,
+      parsed.data.interestedParticipantIds ?? []
+    );
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Érvénytelen résztvevők",
+    };
+  }
 
   invalidateTripsAndReports(user.id, parsed.data.tripId);
   return { success: true, data: undefined };

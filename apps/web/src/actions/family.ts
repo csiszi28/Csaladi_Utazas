@@ -2,12 +2,13 @@
 
 import { prisma } from "@csaladi-utazas/database";
 import { requireUser } from "@/lib/auth";
-import { invalidateFamilyAndCalendar } from "@/lib/revalidate-app-data";
+import { invalidateFamilyAndCalendar, invalidateTripsAndReports } from "@/lib/revalidate-app-data";
 import {
   createFamilyMemberSchema,
   updateFamilyMemberSchema,
   claimFamilyMemberSchema,
   linkFamilyMemberSchema,
+  familyMemberLinkProposalSchema,
 } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 import { findAccessibleTrip } from "@/lib/trip-access";
@@ -25,18 +26,21 @@ async function findUniqueAutoLinkCandidate(
   userId: string,
   userEmail: string | undefined,
   userName: string,
-  tripId?: string
+  tripId?: string,
+  options?: { allowEmailMatch?: boolean }
 ) {
+  const allowEmailMatch = options?.allowEmailMatch ?? true;
   const baseWhere = {
     linkedUserId: null,
     userId: { not: userId },
+    pendingLinkUserId: null,
     ...(tripId
       ? { trips: { some: { tripId } } }
       : { trips: { some: {} } }),
   };
 
   const normalizedEmail = userEmail ? normalizeEmail(userEmail) : null;
-  if (normalizedEmail) {
+  if (normalizedEmail && allowEmailMatch) {
     const emailCandidates = await prisma.familyMember.findMany({
       where: {
         ...baseWhere,
@@ -71,6 +75,72 @@ async function grantCollaboratorAccess(userId: string, tripIds: string[]) {
   }
 }
 
+async function findExternalLinkedProfile(userId: string, excludeMemberId?: string) {
+  return prisma.familyMember.findFirst({
+    where: {
+      linkedUserId: userId,
+      userId: { not: userId },
+      ...(excludeMemberId ? { id: { not: excludeMemberId } } : {}),
+    },
+  });
+}
+
+type MatchedRegisteredUser = { id: string; name: string; email: string };
+
+async function findRegisteredUserForMemberEmail(
+  ownerUserId: string,
+  email: string | null | undefined,
+  forMemberId?: string
+): Promise<MatchedRegisteredUser | null> {
+  if (!email) return null;
+
+  const matched = await prisma.user.findFirst({
+    where: {
+      email: { equals: normalizeEmail(email), mode: "insensitive" },
+      id: { not: ownerUserId },
+    },
+    select: { id: true, name: true, email: true },
+  });
+
+  if (!matched) return null;
+
+  const linkedElsewhere = await findExternalLinkedProfile(matched.id, forMemberId);
+  if (linkedElsewhere) return null;
+
+  return matched;
+}
+
+async function getTripIdsForFamilyMember(familyMemberId: string) {
+  return [
+    ...new Set(
+      (
+        await prisma.tripParticipant.findMany({
+          where: { familyMemberId },
+          select: { tripId: true, trip: { select: { userId: true } } },
+        })
+      ).map((t) => t.tripId)
+    ),
+  ];
+}
+
+async function finalizeFamilyMemberLink(familyMemberId: string, userId: string) {
+  const member = await prisma.familyMember.findUnique({
+    where: { id: familyMemberId },
+    select: { userId: true },
+  });
+  if (!member?.userId) return;
+
+  const tripIds = await getTripIdsForFamilyMember(familyMemberId);
+  await grantCollaboratorAccess(userId, tripIds);
+
+  invalidateFamilyAndCalendar(member.userId);
+  invalidateFamilyAndCalendar(userId);
+  for (const tripId of tripIds) {
+    invalidateTripsAndReports(userId, tripId);
+    invalidateTripsAndReports(member.userId, tripId);
+  }
+}
+
 export async function getFamilyMembers() {
   const user = await requireUser();
   await ensureSelfFamilyMember(user.id, user.name);
@@ -78,6 +148,7 @@ export async function getFamilyMembers() {
     where: { userId: user.id },
     include: {
       linkedUser: { select: { id: true, email: true, name: true } },
+      pendingLinkUser: { select: { id: true, email: true, name: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -117,7 +188,9 @@ export async function getOrCreateSelfFamilyMemberId(): Promise<string> {
 export async function createFamilyMember(data: {
   name: string;
   email?: string;
-}): Promise<ActionResult<{ id: string }>> {
+}): Promise<
+  ActionResult<{ id: string; matchedRegisteredUser: MatchedRegisteredUser | null }>
+> {
   const user = await requireUser();
   const parsed = createFamilyMemberSchema.safeParse(data);
 
@@ -125,23 +198,26 @@ export async function createFamilyMember(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
+  const parsedEmail = parseFamilyMemberEmail(parsed.data.email);
+  const matchedRegisteredUser = await findRegisteredUserForMemberEmail(user.id, parsedEmail);
+
   const member = await prisma.familyMember.create({
     data: {
       name: parsed.data.name,
-      email: parseFamilyMemberEmail(parsed.data.email),
+      email: parsedEmail,
       userId: user.id,
     },
   });
 
   invalidateFamilyAndCalendar(user.id);
-  return { success: true, data: { id: member.id } };
+  return { success: true, data: { id: member.id, matchedRegisteredUser } };
 }
 
 export async function updateFamilyMember(data: {
   id: string;
   name: string;
   email?: string;
-}): Promise<ActionResult> {
+}): Promise<ActionResult<{ matchedRegisteredUser: MatchedRegisteredUser | null }>> {
   const user = await requireUser();
   const parsed = updateFamilyMemberSchema.safeParse(data);
 
@@ -157,16 +233,26 @@ export async function updateFamilyMember(data: {
     return { success: false, error: "Családtag nem található" };
   }
 
+  const parsedEmail = parseFamilyMemberEmail(parsed.data.email);
+  const emailChanged =
+    (existing.email ?? "").toLowerCase() !== (parsedEmail ?? "").toLowerCase();
+  const matchedRegisteredUser = await findRegisteredUserForMemberEmail(
+    user.id,
+    parsedEmail,
+    parsed.data.id
+  );
+
   await prisma.familyMember.update({
     where: { id: parsed.data.id },
     data: {
       name: parsed.data.name,
-      email: parseFamilyMemberEmail(parsed.data.email),
+      email: parsedEmail,
+      ...(emailChanged ? { pendingLinkUserId: null } : {}),
     },
   });
 
   invalidateFamilyAndCalendar(user.id);
-  return { success: true, data: undefined };
+  return { success: true, data: { matchedRegisteredUser } };
 }
 
 export async function deleteFamilyMember(id: string): Promise<ActionResult> {
@@ -208,14 +294,11 @@ export async function linkFamilyMemberToAccount(data: {
     return { success: false, error: "Ez a profil már más fiókhoz van kapcsolva" };
   }
 
-  const existingLink = await prisma.familyMember.findFirst({
-    where: { linkedUserId: user.id, id: { not: member.id } },
-  });
-
-  if (existingLink) {
+  const existingExternal = await findExternalLinkedProfile(user.id, member.id);
+  if (existingExternal) {
     return {
       success: false,
-      error: "A fiókod már össze van kapcsolva egy másik profillal",
+      error: "A fiókod már össze van kapcsolva egy másik virtuális profillal",
     };
   }
 
@@ -254,6 +337,162 @@ export async function unlinkFamilyMemberFromAccount(
   return { success: true, data: undefined };
 }
 
+/** Tulajdonos összekapcsolási kérelmet küld a regisztrált felhasználónak (e-mail egyezés alapján). */
+export async function proposeFamilyMemberLink(data: {
+  familyMemberId: string;
+}): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = familyMemberLinkProposalSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  const member = await prisma.familyMember.findFirst({
+    where: { id: parsed.data.familyMemberId, userId: user.id },
+  });
+
+  if (!member) {
+    return { success: false, error: "Családtag nem található" };
+  }
+
+  if (member.linkedUserId) {
+    return { success: false, error: "Ez a profil már össze van kapcsolva egy fiókkal" };
+  }
+
+  if (!member.email) {
+    return { success: false, error: "Add meg az e-mail címet az összekapcsolási kérelemhez" };
+  }
+
+  const matched = await findRegisteredUserForMemberEmail(user.id, member.email, member.id);
+  if (!matched) {
+    return {
+      success: false,
+      error:
+        "Nem található regisztrált fiók ehhez az e-mail címhez, vagy már össze van kapcsolva egy másik virtuális profillal",
+    };
+  }
+
+  await prisma.familyMember.update({
+    where: { id: member.id },
+    data: { pendingLinkUserId: matched.id },
+  });
+
+  invalidateFamilyAndCalendar(user.id);
+  invalidateFamilyAndCalendar(matched.id);
+  return {
+    success: true,
+    data: undefined,
+    message: `${matched.name} kap egy megerősítési kérelmet bejelentkezéskor.`,
+  };
+}
+
+export async function cancelFamilyMemberLinkProposal(
+  familyMemberId: string
+): Promise<ActionResult> {
+  const user = await requireUser();
+
+  const member = await prisma.familyMember.findFirst({
+    where: { id: familyMemberId, userId: user.id },
+  });
+
+  if (!member) {
+    return { success: false, error: "Családtag nem található" };
+  }
+
+  if (!member.pendingLinkUserId) {
+    return { success: false, error: "Nincs függőben lévő összekapcsolási kérelem" };
+  }
+
+  const pendingUserId = member.pendingLinkUserId;
+
+  await prisma.familyMember.update({
+    where: { id: member.id },
+    data: { pendingLinkUserId: null },
+  });
+
+  invalidateFamilyAndCalendar(user.id);
+  invalidateFamilyAndCalendar(pendingUserId);
+  return { success: true, data: undefined };
+}
+
+export async function fetchPendingFamilyLinkRequests() {
+  const user = await requireUser();
+
+  return prisma.familyMember.findMany({
+    where: {
+      pendingLinkUserId: user.id,
+      linkedUserId: null,
+    },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+}
+
+/** Célfelhasználó elfogadja az összekapcsolási kérelmet. */
+export async function acceptFamilyMemberLinkProposal(
+  familyMemberId: string
+): Promise<ActionResult> {
+  const user = await requireUser();
+
+  const member = await prisma.familyMember.findFirst({
+    where: {
+      id: familyMemberId,
+      pendingLinkUserId: user.id,
+      linkedUserId: null,
+    },
+  });
+
+  if (!member) {
+    return { success: false, error: "Összekapcsolási kérelem nem található vagy lejárt" };
+  }
+
+  const existingExternalLink = await findExternalLinkedProfile(user.id, familyMemberId);
+  if (existingExternalLink) {
+    return {
+      success: false,
+      error: "A fiókod már össze van kapcsolva egy másik virtuális profillal",
+    };
+  }
+
+  await prisma.familyMember.update({
+    where: { id: member.id },
+    data: { linkedUserId: user.id, pendingLinkUserId: null },
+  });
+
+  await finalizeFamilyMemberLink(member.id, user.id);
+  return { success: true, data: undefined, message: "Profil sikeresen összekapcsolva" };
+}
+
+/** Célfelhasználó elutasítja az összekapcsolási kérelmet. */
+export async function rejectFamilyMemberLinkProposal(
+  familyMemberId: string
+): Promise<ActionResult> {
+  const user = await requireUser();
+
+  const member = await prisma.familyMember.findFirst({
+    where: {
+      id: familyMemberId,
+      pendingLinkUserId: user.id,
+    },
+    select: { id: true, userId: true },
+  });
+
+  if (!member) {
+    return { success: false, error: "Összekapcsolási kérelem nem található" };
+  }
+
+  await prisma.familyMember.update({
+    where: { id: member.id },
+    data: { pendingLinkUserId: null },
+  });
+
+  if (member.userId) invalidateFamilyAndCalendar(member.userId);
+  invalidateFamilyAndCalendar(user.id);
+  return { success: true, data: undefined };
+}
+
 /** Meghívott felhasználó átvesz egy virtuális profilt az utazáson. */
 export async function claimFamilyMemberProfile(data: {
   familyMemberId: string;
@@ -286,14 +525,11 @@ export async function claimFamilyMemberProfile(data: {
     return { success: false, error: "Ez a profil már össze van kapcsolva egy fiókkal" };
   }
 
-  const existingLink = await prisma.familyMember.findFirst({
-    where: { linkedUserId: user.id },
-  });
-
-  if (existingLink) {
+  const existingExternal = await findExternalLinkedProfile(user.id, parsed.data.familyMemberId);
+  if (existingExternal) {
     return {
       success: false,
-      error: "A fiókod már össze van kapcsolva egy másik profillal",
+      error: "A fiókod már össze van kapcsolva egy másik virtuális profillal",
     };
   }
 
@@ -302,7 +538,7 @@ export async function claimFamilyMemberProfile(data: {
     data: { linkedUserId: user.id },
   });
 
-  invalidateFamilyAndCalendar(user.id);
+  await finalizeFamilyMemberLink(parsed.data.familyMemberId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -313,10 +549,8 @@ export async function autoClaimMatchingProfile(
   userName: string,
   userEmail?: string
 ) {
-  const existingLink = await prisma.familyMember.findFirst({
-    where: { linkedUserId: userId },
-  });
-  if (existingLink) return null;
+  const existingExternal = await findExternalLinkedProfile(userId);
+  if (existingExternal) return null;
 
   const member = await findUniqueAutoLinkCandidate(userId, userEmail, userName, tripId);
   if (!member) return null;
@@ -335,33 +569,39 @@ export async function autoClaimMatchingProfile(
 export async function autoLinkRegisteredUserToParticipantProfiles(
   userId: string,
   userName: string,
-  userEmail?: string
+  userEmail?: string,
+  options?: { allowEmailMatch?: boolean }
 ): Promise<{ linkedMemberId: string; tripIds: string[] } | null> {
-  const alreadyLinked = await prisma.familyMember.findFirst({
-    where: { linkedUserId: userId },
-  });
-  if (alreadyLinked) return null;
+  const existingExternal = await findExternalLinkedProfile(userId);
+  if (existingExternal) return null;
 
-  const member = await findUniqueAutoLinkCandidate(userId, userEmail, userName);
+  const member = await findUniqueAutoLinkCandidate(
+    userId,
+    userEmail,
+    userName,
+    undefined,
+    options
+  );
   if (!member) return null;
 
   await prisma.familyMember.update({
     where: { id: member.id },
-    data: { linkedUserId: userId },
+    data: { linkedUserId: userId, pendingLinkUserId: null },
   });
 
-  const tripIds = [
-    ...new Set(
-      (
-        await prisma.tripParticipant.findMany({
-          where: { familyMemberId: member.id },
-          select: { tripId: true },
-        })
-      ).map((t) => t.tripId)
-    ),
-  ];
-
+  const tripIds = await getTripIdsForFamilyMember(member.id);
   await grantCollaboratorAccess(userId, tripIds);
+
+  if (member.userId) {
+    invalidateFamilyAndCalendar(member.userId);
+    for (const tripId of tripIds) {
+      invalidateTripsAndReports(member.userId, tripId);
+    }
+  }
+  invalidateFamilyAndCalendar(userId);
+  for (const tripId of tripIds) {
+    invalidateTripsAndReports(userId, tripId);
+  }
 
   return { linkedMemberId: member.id, tripIds };
 }

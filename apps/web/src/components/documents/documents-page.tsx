@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Filter } from "lucide-react";
 import {
-  DOCUMENT_CATEGORIES,
+  ALL_DOCUMENT_CATEGORIES,
   DOCUMENT_CATEGORY_LABELS,
   type DocumentCategory,
 } from "@csaladi-utazas/shared";
@@ -241,7 +241,7 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Minden kategória</SelectItem>
-                {DOCUMENT_CATEGORIES.map((cat) => (
+                {ALL_DOCUMENT_CATEGORIES.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {DOCUMENT_CATEGORY_LABELS[cat as DocumentCategory]}
                   </SelectItem>

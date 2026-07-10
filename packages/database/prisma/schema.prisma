@@ -11,35 +11,39 @@ datasource db {
 }
 
 model User {
-  id                 String             @id @default(uuid())
-  email              String             @unique
-  name               String
-  members            FamilyMember[]
-  linkedProfiles     FamilyMember[]     @relation("LinkedFamilyProfile")
-  trips              Trip[]
-  tripCollaborations TripCollaborator[]
-  createdAt          DateTime           @default(now())
-  ideaMessages       TripIdeaMessage[]
+  id                        String             @id @default(uuid())
+  email                     String             @unique
+  name                      String
+  members                   FamilyMember[]
+  linkedProfiles            FamilyMember[]     @relation("LinkedFamilyProfile")
+  pendingFamilyLinkRequests FamilyMember[]     @relation("PendingFamilyLink")
+  trips                     Trip[]
+  tripCollaborations        TripCollaborator[]
+  createdAt                 DateTime           @default(now())
+  ideaMessages              TripIdeaMessage[]
 
   @@map("users")
 }
 
 model FamilyMember {
-  id            String              @id @default(uuid())
-  name          String
-  email         String?
-  userId        String?
-  user          User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  linkedUserId  String?             @unique
-  linkedUser    User?               @relation("LinkedFamilyProfile", fields: [linkedUserId], references: [id], onDelete: SetNull)
-  trips         TripParticipant[]
-  programs      ProgramParticipant[]
-  ideaInterests TripIdeaInterest[]
-  paidCosts     Cost[]
-  documents     Document[]
+  id                String              @id @default(uuid())
+  name              String
+  email             String?
+  userId            String?
+  user              User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedUserId      String?
+  linkedUser        User?               @relation("LinkedFamilyProfile", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  pendingLinkUserId String?
+  pendingLinkUser   User?               @relation("PendingFamilyLink", fields: [pendingLinkUserId], references: [id], onDelete: SetNull)
+  trips             TripParticipant[]
+  programs          ProgramParticipant[]
+  ideaInterests     TripIdeaInterest[]
+  paidCosts         Cost[]
+  documents         Document[]
 
   @@index([userId])
   @@index([linkedUserId])
+  @@index([pendingLinkUserId])
   @@index([email])
   @@map("family_members")
 }

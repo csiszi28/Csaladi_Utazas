@@ -408,7 +408,13 @@ export function CalendarDayDrawer({
                     subtitle={`${dayCosts.length} tétel · ${totalCostHuf.toLocaleString("hu-HU")} Ft összesen`}
                   >
                     <div className="space-y-2">
-                      {dayCosts.map((cost) => (
+                      {dayCosts.map((cost) => {
+                        const trip = dayTrips.find((t) => t.id === cost.tripId);
+                        const participantCount = cost.programId
+                          ? (trip?.programs.find((p) => p.id === cost.programId)?.participants.length ?? 0)
+                          : (trip?.participants.length ?? 0);
+
+                        return (
                         <div
                           key={cost.id}
                           className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
@@ -419,6 +425,7 @@ export function CalendarDayDrawer({
                               amount={cost.amount}
                               currency={cost.currency}
                               amountScope={cost.amountScope}
+                              participantCount={participantCount}
                               className="text-sm"
                             />
                           </div>
@@ -443,7 +450,8 @@ export function CalendarDayDrawer({
                             </Button>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
 
                       <div className="flex justify-between border-t pt-3 font-semibold">
                         <span>Összesen (≈ HUF)</span>

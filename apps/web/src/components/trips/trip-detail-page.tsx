@@ -290,7 +290,7 @@ export function TripDetailPage({
               </Link>
             </Button>
             {isOwner && (
-              <div className="flex shrink-0 gap-1 lg:hidden">
+              <div className="flex shrink-0 gap-1">
                 <Button
                   variant="outline"
                   size="icon"
@@ -298,6 +298,7 @@ export function TripDetailPage({
                   onClick={() => setTripDrawerOpen(true)}
                   disabled={isPending}
                   title="Szerkesztés"
+                  aria-label="Szerkesztés"
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -308,6 +309,7 @@ export function TripDetailPage({
                   onClick={handleDeleteTrip}
                   disabled={isPending}
                   title="Törlés"
+                  aria-label="Törlés"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -361,26 +363,6 @@ export function TripDetailPage({
                   Meghívó
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden h-9 lg:inline-flex"
-                onClick={() => setTripDrawerOpen(true)}
-                disabled={isPending || !isOwner}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Szerkesztés
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="hidden h-9 lg:inline-flex"
-                onClick={handleDeleteTrip}
-                disabled={isPending || !isOwner}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Törlés
-              </Button>
             </div>
           </div>
         </div>
@@ -561,6 +543,7 @@ export function TripDetailPage({
                                 amount={c.amount}
                                 currency={c.currency}
                                 amountScope={c.amountScope}
+                                participantCount={program.participants.length}
                                 className="ml-1 font-medium"
                               />
                             </span>
@@ -620,19 +603,28 @@ export function TripDetailPage({
               }
             />
             <div className="space-y-2">
-              {localCosts.map((cost) => (
+              {localCosts.map((cost) => {
+                const participantCount = cost.programId
+                  ? (trip.programs.find((p) => p.id === cost.programId)?.participants.length ?? 0)
+                  : trip.participants.length;
+
+                return (
                 <CollapsiblePanel
                   key={cost.id}
                   defaultOpen={false}
                   title={cost.title}
                   subtitle={
-                    <MoneyDisplay amount={cost.amount} currency={cost.currency} />
+                    <CostAmountDisplay
+                      amount={cost.amount}
+                      currency={cost.currency}
+                      amountScope={cost.amountScope}
+                      participantCount={participantCount}
+                    />
                   }
                   badge={
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       {COST_CATEGORY_LABELS[cost.category as keyof typeof COST_CATEGORY_LABELS] ??
                         cost.category}
-                      {cost.amountScope === "PER_PERSON" ? " · 1 főre" : cost.amountScope === "TOTAL" ? " · összesen" : ""}
                     </span>
                   }
                   actions={
@@ -680,7 +672,8 @@ export function TripDetailPage({
                     )}
                   </dl>
                 </CollapsiblePanel>
-              ))}
+                );
+              })}
               {localCosts.length === 0 && (
                 <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
                   Még nincsenek költségek.

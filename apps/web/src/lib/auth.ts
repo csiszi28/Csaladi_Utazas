@@ -44,11 +44,14 @@ export const requireAuthUserId = cache(async (): Promise<string> => {
   return id;
 });
 
-export async function syncUser(authUser: {
-  id: string;
-  email?: string;
-  user_metadata?: { name?: string };
-}) {
+export async function syncUser(
+  authUser: {
+    id: string;
+    email?: string;
+    user_metadata?: { name?: string };
+  },
+  options?: { allowEmailAutoLink?: boolean }
+) {
   const email = authUser.email ?? "";
   const name =
     (authUser.user_metadata?.name as string | undefined) ?? email.split("@")[0];
@@ -69,7 +72,8 @@ export async function syncUser(authUser: {
       const linkResult = await autoLinkRegisteredUserToParticipantProfiles(
         user.id,
         user.name,
-        user.email
+        user.email,
+        { allowEmailMatch: options?.allowEmailAutoLink ?? false }
       );
       if (linkResult) {
         const { invalidateTripsAndReports } = await import("@/lib/revalidate-app-data");

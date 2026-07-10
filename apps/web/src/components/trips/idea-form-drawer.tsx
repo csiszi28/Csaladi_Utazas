@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { useCreateTripIdea, useUpdateTripIdea } from "@/hooks/use-ideas";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
+import { cn } from "@/lib/utils";
 
 export interface TripIdeaFormData {
   id: string;
@@ -40,12 +41,14 @@ export interface TripIdeaFormData {
   currency: string;
   amountScope: string;
   category: string;
+  interestedParticipantIds: string[];
 }
 
 interface IdeaFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tripId: string;
+  participants: { id: string; name: string }[];
   onSaved?: () => void;
   idea?: TripIdeaFormData;
 }
@@ -54,6 +57,7 @@ export function IdeaFormDrawer({
   open,
   onOpenChange,
   tripId,
+  participants,
   onSaved,
   idea,
 }: IdeaFormDrawerProps) {
@@ -66,6 +70,7 @@ export function IdeaFormDrawer({
   const [currency, setCurrency] = useState("HUF");
   const [amountScope, setAmountScope] = useState<string>("TOTAL");
   const [category, setCategory] = useState<string>("OTHER");
+  const [participantIds, setParticipantIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (idea && open) {
@@ -75,6 +80,7 @@ export function IdeaFormDrawer({
       setCurrency(idea.currency);
       setAmountScope(idea.amountScope);
       setCategory(idea.category);
+      setParticipantIds(idea.interestedParticipantIds);
     } else if (!idea && open) {
       setTitle("");
       setUrl("");
@@ -82,8 +88,15 @@ export function IdeaFormDrawer({
       setCurrency("HUF");
       setAmountScope("TOTAL");
       setCategory("OTHER");
+      setParticipantIds([]);
     }
   }, [idea, open]);
+
+  function toggleParticipant(id: string) {
+    setParticipantIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   async function handleSubmit() {
     const trimmedAmount = amountInput.trim();
@@ -97,6 +110,7 @@ export function IdeaFormDrawer({
       currency,
       amountScope,
       category,
+      interestedParticipantIds: participantIds,
     };
 
     if (idea) {
@@ -110,6 +124,8 @@ export function IdeaFormDrawer({
     onOpenChange(false);
     onSaved?.();
   }
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -131,7 +147,7 @@ export function IdeaFormDrawer({
             />
             <UrlPreviewCard url={url} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Becsült összeg (opcionális)</Label>
               <Input
@@ -188,12 +204,34 @@ export function IdeaFormDrawer({
               </SelectContent>
             </Select>
           </div>
+          {participants.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Kit érdekel?</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {participants.map((member) => (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => toggleParticipant(member.id)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-0.5 text-xs transition-colors min-h-[var(--touch-target)] sm:min-h-0",
+                      participantIds.includes(member.id)
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input hover:bg-accent"
+                    )}
+                  >
+                    {member.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Mégse
           </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!title.trim()}>
+          <Button size="sm" onClick={handleSubmit} disabled={!title.trim() || isPending}>
             Mentés
           </Button>
         </DialogFooter>

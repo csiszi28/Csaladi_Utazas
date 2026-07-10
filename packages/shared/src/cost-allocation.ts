@@ -242,6 +242,21 @@ export function costTotalHuf(
   return Math.round(total);
 }
 
+/** 1 főre / összesen átváltás a résztvevők száma alapján (megjelenítéshez). */
+export function computeScopedAmounts(
+  amount: number,
+  amountScope: string | undefined | null,
+  participantCount: number
+): { perPerson: number; total: number } | null {
+  if (participantCount <= 0) return null;
+
+  if (amountScope === "PER_PERSON") {
+    return { perPerson: amount, total: amount * participantCount };
+  }
+
+  return { perPerson: amount / participantCount, total: amount };
+}
+
 export function sumCostsHuf(
   costs: { amount: number; currency: string }[],
   rates: HufRateMap = DEFAULT_HUF_RATES

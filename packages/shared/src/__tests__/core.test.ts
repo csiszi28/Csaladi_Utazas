@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTripCostBreakdown, costTotalHuf } from "../cost-allocation";
+import { buildTripCostBreakdown, costTotalHuf, computeScopedAmounts } from "../cost-allocation";
 import { buildTripBudgetSummary } from "../budget-summary";
 import { buildTripSettlement } from "../settlement";
 import { buildTripIcal } from "../ical";
@@ -55,6 +55,18 @@ describe("cost-allocation", () => {
       rates
     );
     expect(total).toBe(3000);
+  });
+
+  it("computes scoped amounts for display", () => {
+    expect(computeScopedAmounts(1000, "PER_PERSON", 3)).toEqual({
+      perPerson: 1000,
+      total: 3000,
+    });
+    expect(computeScopedAmounts(3000, "TOTAL", 3)).toEqual({
+      perPerson: 1000,
+      total: 3000,
+    });
+    expect(computeScopedAmounts(1000, "TOTAL", 0)).toBeNull();
   });
 });
 

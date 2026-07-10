@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, ExternalLink, CalendarPlus } from "lucide-react";
-import { toast } from "sonner";
 import {
   COST_CATEGORY_LABELS,
   type CostCategory,
@@ -11,8 +10,7 @@ import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
-import { cn } from "@/lib/utils";
-import { useDeleteTripIdea, useToggleIdeaInterest } from "@/hooks/use-ideas";
+import { useDeleteTripIdea } from "@/hooks/use-ideas";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import { IdeaFormDrawer, type TripIdeaFormData } from "./idea-form-drawer";
 import { IdeaChatPanel } from "./idea-chat-panel";
@@ -51,7 +49,6 @@ export function TripIdeasSection({
   const [editingIdea, setEditingIdea] = useState<TripIdeaFormData | null>(null);
 
   const deleteMutation = useDeleteTripIdea();
-  const toggleMutation = useToggleIdeaInterest();
 
   useEffect(() => {
     setLocalIdeas(ideas);
@@ -69,54 +66,6 @@ export function TripIdeasSection({
     if (result.success) onRefresh();
   }
 
-  function handleToggleInterest(ideaId: string, familyMemberId: string, interested: boolean) {
-    const previous = localIdeas;
-
-    setLocalIdeas((current) =>
-      current.map((idea) => {
-        if (idea.id !== ideaId) return idea;
-        if (interested) {
-          const member = participants.find((p) => p.id === familyMemberId);
-          if (!member || idea.interests.some((i) => i.familyMember.id === familyMemberId)) {
-            return idea;
-          }
-          return {
-            ...idea,
-            interests: [
-              ...idea.interests,
-              {
-                id: `opt-${familyMemberId}`,
-                ideaId: idea.id,
-                familyMemberId: member.id,
-                familyMember: {
-                  id: member.id,
-                  name: member.name,
-                  email: null,
-                  userId: null,
-                  linkedUserId: null,
-                },
-              },
-            ],
-          };
-        }
-        return {
-          ...idea,
-          interests: idea.interests.filter((i) => i.familyMember.id !== familyMemberId),
-        };
-      })
-    );
-
-    toggleMutation.mutate(
-      { ideaId, familyMemberId, interested },
-      {
-        onError: () => {
-          setLocalIdeas(previous);
-          toast.error("Nem sikerült frissíteni az érdeklődést");
-        },
-      }
-    );
-  }
-
   function openNewIdea() {
     setEditingIdea(null);
     setDrawerOpen(true);
@@ -125,7 +74,6 @@ export function TripIdeasSection({
   const content = (
     <div className="space-y-3">
       {localIdeas.map((idea) => {
-          const interestedIds = new Set(idea.interests.map((i) => i.familyMember.id));
           const interestedNames = idea.interests.map((i) => i.familyMember.name);
           const isConverted = convertedIdeaIds?.has(idea.id) ?? false;
 
@@ -150,6 +98,7 @@ export function TripIdeasSection({
                       amount={idea.amount}
                       currency={idea.currency}
                       amountScope={idea.amountScope}
+                      participantCount={idea.interests.length}
                     />
                   )}
                   <span>
@@ -181,6 +130,9 @@ export function TripIdeasSection({
                         currency: idea.currency,
                         amountScope: idea.amountScope,
                         category: idea.category ?? "OTHER",
+                        interestedParticipantIds: idea.interests.map(
+                          (i) => i.familyMember.id
+                        ),
                       });
                       setDrawerOpen(true);
                     }}
@@ -207,32 +159,6 @@ export function TripIdeasSection({
                 ) : (
                   <p className="text-sm text-muted-foreground">Még senkit nem érdekel.</p>
                 )}
-
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Ki érdeklődik?</p>
-                  <div className="flex flex-wrap gap-2">
-                    {participants.map((member) => {
-                      const isInterested = interestedIds.has(member.id);
-                      return (
-                        <button
-                          key={member.id}
-                          type="button"
-                          onClick={() =>
-                            handleToggleInterest(idea.id, member.id, !isInterested)
-                          }
-                          className={cn(
-                            "rounded-full border px-3 py-1 text-sm transition-colors min-h-[var(--touch-target)] sm:min-h-0",
-                            isInterested
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-input hover:bg-accent"
-                          )}
-                        >
-                          {member.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
                 <IdeaChatPanel
                   ideaId={idea.id}
@@ -291,6 +217,7 @@ export function TripIdeasSection({
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         tripId={tripId}
+        participants={participants}
         idea={editingIdea ?? undefined}
         onSaved={onRefresh}
       />

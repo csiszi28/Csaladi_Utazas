@@ -8,7 +8,8 @@ import { uploadDocument, getDocumentSignedUrl, deleteDocument } from "@/actions/
 import { DocumentViewer } from "@/components/documents/document-viewer";
 import { DocumentTable } from "@/components/documents/document-table";
 import {
-  DOCUMENT_CATEGORIES,
+  getDocumentCategoriesForContext,
+  getDefaultDocumentCategory,
   DOCUMENT_CATEGORY_LABELS,
   type DocumentCategory,
 } from "@csaladi-utazas/shared";
@@ -70,10 +71,16 @@ export function DocumentUpload({
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerDocId, setViewerDocId] = useState<string | undefined>();
   const [uploading, setUploading] = useState(false);
+  const documentContext = programId ? "program" : "trip";
+  const categoryOptions = getDocumentCategoriesForContext(documentContext);
   const [category, setCategory] = useState<DocumentCategory>(
-    programId ? "TICKET" : "OTHER"
+    getDefaultDocumentCategory(documentContext)
   );
   const [familyMemberId, setFamilyMemberId] = useState(ALL_FAMILY_VALUE);
+
+  useEffect(() => {
+    setCategory(getDefaultDocumentCategory(documentContext));
+  }, [documentContext]);
 
   const participantNameById = useMemo(
     () => new Map(participantOptions.map((p) => [p.id, p.name])),
@@ -243,7 +250,7 @@ export function DocumentUpload({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {DOCUMENT_CATEGORIES.map((cat) => (
+              {categoryOptions.map((cat) => (
                 <SelectItem key={cat} value={cat}>
                   {DOCUMENT_CATEGORY_LABELS[cat]}
                 </SelectItem>

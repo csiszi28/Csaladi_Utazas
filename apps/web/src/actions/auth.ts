@@ -54,7 +54,7 @@ export async function syncUserAfterRegisterAction(name: string): Promise<ActionR
 
   try {
     assertDatabaseEnv();
-    await syncUser({ ...user, user_metadata: { name } });
+    await syncUser({ ...user, user_metadata: { name } }, { allowEmailAutoLink: true });
   } catch (err) {
     return { success: false, error: getDatabaseErrorMessage(err) };
   }

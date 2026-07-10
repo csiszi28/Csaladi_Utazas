@@ -32,6 +32,8 @@ import {
   deleteFamilyMember,
   linkFamilyMemberToAccount,
   unlinkFamilyMemberFromAccount,
+  proposeFamilyMemberLink,
+  cancelFamilyMemberLinkProposal,
 } from "@/actions/family";
 import type { FamilyMemberRow } from "@/lib/queries/family";
 import { cn } from "@/lib/utils";
@@ -64,6 +66,8 @@ function FamilyMemberCard({
   onDelete,
   onLink,
   onUnlink,
+  onProposeLink,
+  onCancelProposal,
 }: {
   member: FamilyMemberRow;
   currentUserId: string;
@@ -72,6 +76,8 @@ function FamilyMemberCard({
   onDelete: (id: string) => void;
   onLink: (id: string) => void;
   onUnlink: (id: string) => void;
+  onProposeLink: (id: string) => void;
+  onCancelProposal: (id: string) => void;
 }) {
   const status = memberStatus(member, currentUserId);
   const isLinkedToMe = status === "linked-self";
@@ -112,9 +118,11 @@ function FamilyMemberCard({
               )}
               {status === "virtual" && (
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {member.email
-                    ? "Regisztrációkor automatikusan összekapcsolódik, ha ugyanazzal az e-mail címmel jelentkezik be."
-                    : "Még nincs regisztrált fiókhoz rendelve — utazásokhoz így is hozzáadható."}
+                  {member.pendingLinkUser
+                    ? `${member.pendingLinkUser.name} megerősíti bejelentkezéskor az összekapcsolást.`
+                    : member.email
+                      ? "Ha regisztrált fiókja van ehhez az e-mail címhez, javasolhatod az összekapcsolást."
+                      : "Még nincs regisztrált fiókhoz rendelve — utazásokhoz így is hozzáadható."}
                 </p>
               )}
               {isLinkedToMe && (
@@ -160,6 +168,29 @@ function FamilyMemberCard({
 
       {(status === "virtual" || isLinkedToMe) && (
         <div className="flex flex-wrap gap-2 border-t bg-muted/20 px-4 py-3 sm:px-5">
+          {status === "virtual" && member.email && !member.pendingLinkUserId && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none"
+              onClick={() => onProposeLink(member.id)}
+              disabled={isPending}
+            >
+              <Link2 className="mr-2 h-4 w-4" />
+              Összekapcsolás javaslata
+            </Button>
+          )}
+          {status === "virtual" && member.pendingLinkUser && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="min-h-[var(--touch-target)] flex-1 text-muted-foreground sm:min-h-9 sm:flex-none"
+              onClick={() => onCancelProposal(member.id)}
+              disabled={isPending}
+            >
+              Kérelem visszavonása
+            </Button>
+          )}
           {status === "virtual" && (
             <Button
               size="sm"
@@ -205,6 +236,10 @@ export function FamilyPage({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [proposeTarget, setProposeTarget] = useState<{
+    memberId: string;
+    user: { id: string; name: string; email: string };
+  } | null>(null);
 
   useEffect(() => {
     setMembers(initialMembers);
@@ -253,10 +288,50 @@ export function FamilyPage({
         toast.error(result.error);
         return;
       }
+
+      const memberId =
+        editingId ?? ("id" in result.data ? result.data.id : undefined);
+      const matched = result.data.matchedRegisteredUser;
+
+      if (matched && memberId) {
+        setDialogOpen(false);
+        setProposeTarget({ memberId, user: matched });
+        router.refresh();
+        return;
+      }
+
       toast.success(editingId ? "Családtag frissítve" : "Családtag létrehozva");
       setDialogOpen(false);
       router.refresh();
     });
+  }
+
+  function handleProposeLink(memberId: string) {
+    startTransition(async () => {
+      const result = await proposeFamilyMemberLink({ familyMemberId: memberId });
+      if (!result.success) toast.error(result.error);
+      else {
+        toast.success(result.message ?? "Összekapcsolási kérelem elküldve");
+        setProposeTarget(null);
+        router.refresh();
+      }
+    });
+  }
+
+  function handleCancelProposal(memberId: string) {
+    startTransition(async () => {
+      const result = await cancelFamilyMemberLinkProposal(memberId);
+      if (!result.success) toast.error(result.error);
+      else {
+        toast.success("Kérelem visszavonva");
+        router.refresh();
+      }
+    });
+  }
+
+  function confirmProposeTarget() {
+    if (!proposeTarget) return;
+    handleProposeLink(proposeTarget.memberId);
   }
 
   function handleDelete(id: string) {
@@ -312,6 +387,8 @@ export function FamilyPage({
               onDelete={handleDelete}
               onLink={handleLink}
               onUnlink={handleUnlink}
+              onProposeLink={handleProposeLink}
+              onCancelProposal={handleCancelProposal}
             />
           ))}
         </div>
@@ -398,9 +475,9 @@ export function FamilyPage({
               <div className="space-y-1 text-sm">
                 <p className="font-medium">Hogyan működik az összekapcsolás?</p>
                 <p className="text-muted-foreground">
-                  Adj meg e-mail címet a virtuális profilokhoz — regisztrációkor automatikusan
-                  összekapcsolódik a fiókkal, és az utazásokhoz is hozzáfér. Kézi összekapcsolás
-                  továbbra is lehetséges.
+                  Adj meg e-mail címet a virtuális profilokhoz. Ha már van regisztrált fiókja,
+                  javasolhatod az összekapcsolást — a másik félnek bejelentkezéskor kell
+                  megerősítenie. Új regisztráció esetén automatikusan összekapcsolódik.
                 </p>
               </div>
             </div>
@@ -445,7 +522,7 @@ export function FamilyPage({
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                Ha megadod, regisztrációkor automatikusan összekapcsolódik a profil.
+                Ha regisztrált fiók tartozik hozzá, összekapcsolási kérelmet küldhetsz.
               </p>
             </div>
           </DialogBody>
@@ -461,6 +538,37 @@ export function FamilyPage({
             </Button>
             <Button size="sm" className="w-full" onClick={handleSubmit} disabled={isPending}>
               Mentés
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={proposeTarget !== null} onOpenChange={(open) => !open && setProposeTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Összekapcsolás javaslata</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            {proposeTarget && (
+              <p className="text-sm text-muted-foreground">
+                A(z) <strong className="text-foreground">{proposeTarget.user.email}</strong> címhez
+                már tartozik regisztrált fiók ({proposeTarget.user.name}). Szeretnéd összekapcsolni
+                ezzel a profillal? A másik félnek bejelentkezéskor kell megerősítenie.
+              </p>
+            )}
+          </DialogBody>
+          <DialogFooter className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setProposeTarget(null)}
+              disabled={isPending}
+            >
+              Később
+            </Button>
+            <Button size="sm" className="w-full" onClick={confirmProposeTarget} disabled={isPending}>
+              Kérelem küldése
             </Button>
           </DialogFooter>
         </DialogContent>

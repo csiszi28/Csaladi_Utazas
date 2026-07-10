@@ -5,8 +5,6 @@ import {
   formatDate,
   formatTimeWhileTyping,
   normalizeTimeValue,
-  IDEA_AMOUNT_SCOPE_LABELS,
-  type IdeaAmountScope,
   type CostCategory,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
@@ -31,7 +29,7 @@ import {
 import { useCreateProgram, useUpdateProgram } from "@/hooks/use-programs";
 import { useCreateCost } from "@/hooks/use-costs";
 import { cn } from "@/lib/utils";
-import { MoneyDisplay } from "@/components/money-display";
+import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Sparkles } from "lucide-react";
 
 export interface ProgramIdeaOption {
@@ -253,8 +251,14 @@ export function ProgramFormDrawer({
               </Select>
               {selectedIdea?.amount != null && (
                 <p className="text-xs text-muted-foreground">
-                  Becsült költség: <MoneyDisplay amount={selectedIdea.amount} currency={selectedIdea.currency} /> (
-                  {IDEA_AMOUNT_SCOPE_LABELS[selectedIdea.amountScope as IdeaAmountScope]})
+                  Becsült költség:{" "}
+                  <CostAmountDisplay
+                    amount={selectedIdea.amount}
+                    currency={selectedIdea.currency}
+                    amountScope={selectedIdea.amountScope}
+                    participantCount={selectedIdea.interests.length}
+                    className="inline-flex"
+                  />
                 </p>
               )}
             </div>
@@ -342,9 +346,16 @@ export function ProgramFormDrawer({
                 onChange={(e) => setCreateCostFromIdea(e.target.checked)}
                 className="h-4 w-4 rounded border-input"
               />
-              <span>
+              <span className="inline-flex flex-wrap items-center gap-x-1">
                 Becsült költség rögzítése is (
-                <MoneyDisplay amount={selectedIdea.amount} currency={selectedIdea.currency} />)
+                <CostAmountDisplay
+                  amount={selectedIdea.amount}
+                  currency={selectedIdea.currency}
+                  amountScope={selectedIdea.amountScope}
+                  participantCount={selectedIdea.interests.length}
+                  className="inline-flex"
+                />
+                )
               </span>
             </label>
           )}
