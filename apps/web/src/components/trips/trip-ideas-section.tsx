@@ -88,7 +88,13 @@ export function TripIdeasSection({
                 id: `opt-${familyMemberId}`,
                 ideaId: idea.id,
                 familyMemberId: member.id,
-                familyMember: { id: member.id, name: member.name, userId: null, linkedUserId: null },
+                familyMember: {
+                  id: member.id,
+                  name: member.name,
+                  email: null,
+                  userId: null,
+                  linkedUserId: null,
+                },
               },
             ],
           };
