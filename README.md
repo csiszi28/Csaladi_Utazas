@@ -60,6 +60,10 @@ pnpm dev
 
 Az alkalmazás a http://localhost:3000 címen érhető el.
 
+## Éles telepítés (Vercel + PWA)
+
+Lásd: [`DEPLOY.md`](DEPLOY.md)
+
 ## Funkciók
 
 - Supabase Auth (regisztráció, bejelentkezés, elfelejtett jelszó)
@@ -88,3 +92,4 @@ apps/web          — Next.js frontend
 packages/shared   — Zod sémák, dátum utilok
 packages/database — Prisma séma és client
 ```
+
