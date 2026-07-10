@@ -79,6 +79,8 @@ node scripts/generate-icons.mjs
 | Server Components render error | Vercel env változók + Redeploy; Supabase migrációk |
 | `missingEnv` a health válaszban | Add hozzá a 6 env változót, pipáld: Production + Preview |
 | `database.ok: false` | DATABASE_URL (6543 pooler), jelszó URL-kódolás, init.sql + rls.sql |
+| Prisma `rhel-openssl-3.0.x` engine not found | `binaryTargets` a schema.prisma-ban + redeploy (automatikusan javítva a repóban) |
+| Manifest / CORS hiba preview URL-en | Használd a production domaint (`*.vercel.app`), ne a `-xxx-projects.vercel.app` preview linket; vagy kapcsold ki a Deployment Protection-t |
 
 ## 8. Egyéni domain (opcionális, ingyenes Vercel tieren)
 
