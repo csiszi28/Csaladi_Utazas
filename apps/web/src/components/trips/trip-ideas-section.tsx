@@ -4,12 +4,10 @@ import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, ExternalLink, CalendarPlus } from "lucide-react";
 import { toast } from "sonner";
 import {
-  IDEA_AMOUNT_SCOPE_LABELS,
   COST_CATEGORY_LABELS,
-  type IdeaAmountScope,
   type CostCategory,
 } from "@csaladi-utazas/shared";
-import { MoneyDisplay } from "@/components/money-display";
+import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
@@ -140,17 +138,15 @@ export function TripIdeasSection({
                 </span>
               }
               subtitle={
-                <span className="space-y-1">
+                <span className="flex flex-col gap-0.5">
                   {idea.amount != null && (
-                    <span className="block">
-                      <MoneyDisplay amount={idea.amount} currency={idea.currency} />
-                      <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">
-                        {IDEA_AMOUNT_SCOPE_LABELS[idea.amountScope as IdeaAmountScope] ??
-                          idea.amountScope}
-                      </span>
-                    </span>
+                    <CostAmountDisplay
+                      amount={idea.amount}
+                      currency={idea.currency}
+                      amountScope={idea.amountScope}
+                    />
                   )}
-                  <span className="block">
+                  <span>
                     {COST_CATEGORY_LABELS[(idea.category ?? "OTHER") as CostCategory] ?? "Egyéb"}
                   </span>
                 </span>

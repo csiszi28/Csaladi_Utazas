@@ -54,23 +54,25 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </aside>
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <header
-              className="flex items-center gap-3 border-b bg-card px-[var(--app-content-padding)] md:hidden"
-              style={{ minHeight: "var(--app-header-height)" }}
-            >
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setMobileOpen(true)}
-                aria-label="Menü megnyitása"
-                style={{ width: "var(--touch-target)", height: "var(--touch-target)" }}
+            <main className="flex-1 overflow-auto">
+              <div
+                className="sticky top-0 z-20 flex items-center gap-3 bg-background px-[var(--app-content-padding)] pt-[max(var(--app-content-padding),env(safe-area-inset-top))] pb-2 md:hidden"
               >
-                <Menu className="h-5 w-5" />
-              </Button>
-              <span className="text-base font-bold text-primary">Családi Utazás</span>
-            </header>
-
-            <main className="flex-1 overflow-auto p-[var(--app-content-padding)]">{children}</main>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setMobileOpen(true)}
+                  aria-label="Menü megnyitása"
+                  style={{ width: "var(--touch-target)", height: "var(--touch-target)" }}
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+                <span className="text-base font-bold text-primary">Családi Utazás</span>
+              </div>
+              <div className="px-[var(--app-content-padding)] pb-[var(--app-content-padding)] md:p-[var(--app-content-padding)]">
+                {children}
+              </div>
+            </main>
           </div>
         </div>
       </DashboardShell>

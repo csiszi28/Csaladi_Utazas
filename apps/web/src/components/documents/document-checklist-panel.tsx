@@ -53,7 +53,8 @@ export function DocumentChecklistPanel({
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border">
+      <div className="overflow-hidden rounded-xl border">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[32rem] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
@@ -93,6 +94,7 @@ export function DocumentChecklistPanel({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">

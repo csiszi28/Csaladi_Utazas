@@ -19,7 +19,7 @@ interface TripDetailTabsProps {
 export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps) {
   return (
     <nav
-      className="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto rounded-xl border bg-muted/50 p-1 backdrop-blur-sm"
+      className="sticky top-0 z-10 flex gap-1 overflow-x-auto rounded-xl border bg-background p-1 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       aria-label="Utazás szekciók"
     >
       {TABS.map((tab) => (
@@ -30,8 +30,8 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
           className={cn(
             "flex min-h-[var(--touch-target)] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:min-h-9 sm:flex-none sm:px-4",
             active === tab.id
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
           )}
         >
           {tab.label}

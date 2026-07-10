@@ -90,20 +90,43 @@ export function DocumentViewer({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none",
-          "[body[data-dashboard-layout=true]_&]:w-[calc(100vw-18rem)]",
-          "[body[data-dashboard-layout=true]_&]:max-w-[calc(100vw-18rem)]"
+          "flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0",
+          "sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100vw-1.5rem)] sm:rounded-xl sm:border",
+          "md:[body[data-dashboard-layout=true]_&]:w-[calc(100vw-18rem)]",
+          "md:[body[data-dashboard-layout=true]_&]:max-w-[calc(100vw-18rem)]"
         )}
       >
-        <DialogHeader className="shrink-0 px-4 py-3 sm:px-5 sm:py-4">
-          <DialogTitle>Dokumentum megtekintése</DialogTitle>
+        <DialogHeader className="shrink-0 px-3 py-3 sm:px-5 sm:py-4">
+          <DialogTitle className="text-base sm:text-lg">Dokumentum megtekintése</DialogTitle>
           {selected && (
             <p className="truncate text-sm font-normal text-muted-foreground">{selected.fileName}</p>
           )}
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden border-t px-4 pb-4 pt-3 sm:gap-4 sm:px-5 sm:pb-5 sm:pt-4 lg:flex-row">
-          <div className="flex max-h-28 shrink-0 flex-col gap-1.5 lg:max-h-none lg:w-52 lg:shrink-0">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t lg:flex-row">
+          <div className="shrink-0 border-b px-3 py-2 lg:hidden">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Válassz dokumentumot</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {documents.map((doc) => (
+                <button
+                  key={doc.id}
+                  type="button"
+                  onClick={() => setSelectedId(doc.id)}
+                  className={cn(
+                    "flex max-w-[min(72vw,14rem)] shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                    selectedId === doc.id
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "bg-card hover:bg-accent"
+                  )}
+                >
+                  <FileText className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{doc.fileName}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="hidden min-h-0 w-52 shrink-0 flex-col gap-1.5 border-r p-3 lg:flex">
             <p className="text-xs font-medium text-muted-foreground">Válassz dokumentumot</p>
             <div className="min-h-0 flex-1 space-y-1 overflow-y-auto rounded-lg border p-1">
               {documents.map((doc) => (
@@ -125,26 +148,26 @@ export function DocumentViewer({
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-muted/20">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3 sm:p-4 lg:rounded-none">
             {!selected && (
-              <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center rounded-lg border bg-card p-4 text-sm text-muted-foreground">
                 Válassz egy dokumentumot a listából
               </div>
             )}
             {selected && loading && !previewUrl && (
-              <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center rounded-lg border bg-card p-4 text-sm text-muted-foreground">
                 Betöltés…
               </div>
             )}
             {selected && error && (
-              <div className="flex flex-1 items-center justify-center p-4 text-sm text-destructive">
+              <div className="flex flex-1 items-center justify-center rounded-lg border bg-card p-4 text-sm text-destructive">
                 {error}
               </div>
             )}
             {selected && previewUrl && (
-              <>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
                 {selected.mimeType.startsWith("image/") ? (
-                  <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3 sm:p-4">
+                  <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={previewUrl}
@@ -159,7 +182,7 @@ export function DocumentViewer({
                     className="min-h-0 flex-1 border-0"
                   />
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

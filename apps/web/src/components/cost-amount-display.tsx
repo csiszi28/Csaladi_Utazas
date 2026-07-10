@@ -19,9 +19,9 @@ export function CostAmountDisplay({
   const scopeLabel = IDEA_AMOUNT_SCOPE_LABELS[scope as IdeaAmountScope] ?? scope;
 
   return (
-    <span className={cn("inline-flex flex-wrap items-center gap-1.5", className)}>
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap", className)}>
       <MoneyDisplay amount={amount} currency={currency} />
-      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
         {scopeLabel}
       </span>
     </span>

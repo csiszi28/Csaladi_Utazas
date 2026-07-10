@@ -519,7 +519,7 @@ export function TripDetailPage({
                         title="Program dokumentumok"
                         subtitle={`${localDocuments.filter((d) => d.programId === program.id).length} fájl`}
                         defaultOpen={false}
-                        className="border-dashed shadow-none"
+                        className="overflow-hidden border-dashed shadow-none"
                       >
                         <DocumentUpload
                           tripId={trip.id}
