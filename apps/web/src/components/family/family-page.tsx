@@ -68,7 +68,7 @@ function FamilyMemberCard({
   member: FamilyMemberRow;
   currentUserId: string;
   isPending: boolean;
-  onEdit: (id: string, name: string) => void;
+  onEdit: (id: string, memberName: string, memberEmail?: string | null) => void;
   onDelete: (id: string) => void;
   onLink: (id: string) => void;
   onUnlink: (id: string) => void;
@@ -104,9 +104,17 @@ function FamilyMemberCard({
                   <span className="truncate">{member.linkedUser.email}</span>
                 </p>
               )}
+              {status === "virtual" && member.email && (
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{member.email}</span>
+                </p>
+              )}
               {status === "virtual" && (
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Még nincs regisztrált fiókhoz rendelve — utazásokhoz így is hozzáadható.
+                  {member.email
+                    ? "Regisztrációkor automatikusan összekapcsolódik, ha ugyanazzal az e-mail címmel jelentkezik be."
+                    : "Még nincs regisztrált fiókhoz rendelve — utazásokhoz így is hozzáadható."}
                 </p>
               )}
               {isLinkedToMe && (
@@ -131,7 +139,7 @@ function FamilyMemberCard({
             variant="ghost"
             size="icon"
             className="h-9 w-9"
-            onClick={() => onEdit(member.id, member.name)}
+            onClick={() => onEdit(member.id, member.name, member.email)}
             disabled={isPending}
             title="Szerkesztés"
           >
@@ -196,6 +204,7 @@ export function FamilyPage({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
     setMembers(initialMembers);
@@ -221,21 +230,24 @@ export function FamilyPage({
   function openCreate() {
     setEditingId(null);
     setName("");
+    setEmail("");
     setDialogOpen(true);
   }
 
-  function openEdit(id: string, memberName: string) {
+  function openEdit(id: string, memberName: string, memberEmail?: string | null) {
     setEditingId(id);
     setName(memberName);
+    setEmail(memberEmail ?? "");
     setDialogOpen(true);
   }
 
   function handleSubmit() {
     if (!name.trim()) return;
     startTransition(async () => {
+      const payload = { name: name.trim(), email: email.trim() || undefined };
       const result = editingId
-        ? await updateFamilyMember({ id: editingId, name: name.trim() })
-        : await createFamilyMember({ name: name.trim() });
+        ? await updateFamilyMember({ id: editingId, ...payload })
+        : await createFamilyMember(payload);
 
       if (!result.success) {
         toast.error(result.error);
@@ -386,9 +398,9 @@ export function FamilyPage({
               <div className="space-y-1 text-sm">
                 <p className="font-medium">Hogyan működik az összekapcsolás?</p>
                 <p className="text-muted-foreground">
-                  A virtuális profilokat hozzáadhatod utazásokhoz anélkül, hogy a személynek
-                  legyen fiókja. Ha később regisztrál, az „Összekapcsolás a fiókommal” gombbal
-                  összekötheted a profilt a valós fiókjával.
+                  Adj meg e-mail címet a virtuális profilokhoz — regisztrációkor automatikusan
+                  összekapcsolódik a fiókkal, és az utazásokhoz is hozzáfér. Kézi összekapcsolás
+                  továbbra is lehetséges.
                 </p>
               </div>
             </div>
@@ -416,6 +428,25 @@ export function FamilyPage({
                   if (e.key === "Enter") handleSubmit();
                 }}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="member-email" className="text-xs">
+                E-mail (opcionális)
+              </Label>
+              <Input
+                id="member-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@pelda.hu"
+                disabled={isPending}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSubmit();
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Ha megadod, regisztrációkor automatikusan összekapcsolódik a profil.
+              </p>
             </div>
           </DialogBody>
           <DialogFooter className="grid grid-cols-2 gap-2">

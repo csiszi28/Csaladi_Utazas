@@ -68,7 +68,8 @@ export async function syncUser(authUser: {
       );
       const linkResult = await autoLinkRegisteredUserToParticipantProfiles(
         user.id,
-        user.name
+        user.name,
+        user.email
       );
       if (linkResult) {
         const { invalidateTripsAndReports } = await import("@/lib/revalidate-app-data");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useMemo } from "react";
+import { useState, useTransition, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, Pencil, Trash2, ExternalLink, Download, Copy, MapPin, Calendar, UserPlus, Receipt } from "lucide-react";
@@ -64,6 +64,8 @@ export function TripDetailPage({
   const [defaultIdeaId, setDefaultIdeaId] = useState<string | undefined>();
   const [defaultCostProgramId, setDefaultCostProgramId] = useState<string | undefined>();
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [inviteOpenSignal, setInviteOpenSignal] = useState(0);
+  const inviteSectionRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<TripDetailTab>("planning");
   const [localCosts, setLocalCosts] = useState(trip.costs);
   const [localDocuments, setLocalDocuments] = useState(trip.documents);
@@ -112,6 +114,14 @@ export function TripDetailPage({
       });
     });
   }, [costsFingerprint, trip.costs]);
+
+  useEffect(() => {
+    if (inviteOpenSignal <= 0) return;
+    const timer = window.setTimeout(() => {
+      inviteSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [inviteOpenSignal]);
 
   useEffect(() => {
     const action = searchParams.get("new");
@@ -271,12 +281,39 @@ export function TripDetailPage({
     <div className="mx-auto w-full max-w-5xl space-y-5 pb-8">
       <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/8 via-card to-card shadow-sm">
         <div className="p-4 sm:p-6">
-          <Button variant="ghost" size="sm" asChild className="-ml-2 mb-3 h-9 w-fit text-muted-foreground">
-            <Link href="/trips" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Vissza az utazásokhoz
-            </Link>
-          </Button>
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <Button variant="ghost" size="sm" asChild className="-ml-2 h-9 w-fit shrink-0 text-muted-foreground">
+              <Link href="/trips" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">Vissza az utazásokhoz</span>
+                <span className="sm:hidden">Vissza</span>
+              </Link>
+            </Button>
+            {isOwner && (
+              <div className="flex shrink-0 gap-1 lg:hidden">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setTripDrawerOpen(true)}
+                  disabled={isPending}
+                  title="Szerkesztés"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={handleDeleteTrip}
+                  disabled={isPending}
+                  title="Törlés"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
 
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0 space-y-3">
@@ -295,18 +332,31 @@ export function TripDetailPage({
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="h-9" asChild>
+              <Button variant="outline" size="sm" className="h-9 min-h-[var(--touch-target)] sm:min-h-9" asChild>
                 <a href={`/api/trips/${trip.id}/calendar`} download>
                   <Download className="mr-2 h-4 w-4" />
                   Naptár
                 </a>
               </Button>
-              <Button variant="outline" size="sm" className="h-9" onClick={() => setDuplicateOpen(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 min-h-[var(--touch-target)] sm:min-h-9"
+                onClick={() => setDuplicateOpen(true)}
+              >
                 <Copy className="mr-2 h-4 w-4" />
                 Másolás
               </Button>
               {isOwner && (
-                <Button variant="outline" size="sm" className="h-9" onClick={() => setActiveTab("planning")}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 min-h-[var(--touch-target)] sm:min-h-9"
+                  onClick={() => {
+                    setActiveTab("planning");
+                    setInviteOpenSignal((n) => n + 1);
+                  }}
+                >
                   <UserPlus className="mr-2 h-4 w-4" />
                   Meghívó
                 </Button>
@@ -314,7 +364,7 @@ export function TripDetailPage({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9"
+                className="hidden h-9 lg:inline-flex"
                 onClick={() => setTripDrawerOpen(true)}
                 disabled={isPending || !isOwner}
               >
@@ -324,7 +374,7 @@ export function TripDetailPage({
               <Button
                 variant="destructive"
                 size="sm"
-                className="h-9"
+                className="hidden h-9 lg:inline-flex"
                 onClick={handleDeleteTrip}
                 disabled={isPending || !isOwner}
               >
@@ -361,13 +411,16 @@ export function TripDetailPage({
       {activeTab === "planning" && (
         <div className="space-y-8">
           {isOwner && (
+            <div ref={inviteSectionRef}>
             <CollapsiblePanel
               title="Meghívó"
               subtitle="Hívd meg a családtagokat az utazásba"
               defaultOpen={false}
+              openSignal={inviteOpenSignal}
             >
               <TripInvitePanel tripId={trip.id} isOwner={isOwner} />
             </CollapsiblePanel>
+            </div>
           )}
 
           <section className="space-y-4">
@@ -660,7 +713,7 @@ export function TripDetailPage({
       )}
 
       {activeTab === "documents" && (
-        <section className="space-y-6 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+        <section className="min-w-0 space-y-6 overflow-hidden rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
           <TripSectionHeading
             title="Dokumentumok"
             description="Utazás és program szintű iratok kategóriával és családtag szerint"

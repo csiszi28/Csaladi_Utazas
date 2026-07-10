@@ -51,7 +51,8 @@ export function TripInvitePanel({
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Add meg ezt a kódot a családtagoknak — regisztráció után az Utazások oldalon tudnak csatlakozni.
+        Add meg ezt a kódot a családtagoknak, vagy állíts be e-mail címet a Család oldalon —
+        regisztrációkor automatikusan összekapcsolódik és hozzáfér az utazásokhoz.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="flex-1 space-y-1">

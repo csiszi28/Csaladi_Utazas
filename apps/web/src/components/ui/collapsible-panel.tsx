@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +8,8 @@ interface CollapsiblePanelProps {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   defaultOpen?: boolean;
+  /** Növelése kívülről kinyitja a panelt */
+  openSignal?: number;
   badge?: React.ReactNode;
   actions?: React.ReactNode;
   /** Mindig látható tartalom a fejléc alatt (pl. URL előnézet kártya) */
@@ -21,6 +23,7 @@ export function CollapsiblePanel({
   title,
   subtitle,
   defaultOpen = false,
+  openSignal,
   badge,
   actions,
   alwaysVisible,
@@ -29,6 +32,12 @@ export function CollapsiblePanel({
   headerClassName,
 }: CollapsiblePanelProps) {
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (openSignal !== undefined && openSignal > 0) {
+      setOpen(true);
+    }
+  }, [openSignal]);
 
   return (
     <section className={cn("rounded-xl border bg-card shadow-sm", className)}>

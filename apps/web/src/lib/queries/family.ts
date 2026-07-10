@@ -32,6 +32,7 @@ const getCachedFamilyMembers = (userId: string) =>
         select: {
           id: true,
           name: true,
+          email: true,
           userId: true,
           linkedUserId: true,
           linkedUser: { select: { id: true, email: true, name: true } },

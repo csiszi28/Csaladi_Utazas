@@ -10,6 +10,7 @@ interface DocumentTableProps {
   documents: DocumentItem[];
   participantNameById?: Map<string, string>;
   programTitleById?: Map<string, string>;
+  tripTitleByDocId?: Map<string, string>;
   onView: (documentId: string) => void;
   onDownload: (documentId: string) => void;
   onDelete: (documentId: string) => void;
@@ -33,6 +34,7 @@ export function DocumentTable({
   documents,
   participantNameById,
   programTitleById,
+  tripTitleByDocId,
   onView,
   onDownload,
   onDelete,
@@ -63,6 +65,11 @@ export function DocumentTable({
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{doc.fileName}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  {tripTitleByDocId?.get(doc.id) && (
+                    <span className="inline-flex max-w-full truncate rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                      {tripTitleByDocId.get(doc.id)}
+                    </span>
+                  )}
                   <span className="inline-flex rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
                     {doc.pending
                       ? "Feltöltés…"

@@ -235,11 +235,11 @@ export function DocumentUpload({
 
   return (
     <div className="min-w-0 space-y-3 overflow-hidden">
-      <div className={compact ? "grid min-w-0 gap-3" : "grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3"}>
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0 space-y-1.5">
           <Label className="text-xs">Dokumentum kategória</Label>
           <Select value={category} onValueChange={(v) => setCategory(v as DocumentCategory)}>
-            <SelectTrigger className="w-full min-w-0 min-h-[var(--touch-target)] sm:min-h-9">
+            <SelectTrigger className="w-full min-w-0 max-w-full min-h-[var(--touch-target)] sm:min-h-9 [&>span]:line-clamp-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -256,7 +256,7 @@ export function DocumentUpload({
           <div className="min-w-0 space-y-1.5">
             <Label className="text-xs">Kinek szól?</Label>
             <Select value={familyMemberId} onValueChange={setFamilyMemberId}>
-              <SelectTrigger className="w-full min-w-0 min-h-[var(--touch-target)] sm:min-h-9">
+              <SelectTrigger className="w-full min-w-0 max-w-full min-h-[var(--touch-target)] sm:min-h-9 [&>span]:line-clamp-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

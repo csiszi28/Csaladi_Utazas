@@ -41,12 +41,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-card shadow-xl transition-transform duration-200 md:hidden",
+              "fixed inset-y-0 left-0 z-50 flex h-[100dvh] flex-col border-r bg-card shadow-xl transition-transform duration-200 md:hidden",
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}
             style={{ width: "min(var(--app-sidebar-width), 88vw)" }}
           >
             <SidebarNav
+              mobileDrawer
               showClose
               onClose={() => setMobileOpen(false)}
               onNavigate={() => setMobileOpen(false)}

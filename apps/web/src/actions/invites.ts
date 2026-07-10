@@ -83,7 +83,7 @@ export async function joinTripWithInviteCode(code: string): Promise<ActionResult
 
   await ensureUserFamilyMembersOnTrip(trip.id, user.id, user.name);
   const { autoClaimMatchingProfile } = await import("@/actions/family");
-  await autoClaimMatchingProfile(trip.id, user.id, user.name);
+  await autoClaimMatchingProfile(trip.id, user.id, user.name, user.email);
 
   invalidateTripsAndReports(user.id, trip.id);
   invalidateTripsAndReports(trip.userId, trip.id);

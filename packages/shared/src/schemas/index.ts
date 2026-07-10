@@ -29,9 +29,23 @@ export const IDEA_AMOUNT_SCOPE_LABELS: Record<IdeaAmountScope, string> = {
 
 export const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export const familyMemberSchema = z.object({
-  name: z.string().min(1, "A név kötelező").max(100),
-});
+export const familyMemberSchema = z
+  .object({
+    name: z.string().min(1, "A név kötelező").max(100),
+    email: z.string().trim().max(200).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.email && data.email.length > 0) {
+      const check = z.string().email().safeParse(data.email);
+      if (!check.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Érvénytelen e-mail cím",
+          path: ["email"],
+        });
+      }
+    }
+  });
 
 export const createFamilyMemberSchema = familyMemberSchema;
 export const updateFamilyMemberSchema = familyMemberSchema.extend({
