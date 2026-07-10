@@ -17,6 +17,7 @@ model User {
   members                   FamilyMember[]
   linkedProfiles            FamilyMember[]     @relation("LinkedFamilyProfile")
   pendingFamilyLinkRequests FamilyMember[]     @relation("PendingFamilyLink")
+  linkProposalResponses     FamilyMember[]     @relation("LinkProposalResponded")
   trips                     Trip[]
   tripCollaborations        TripCollaborator[]
   createdAt                 DateTime           @default(now())
@@ -35,6 +36,11 @@ model FamilyMember {
   linkedUser        User?               @relation("LinkedFamilyProfile", fields: [linkedUserId], references: [id], onDelete: SetNull)
   pendingLinkUserId String?
   pendingLinkUser   User?               @relation("PendingFamilyLink", fields: [pendingLinkUserId], references: [id], onDelete: SetNull)
+  linkProposalOutcome       String?
+  linkProposalOutcomeAt     DateTime?
+  linkProposalOutcomeSeenAt DateTime?
+  linkProposalRespondedUserId String?
+  linkProposalRespondedUser   User? @relation("LinkProposalResponded", fields: [linkProposalRespondedUserId], references: [id], onDelete: SetNull)
   trips             TripParticipant[]
   programs          ProgramParticipant[]
   ideaInterests     TripIdeaInterest[]

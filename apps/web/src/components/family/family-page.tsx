@@ -119,7 +119,7 @@ function FamilyMemberCard({
               {status === "virtual" && (
                 <p className="mt-1 text-sm text-muted-foreground">
                   {member.pendingLinkUser
-                    ? `${member.pendingLinkUser.name} megerősíti bejelentkezéskor az összekapcsolást.`
+                    ? `${member.pendingLinkUser.name} kapott összekapcsolási kérelmet — bejelentkezéskor erősítheti meg.`
                     : member.email
                       ? "Ha regisztrált fiókja van ehhez az e-mail címhez, javasolhatod az összekapcsolást."
                       : "Még nincs regisztrált fiókhoz rendelve — utazásokhoz így is hozzáadható."}
@@ -290,7 +290,8 @@ export function FamilyPage({
       }
 
       const memberId =
-        editingId ?? ("id" in result.data ? result.data.id : undefined);
+        editingId ??
+        ("id" in result.data ? (result.data as { id: string }).id : undefined);
       const matched = result.data.matchedRegisteredUser;
 
       if (matched && memberId) {

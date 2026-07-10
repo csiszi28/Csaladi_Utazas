@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   if (user) {
     try {
       assertDatabaseEnv();
-      await syncUser(user, { allowEmailAutoLink: true });
+      await syncUser(user);
     } catch (err) {
       return NextResponse.redirect(
         `${origin}/auth/login?error=${encodeURIComponent(getDatabaseErrorMessage(err))}`

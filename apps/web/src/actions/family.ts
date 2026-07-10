@@ -3,6 +3,7 @@
 import { prisma } from "@csaladi-utazas/database";
 import { requireUser } from "@/lib/auth";
 import { invalidateFamilyAndCalendar, invalidateTripsAndReports } from "@/lib/revalidate-app-data";
+import { revalidatePath } from "next/cache";
 import {
   createFamilyMemberSchema,
   updateFamilyMemberSchema,
@@ -374,11 +375,18 @@ export async function proposeFamilyMemberLink(data: {
 
   await prisma.familyMember.update({
     where: { id: member.id },
-    data: { pendingLinkUserId: matched.id },
+    data: {
+      pendingLinkUserId: matched.id,
+      linkProposalOutcome: null,
+      linkProposalOutcomeAt: null,
+      linkProposalOutcomeSeenAt: null,
+      linkProposalRespondedUserId: null,
+    },
   });
 
   invalidateFamilyAndCalendar(user.id);
   invalidateFamilyAndCalendar(matched.id);
+  revalidatePath("/", "layout");
   return {
     success: true,
     data: undefined,
@@ -458,10 +466,19 @@ export async function acceptFamilyMemberLinkProposal(
 
   await prisma.familyMember.update({
     where: { id: member.id },
-    data: { linkedUserId: user.id, pendingLinkUserId: null },
+    data: {
+      linkedUserId: user.id,
+      pendingLinkUserId: null,
+      linkProposalOutcome: "ACCEPTED",
+      linkProposalOutcomeAt: new Date(),
+      linkProposalOutcomeSeenAt: null,
+      linkProposalRespondedUserId: user.id,
+    },
   });
 
+  if (member.userId) invalidateFamilyAndCalendar(member.userId);
   await finalizeFamilyMemberLink(member.id, user.id);
+  revalidatePath("/", "layout");
   return { success: true, data: undefined, message: "Profil sikeresen összekapcsolva" };
 }
 
@@ -485,11 +502,47 @@ export async function rejectFamilyMemberLinkProposal(
 
   await prisma.familyMember.update({
     where: { id: member.id },
-    data: { pendingLinkUserId: null },
+    data: {
+      pendingLinkUserId: null,
+      linkProposalOutcome: "REJECTED",
+      linkProposalOutcomeAt: new Date(),
+      linkProposalOutcomeSeenAt: null,
+      linkProposalRespondedUserId: user.id,
+    },
   });
 
   if (member.userId) invalidateFamilyAndCalendar(member.userId);
   invalidateFamilyAndCalendar(user.id);
+  revalidatePath("/", "layout");
+  return { success: true, data: undefined };
+}
+
+/** Küldő elrejti az elfogadás / elutasítás visszajelzést. */
+export async function dismissFamilyLinkProposalOutcome(
+  familyMemberId: string
+): Promise<ActionResult> {
+  const user = await requireUser();
+
+  const member = await prisma.familyMember.findFirst({
+    where: {
+      id: familyMemberId,
+      userId: user.id,
+      linkProposalOutcome: { in: ["ACCEPTED", "REJECTED"] },
+      linkProposalOutcomeSeenAt: null,
+    },
+  });
+
+  if (!member) {
+    return { success: false, error: "Értesítés nem található" };
+  }
+
+  await prisma.familyMember.update({
+    where: { id: member.id },
+    data: { linkProposalOutcomeSeenAt: new Date() },
+  });
+
+  invalidateFamilyAndCalendar(user.id);
+  revalidatePath("/", "layout");
   return { success: true, data: undefined };
 }
 
@@ -572,6 +625,11 @@ export async function autoLinkRegisteredUserToParticipantProfiles(
   userEmail?: string,
   options?: { allowEmailMatch?: boolean }
 ): Promise<{ linkedMemberId: string; tripIds: string[] } | null> {
+  const pendingCount = await prisma.familyMember.count({
+    where: { pendingLinkUserId: userId, linkedUserId: null },
+  });
+  if (pendingCount > 0) return null;
+
   const existingExternal = await findExternalLinkedProfile(userId);
   if (existingExternal) return null;
 

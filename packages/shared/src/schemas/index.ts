@@ -253,8 +253,16 @@ export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
 
 /** Összes érvényes kategória (szűrők, validáció) */
 export const ALL_DOCUMENT_CATEGORIES = [
-  ...TRIP_DOCUMENT_CATEGORIES.filter((c) => c !== "OTHER"),
-  ...PROGRAM_DOCUMENT_CATEGORIES,
+  "PASSPORT",
+  "INSURANCE",
+  "VOUCHER",
+  "TICKET",
+  "PROGRAM_TICKET",
+  "PROGRAM_BOOKING",
+  "PROGRAM_MAP",
+  "PROGRAM_INFO",
+  "PROGRAM_RECEIPT",
+  "OTHER",
 ] as const;
 
 /** Utazás szintű dokumentumokhoz ajánlott kategóriák (checklista) */

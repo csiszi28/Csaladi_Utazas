@@ -54,7 +54,7 @@ export async function syncUserAfterRegisterAction(name: string): Promise<ActionR
 
   try {
     assertDatabaseEnv();
-    await syncUser({ ...user, user_metadata: { name } }, { allowEmailAutoLink: true });
+      await syncUser({ ...user, user_metadata: { name } });
   } catch (err) {
     return { success: false, error: getDatabaseErrorMessage(err) };
   }
@@ -97,6 +97,7 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
     } catch (err) {
       return { success: false, error: getDatabaseErrorMessage(err) };
     }
+    revalidatePath("/", "layout");
   }
 
   return { success: true, data: undefined };

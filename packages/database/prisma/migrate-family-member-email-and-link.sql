@@ -23,3 +23,16 @@ COMMENT ON COLUMN family_members."pendingLinkUserId" IS
 DROP INDEX IF EXISTS family_members_linkedUserId_key;
 
 CREATE INDEX IF NOT EXISTS family_members_linkedUserId_idx ON family_members("linkedUserId");
+
+-- 3. Kérelem kimenetele — visszajelzés a küldőnek (elfogadva / elutasítva)
+ALTER TABLE family_members ADD COLUMN IF NOT EXISTS "linkProposalOutcome" TEXT;
+ALTER TABLE family_members ADD COLUMN IF NOT EXISTS "linkProposalOutcomeAt" TIMESTAMPTZ;
+ALTER TABLE family_members ADD COLUMN IF NOT EXISTS "linkProposalOutcomeSeenAt" TIMESTAMPTZ;
+ALTER TABLE family_members ADD COLUMN IF NOT EXISTS "linkProposalRespondedUserId" TEXT
+  REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE;
+
+CREATE INDEX IF NOT EXISTS family_members_linkProposalOutcome_idx
+  ON family_members("linkProposalOutcome");
+
+CREATE INDEX IF NOT EXISTS family_members_linkProposalRespondedUserId_idx
+  ON family_members("linkProposalRespondedUserId");

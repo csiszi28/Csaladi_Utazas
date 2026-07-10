@@ -1,8 +1,11 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { ConfigErrorPanel } from "@/components/config-error-panel";
-import { FamilyLinkRequestPanel } from "@/components/family/family-link-request-panel";
+import { FamilyLinkNotifications } from "@/components/family/family-link-notifications";
 import { probeDatabase, validateAppEnv } from "@/lib/env";
-import { fetchPendingFamilyLinkRequests } from "@/lib/queries/family-links";
+import {
+  fetchPendingFamilyLinkRequests,
+  fetchUnseenFamilyLinkProposalOutcomes,
+} from "@/lib/queries/family-links";
 
 export default async function DashboardRouteLayout({
   children,
@@ -19,18 +22,28 @@ export default async function DashboardRouteLayout({
     return <ConfigErrorPanel message={dbError} />;
   }
 
-  let pendingLinkRequests: Awaited<ReturnType<typeof fetchPendingFamilyLinkRequests>> = [];
+  let incomingRequests: Awaited<ReturnType<typeof fetchPendingFamilyLinkRequests>> = [];
+  let proposalOutcomes: Awaited<ReturnType<typeof fetchUnseenFamilyLinkProposalOutcomes>> = [];
+
   try {
-    pendingLinkRequests = await fetchPendingFamilyLinkRequests();
-  } catch {
-    // Pl. ha a pendingLinkUserId oszlop vagy a friss Prisma kliens még nincs telepítve
-    pendingLinkRequests = [];
+    incomingRequests = await fetchPendingFamilyLinkRequests();
+  } catch (err) {
+    console.error("[FamilyLinkNotifications] pending requests fetch failed:", err);
+  }
+
+  try {
+    proposalOutcomes = await fetchUnseenFamilyLinkProposalOutcomes();
+  } catch (err) {
+    console.error("[FamilyLinkNotifications] proposal outcomes fetch failed:", err);
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <FamilyLinkRequestPanel requests={pendingLinkRequests} />
+      <div className="mx-auto w-full max-w-5xl space-y-6">
+        <FamilyLinkNotifications
+          incomingRequests={incomingRequests}
+          proposalOutcomes={proposalOutcomes}
+        />
         {children}
       </div>
     </DashboardLayout>
