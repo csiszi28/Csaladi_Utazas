@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  email              String             @unique
+  name               String
+  members            FamilyMember[]
+  linkedProfiles     FamilyMember[]     @relation("LinkedFamilyProfile")
+  trips              Trip[]
+  tripCollaborations TripCollaborator[]
+  createdAt          DateTime           @default(now())
+  ideaMessages       TripIdeaMessage[]
+
+  @@map("users")
+}
+
+model FamilyMember {
+  id            String              @id @default(uuid())
+  name          String
+  userId        String?
+  user          User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedUserId  String?             @unique
+  linkedUser    User?               @relation("LinkedFamilyProfile", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  trips         TripParticipant[]
+  programs      ProgramParticipant[]
+  ideaInterests TripIdeaInterest[]
+  paidCosts     Cost[]
+  documents     Document[]
+
+  @@index([userId])
+  @@index([linkedUserId])
+  @@map("family_members")
+}
+
+model Trip {
+  id             String             @id @default(uuid())
+  title          String
+  destination    String
+  startDate      DateTime
+  endDate        DateTime
+  budgetAmount   Float?
+  budgetCurrency String             @default("HUF")
+  userId         String
+  inviteCode     String?            @unique
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participants  TripParticipant[]
+  programs      Program[]
+  costs         Cost[]
+  documents     Document[]
+  collaborators TripCollaborator[]
+  ideas         TripIdea[]
+
+  @@index([userId])
+  @@index([startDate, endDate])
+  @@map("trips")
+}
+
+model TripCollaborator {
+  id       String   @id @default(uuid())
+  tripId   String
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([tripId, userId])
+  @@index([userId])
+  @@map("trip_collaborators")
+}
+
+model TripParticipant {
+  id             String       @id @default(uuid())
+  tripId         String
+  trip           Trip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  familyMemberId String
+  familyMember   FamilyMember @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, familyMemberId])
+  @@index([tripId])
+  @@map("trip_participants")
+}
+
+model Program {
+  id           String               @id @default(uuid())
+  tripId       String
+  trip         Trip                 @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  ideaId       String?
+  idea         TripIdea?            @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  title        String
+  date         DateTime
+  startTime    String?
+  endTime      String?
+  location     String?
+  url          String
+  participants ProgramParticipant[]
+  costs        Cost[]
+  documents    Document[]
+
+  @@index([tripId])
+  @@index([ideaId])
+  @@index([date])
+  @@map("programs")
+}
+
+model TripIdea {
+  id          String             @id @default(uuid())
+  tripId      String
+  trip        Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  title       String
+  url         String?
+  amount      Float?
+  currency    String             @default("HUF")
+  amountScope String             @default("TOTAL")
+  category    String             @default("OTHER")
+  note        String?
+  interests   TripIdeaInterest[]
+  messages    TripIdeaMessage[]
+  programs    Program[]
+  createdAt   DateTime           @default(now())
+
+  @@index([tripId])
+  @@map("trip_ideas")
+}
+
+model TripIdeaMessage {
+  id        String   @id @default(uuid())
+  ideaId    String
+  idea      TripIdea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([ideaId, createdAt])
+  @@map("trip_idea_messages")
+}
+
+model TripIdeaInterest {
+  id             String       @id @default(uuid())
+  ideaId         String
+  idea           TripIdea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  familyMemberId String
+  familyMember   FamilyMember @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, familyMemberId])
+  @@index([ideaId])
+  @@map("trip_idea_interests")
+}
+
+model ProgramParticipant {
+  id             String       @id @default(uuid())
+  programId      String
+  program        Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  familyMemberId String
+  familyMember   FamilyMember @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, familyMemberId])
+  @@index([programId])
+  @@map("program_participants")
+}
+
+model Cost {
+  id                   String        @id @default(uuid())
+  tripId               String
+  trip                 Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  programId            String?
+  program              Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  paidByFamilyMemberId String?
+  paidBy               FamilyMember? @relation(fields: [paidByFamilyMemberId], references: [id], onDelete: SetNull)
+  amount               Float
+  currency             String        @default("HUF")
+  amountScope          String        @default("TOTAL")
+  category             String
+  title                String
+
+  @@index([tripId])
+  @@index([programId])
+  @@index([paidByFamilyMemberId])
+  @@map("costs")
+}
+
+model Document {
+  id               String        @id @default(uuid())
+  tripId           String
+  trip             Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  programId        String?
+  program          Program?      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  familyMemberId   String?
+  familyMember     FamilyMember? @relation(fields: [familyMemberId], references: [id], onDelete: SetNull)
+  category         String        @default("OTHER")
+  fileName         String
+  storagePath      String
+  mimeType         String
+  sizeBytes        Int
+  uploadedAt       DateTime      @default(now())
+
+  @@index([tripId])
+  @@index([programId])
+  @@index([category])
+  @@index([familyMemberId])
+  @@map("documents")
+}

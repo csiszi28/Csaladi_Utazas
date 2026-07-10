@@ -1,0 +1,16 @@
+node_modules
+.next
+.turbo
+dist
+packages/database/src/generated
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+
+# Serwist (generált service worker)
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js
+public/swe-worker-*.js.map
