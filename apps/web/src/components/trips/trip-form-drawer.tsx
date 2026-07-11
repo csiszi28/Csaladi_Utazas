@@ -134,7 +134,7 @@ export function TripFormDrawer({
             <Label className="text-xs">Desztináció</Label>
             <Input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="pl. Dubrovnik" disabled={isPending} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Kezdő dátum</Label>
               <DatePicker value={startDate} onChange={handleStartDateChange} />

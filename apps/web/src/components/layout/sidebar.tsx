@@ -83,8 +83,9 @@ export function SidebarNav({ onNavigate, showClose, onClose, mobileDrawer }: Sid
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 font-medium transition-colors touch-manipulation",
                 "text-sm min-h-[var(--touch-target)]",
+                "active:scale-[0.98] active:opacity-90",
                 isActive
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -111,7 +112,7 @@ export function SidebarNav({ onNavigate, showClose, onClose, mobileDrawer }: Sid
 export function DesktopSidebar() {
   return (
     <aside
-      className="hidden min-h-screen shrink-0 flex-col border-r bg-card md:flex"
+      className="hidden h-full shrink-0 flex-col overflow-hidden border-r bg-card md:flex"
       style={{ width: "var(--app-sidebar-width)" }}
     >
       <SidebarNav />

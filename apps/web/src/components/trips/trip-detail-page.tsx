@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition, useEffect, useMemo, useRef } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Plus, Pencil, Trash2, ExternalLink, Download, Copy, MapPin, Calendar, UserPlus, Receipt } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, ExternalLink, Download, Copy, MapPin, Calendar, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate, COST_CATEGORY_LABELS } from "@csaladi-utazas/shared";
 import { MoneyDisplay } from "@/components/money-display";
@@ -64,8 +64,6 @@ export function TripDetailPage({
   const [defaultIdeaId, setDefaultIdeaId] = useState<string | undefined>();
   const [defaultCostProgramId, setDefaultCostProgramId] = useState<string | undefined>();
   const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [inviteOpenSignal, setInviteOpenSignal] = useState(0);
-  const inviteSectionRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<TripDetailTab>("planning");
   const [localCosts, setLocalCosts] = useState(trip.costs);
   const [localDocuments, setLocalDocuments] = useState(trip.documents);
@@ -114,14 +112,6 @@ export function TripDetailPage({
       });
     });
   }, [costsFingerprint, trip.costs]);
-
-  useEffect(() => {
-    if (inviteOpenSignal <= 0) return;
-    const timer = window.setTimeout(() => {
-      inviteSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
-    return () => window.clearTimeout(timer);
-  }, [inviteOpenSignal]);
 
   useEffect(() => {
     const action = searchParams.get("new");
@@ -349,20 +339,6 @@ export function TripDetailPage({
                 <Copy className="mr-2 h-4 w-4" />
                 Másolás
               </Button>
-              {isOwner && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 min-h-[var(--touch-target)] sm:min-h-9"
-                  onClick={() => {
-                    setActiveTab("planning");
-                    setInviteOpenSignal((n) => n + 1);
-                  }}
-                >
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Meghívó
-                </Button>
-              )}
             </div>
           </div>
         </div>
@@ -393,16 +369,13 @@ export function TripDetailPage({
       {activeTab === "planning" && (
         <div className="space-y-8">
           {isOwner && (
-            <div ref={inviteSectionRef}>
             <CollapsiblePanel
               title="Meghívó"
               subtitle="Hívd meg a családtagokat az utazásba"
               defaultOpen={false}
-              openSignal={inviteOpenSignal}
             >
               <TripInvitePanel tripId={trip.id} isOwner={isOwner} />
             </CollapsiblePanel>
-            </div>
           )}
 
           <section className="space-y-4">

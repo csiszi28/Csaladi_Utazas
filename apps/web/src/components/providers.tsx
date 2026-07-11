@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
+import { AppSplash } from "@/components/pwa/app-splash";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -21,6 +22,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AppSplash />
       {children}
       <PwaRegister />
       <PwaInstallPrompt />

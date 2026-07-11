@@ -27,7 +27,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <ExchangeRatesProvider>
       <DashboardShell>
-        <div className="flex min-h-[100dvh] bg-background">
+        <div className="flex h-[100dvh] overflow-hidden bg-background">
           <DesktopSidebar />
 
           {mobileOpen && (
@@ -54,8 +54,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             />
           </aside>
 
-          <div className="flex min-w-0 flex-1 flex-col">
-            <main className="flex-1 overflow-auto">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
               <div
                 className="sticky top-0 z-20 flex items-center gap-3 bg-background px-[var(--app-content-padding)] pt-[max(var(--app-content-padding),env(safe-area-inset-top))] pb-2 md:hidden"
               >

@@ -126,7 +126,7 @@ function TripCard({
       </div>
 
       <div className="relative z-10 flex flex-wrap gap-2 border-t bg-muted/20 px-4 py-3 sm:px-5">
-        <Button asChild size="sm" className="min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none">
+        <Button asChild size="sm" className="relative z-20 min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none">
           <Link href={`/trips/${trip.id}`}>
             Részletek
             <ArrowRight className="ml-2 h-4 w-4" />
@@ -136,7 +136,7 @@ function TripCard({
           asChild
           size="sm"
           variant="outline"
-          className="min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none"
+          className="relative z-20 min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none"
         >
           <Link href={`/trips/${trip.id}?new=program`}>+ Program</Link>
         </Button>
@@ -144,7 +144,7 @@ function TripCard({
           asChild
           size="sm"
           variant="outline"
-          className="min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none"
+          className="relative z-20 min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none"
         >
           <Link href={`/trips/${trip.id}?new=cost`}>+ Költség</Link>
         </Button>
