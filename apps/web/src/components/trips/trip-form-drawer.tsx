@@ -137,11 +137,11 @@ export function TripFormDrawer({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Kezdő dátum</Label>
-              <DatePicker value={startDate} onChange={handleStartDateChange} />
+              <DatePicker value={startDate} onChange={handleStartDateChange} inDialog />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Záró dátum</Label>
-              <DatePicker value={endDate} onChange={setEndDate} minDate={startDate || undefined} />
+              <DatePicker value={endDate} onChange={setEndDate} minDate={startDate || undefined} inDialog />
             </div>
           </div>
           <div className="space-y-1.5">

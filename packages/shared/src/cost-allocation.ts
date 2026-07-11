@@ -16,6 +16,7 @@ export interface AllocCost {
   currency: string;
   amountScope?: string;
   programId?: string | null;
+  accommodationId?: string | null;
   category: string;
 }
 
@@ -27,6 +28,15 @@ export interface AllocProgram {
   costs: AllocCost[];
 }
 
+export interface AllocAccommodation {
+  id: string;
+  title: string;
+  checkIn: Date;
+  checkOut: Date;
+  participantIds: string[];
+  costs: AllocCost[];
+}
+
 export interface TripCostContext {
   id: string;
   title: string;
@@ -34,6 +44,7 @@ export interface TripCostContext {
   endDate: Date;
   participants: CostParticipant[];
   programs: AllocProgram[];
+  accommodations?: AllocAccommodation[];
   tripLevelCosts: AllocCost[];
 }
 
@@ -66,6 +77,16 @@ export interface ProgramCostBreakdown {
   items: CostLineItem[];
 }
 
+export interface AccommodationCostBreakdown {
+  id: string;
+  title: string;
+  checkIn: string;
+  checkOut: string;
+  totalHuf: number;
+  perPerson: PersonAmount[];
+  items: CostLineItem[];
+}
+
 export interface TripCostBreakdown {
   tripId: string;
   title: string;
@@ -77,11 +98,30 @@ export interface TripCostBreakdown {
   perPerson: PersonAmount[];
   days: DayCostBreakdown[];
   programs: ProgramCostBreakdown[];
+  accommodations: AccommodationCostBreakdown[];
 }
 
 function tripDayCount(start: Date, end: Date): number {
   const ms = new Date(end).setHours(0, 0, 0, 0) - new Date(start).setHours(0, 0, 0, 0);
   return Math.max(1, Math.floor(ms / 86_400_000) + 1);
+}
+
+function accommodationNightCount(checkIn: Date, checkOut: Date): number {
+  const start = new Date(checkIn);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(checkOut);
+  end.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86_400_000));
+}
+
+function isAccommodationNight(day: Date, checkIn: Date, checkOut: Date): boolean {
+  const d = new Date(day);
+  d.setHours(0, 0, 0, 0);
+  const start = new Date(checkIn);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(checkOut);
+  end.setHours(0, 0, 0, 0);
+  return d >= start && d < end;
 }
 
 function splitAmong(ids: string[], amountHuf: number): Map<string, number> {
@@ -169,6 +209,22 @@ export function buildTripCostBreakdown(
       }
     }
 
+    for (const accommodation of trip.accommodations ?? []) {
+      if (!isAccommodationNight(cursor, accommodation.checkIn, accommodation.checkOut)) continue;
+      const nights = accommodationNightCount(accommodation.checkIn, accommodation.checkOut);
+      const nightlyShare = 1 / nights;
+      const ids =
+        accommodation.participantIds.length > 0
+          ? accommodation.participantIds
+          : participantIds;
+      for (const cost of accommodation.costs) {
+        const line = buildCostLine(cost, ids, trip.participants, rates, nightlyShare);
+        items.push(line);
+        addToMap(dayMap, splitAmong(ids, line.totalHuf));
+        addToMap(totalMap, splitAmong(ids, line.totalHuf));
+      }
+    }
+
     const totalHuf = Math.round([...dayMap.values()].reduce((s, v) => s + v, 0));
     if (items.length > 0 || totalHuf > 0) {
       days.push({
@@ -201,6 +257,31 @@ export function buildTripCostBreakdown(
     };
   });
 
+  const accommodations: AccommodationCostBreakdown[] = (trip.accommodations ?? []).map(
+    (accommodation) => {
+      const ids =
+        accommodation.participantIds.length > 0
+          ? accommodation.participantIds
+          : participantIds;
+      const accMap = new Map<string, number>();
+      const items = accommodation.costs.map((cost) => {
+        const line = buildCostLine(cost, ids, trip.participants, rates);
+        addToMap(accMap, splitAmong(ids, line.totalHuf));
+        return line;
+      });
+      const totalHuf = Math.round([...accMap.values()].reduce((s, v) => s + v, 0));
+      return {
+        id: accommodation.id,
+        title: accommodation.title,
+        checkIn: formatDate(accommodation.checkIn),
+        checkOut: formatDate(accommodation.checkOut),
+        totalHuf,
+        perPerson: mergePersonAmounts(trip.participants, accMap),
+        items,
+      };
+    }
+  );
+
   const totalHuf = Math.round([...totalMap.values()].reduce((s, v) => s + v, 0));
 
   return {
@@ -211,6 +292,7 @@ export function buildTripCostBreakdown(
     perPerson: mergePersonAmounts(trip.participants, totalMap),
     days,
     programs: programs.filter((p) => p.totalHuf > 0),
+    accommodations: accommodations.filter((a) => a.totalHuf > 0),
   };
 }
 

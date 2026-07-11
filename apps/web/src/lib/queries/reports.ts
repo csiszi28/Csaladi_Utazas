@@ -45,12 +45,36 @@ async function buildReportsForUser(userId: string) {
               currency: true,
               amountScope: true,
               programId: true,
+              accommodationId: true,
               category: true,
               paidByFamilyMemberId: true,
             },
           },
         },
         orderBy: { date: "asc" },
+      },
+      accommodations: {
+        select: {
+          id: true,
+          title: true,
+          checkIn: true,
+          checkOut: true,
+          participants: { select: { familyMemberId: true } },
+          costs: {
+            select: {
+              id: true,
+              title: true,
+              amount: true,
+              currency: true,
+              amountScope: true,
+              programId: true,
+              accommodationId: true,
+              category: true,
+              paidByFamilyMemberId: true,
+            },
+          },
+        },
+        orderBy: { checkIn: "asc" },
       },
       costs: {
         select: {
@@ -60,6 +84,7 @@ async function buildReportsForUser(userId: string) {
           currency: true,
           amountScope: true,
           programId: true,
+          accommodationId: true,
           category: true,
           paidByFamilyMemberId: true,
         },
@@ -85,8 +110,16 @@ async function buildReportsForUser(userId: string) {
         participantIds: p.participants.map((x) => x.familyMemberId),
         costs: p.costs.map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
       })),
+      accommodations: trip.accommodations.map((a) => ({
+        id: a.id,
+        title: a.title,
+        checkIn: a.checkIn,
+        checkOut: a.checkOut,
+        participantIds: a.participants.map((x) => x.familyMemberId),
+        costs: a.costs.map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
+      })),
       tripLevelCosts: trip.costs
-        .filter((c) => !c.programId)
+        .filter((c) => !c.programId && !c.accommodationId)
         .map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
     };
 
@@ -100,6 +133,10 @@ async function buildReportsForUser(userId: string) {
         programs: trip.programs.map((p) => ({
           id: p.id,
           participantIds: p.participants.map((x) => x.familyMemberId),
+        })),
+        accommodations: trip.accommodations.map((a) => ({
+          id: a.id,
+          participantIds: a.participants.map((x) => x.familyMemberId),
         })),
         costs: trip.costs.map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
       },

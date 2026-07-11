@@ -42,7 +42,7 @@ type DetailTab = "person" | "day" | "program" | "settlement";
 const DETAIL_TABS: { id: DetailTab; label: string }[] = [
   { id: "person", label: "Fejenként" },
   { id: "day", label: "Naponként" },
-  { id: "program", label: "Programonként" },
+  { id: "program", label: "Program / szállás" },
   { id: "settlement", label: "Elszámolás" },
 ];
 
@@ -388,29 +388,53 @@ export function ReportsPage({ data }: { data: ReportsData }) {
 
             {detailTab === "program" && (
               <div className="space-y-3">
-                {selectedTrip.programs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nincs programhoz kötött költség.</p>
+                {selectedTrip.programs.length === 0 && selectedTrip.accommodations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nincs programhoz vagy szálláshoz kötött költség.
+                  </p>
                 ) : (
-                  selectedTrip.programs.map((program) => (
-                    <article key={program.id} className="overflow-hidden rounded-2xl border">
-                      <div className="flex flex-col gap-1 border-b bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-                        <span className="font-medium">
-                          {program.title}
-                          <span className="mt-0.5 block text-sm font-normal text-muted-foreground sm:mt-0 sm:inline sm:before:content-['_·_']">
-                            {program.date}
+                  <>
+                    {selectedTrip.programs.map((program) => (
+                      <article key={program.id} className="overflow-hidden rounded-2xl border">
+                        <div className="flex flex-col gap-1 border-b bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                          <span className="font-medium">
+                            {program.title}
+                            <span className="mt-0.5 block text-sm font-normal text-muted-foreground sm:mt-0 sm:inline sm:before:content-['_·_']">
+                              {program.date}
+                            </span>
                           </span>
-                        </span>
-                        <span className="font-semibold">{huf(program.totalHuf)}</span>
-                      </div>
-                      <div className="space-y-1.5 p-3 sm:p-4">
-                        {program.perPerson
-                          .filter((p) => p.amountHuf > 0)
-                          .map((p) => (
-                            <DetailRow key={p.id} label={p.name} value={huf(p.amountHuf)} />
-                          ))}
-                      </div>
-                    </article>
-                  ))
+                          <span className="font-semibold">{huf(program.totalHuf)}</span>
+                        </div>
+                        <div className="space-y-1.5 p-3 sm:p-4">
+                          {program.perPerson
+                            .filter((p) => p.amountHuf > 0)
+                            .map((p) => (
+                              <DetailRow key={p.id} label={p.name} value={huf(p.amountHuf)} />
+                            ))}
+                        </div>
+                      </article>
+                    ))}
+                    {selectedTrip.accommodations.map((accommodation) => (
+                      <article key={accommodation.id} className="overflow-hidden rounded-2xl border">
+                        <div className="flex flex-col gap-1 border-b bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                          <span className="font-medium">
+                            🏨 {accommodation.title}
+                            <span className="mt-0.5 block text-sm font-normal text-muted-foreground sm:mt-0 sm:inline sm:before:content-['_·_']">
+                              {accommodation.checkIn} – {accommodation.checkOut}
+                            </span>
+                          </span>
+                          <span className="font-semibold">{huf(accommodation.totalHuf)}</span>
+                        </div>
+                        <div className="space-y-1.5 p-3 sm:p-4">
+                          {accommodation.perPerson
+                            .filter((p) => p.amountHuf > 0)
+                            .map((p) => (
+                              <DetailRow key={p.id} label={p.name} value={huf(p.amountHuf)} />
+                            ))}
+                        </div>
+                      </article>
+                    ))}
+                  </>
                 )}
               </div>
             )}

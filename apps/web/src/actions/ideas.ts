@@ -14,6 +14,40 @@ import {
 } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 import { findAccessibleTrip } from "@/lib/trip-access";
+import { isDateInRange, parseDate } from "@csaladi-utazas/shared";
+
+function parseOptionalIdeaDate(value?: string | null): Date | null {
+  if (!value) return null;
+  return parseDate(value);
+}
+
+async function validateIdeaStayDates(
+  tripId: string,
+  checkInDate: Date | null,
+  checkOutDate: Date | null
+): Promise<string | null> {
+  if (!checkInDate && !checkOutDate) return null;
+  if (!checkInDate || !checkOutDate) {
+    return "A be- és kijelentkezés dátuma együtt kötelező";
+  }
+  if (checkOutDate <= checkInDate) {
+    return "A kijelentkezés dátuma későbbi kell legyen a bejelentkezésnél";
+  }
+
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId },
+    select: { startDate: true, endDate: true },
+  });
+  if (!trip) return "Utazás nem található";
+
+  if (!isDateInRange(checkInDate, trip.startDate, trip.endDate)) {
+    return "A bejelentkezés dátuma az utazás időtartamán belül kell legyen";
+  }
+  if (!isDateInRange(checkOutDate, trip.startDate, trip.endDate)) {
+    return "A kijelentkezés dátuma az utazás időtartamán belül kell legyen";
+  }
+  return null;
+}
 
 async function assertTripParticipant(tripId: string, familyMemberId: string) {
   const participant = await prisma.tripParticipant.findFirst({
@@ -75,6 +109,8 @@ export async function createTripIdea(data: {
   currency?: string;
   amountScope?: string;
   category?: string;
+  checkInDate?: string | null;
+  checkOutDate?: string | null;
   interestedParticipantIds?: string[];
 }): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
@@ -89,6 +125,13 @@ export async function createTripIdea(data: {
     return { success: false, error: "Utazás nem található" };
   }
 
+  const checkInDate = parseOptionalIdeaDate(parsed.data.checkInDate);
+  const checkOutDate = parseOptionalIdeaDate(parsed.data.checkOutDate);
+  const dateError = await validateIdeaStayDates(parsed.data.tripId, checkInDate, checkOutDate);
+  if (dateError) {
+    return { success: false, error: dateError };
+  }
+
   const idea = await prisma.tripIdea.create({
     data: {
       tripId: parsed.data.tripId,
@@ -98,6 +141,8 @@ export async function createTripIdea(data: {
       currency: parsed.data.currency ?? "HUF",
       amountScope: parsed.data.amountScope ?? "TOTAL",
       category: parsed.data.category ?? "OTHER",
+      checkInDate,
+      checkOutDate,
     },
   });
 
@@ -128,6 +173,8 @@ export async function updateTripIdea(data: {
   currency?: string;
   amountScope?: string;
   category?: string;
+  checkInDate?: string | null;
+  checkOutDate?: string | null;
   interestedParticipantIds?: string[];
 }): Promise<ActionResult> {
   const user = await requireUser();
@@ -142,6 +189,13 @@ export async function updateTripIdea(data: {
     return { success: false, error: "Ötlet nem található" };
   }
 
+  const checkInDate = parseOptionalIdeaDate(parsed.data.checkInDate);
+  const checkOutDate = parseOptionalIdeaDate(parsed.data.checkOutDate);
+  const dateError = await validateIdeaStayDates(parsed.data.tripId, checkInDate, checkOutDate);
+  if (dateError) {
+    return { success: false, error: dateError };
+  }
+
   await prisma.tripIdea.update({
     where: { id: parsed.data.id },
     data: {
@@ -151,6 +205,8 @@ export async function updateTripIdea(data: {
       currency: parsed.data.currency ?? "HUF",
       amountScope: parsed.data.amountScope ?? "TOTAL",
       category: parsed.data.category ?? "OTHER",
+      checkInDate,
+      checkOutDate,
     },
   });
 

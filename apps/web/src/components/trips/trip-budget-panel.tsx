@@ -30,6 +30,24 @@ interface TripBudgetPanelProps {
         currency: string;
         amountScope?: string;
         programId?: string | null;
+        accommodationId?: string | null;
+        category: string;
+      }[];
+    }[];
+    accommodations?: {
+      id: string;
+      title: string;
+      checkIn: Date;
+      checkOut: Date;
+      participants: { familyMember: { id: string } }[];
+      costs: {
+        id: string;
+        title: string;
+        amount: number;
+        currency: string;
+        amountScope?: string;
+        programId?: string | null;
+        accommodationId?: string | null;
         category: string;
       }[];
     }[];
@@ -40,6 +58,7 @@ interface TripBudgetPanelProps {
       currency: string;
       amountScope?: string;
       programId?: string | null;
+      accommodationId?: string | null;
       category: string;
     }[];
     ideas: {
@@ -89,8 +108,16 @@ export function TripBudgetPanel({ trip }: TripBudgetPanelProps) {
         participantIds: p.participants.map((x) => x.familyMember.id),
         costs: p.costs.map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
       })),
+      accommodations: (trip.accommodations ?? []).map((a) => ({
+        id: a.id,
+        title: a.title,
+        checkIn: a.checkIn,
+        checkOut: a.checkOut,
+        participantIds: a.participants.map((x) => x.familyMember.id),
+        costs: a.costs.map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
+      })),
       tripLevelCosts: trip.costs
-        .filter((c) => !c.programId)
+        .filter((c) => !c.programId && !c.accommodationId)
         .map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
     };
 

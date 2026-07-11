@@ -43,6 +43,7 @@ model FamilyMember {
   linkProposalRespondedUser   User? @relation("LinkProposalResponded", fields: [linkProposalRespondedUserId], references: [id], onDelete: SetNull)
   trips             TripParticipant[]
   programs          ProgramParticipant[]
+  accommodations    AccommodationParticipant[]
   ideaInterests     TripIdeaInterest[]
   paidCosts         Cost[]
   documents         Document[]
@@ -66,11 +67,12 @@ model Trip {
   inviteCode     String?            @unique
   user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   participants  TripParticipant[]
-  programs      Program[]
-  costs         Cost[]
-  documents     Document[]
-  collaborators TripCollaborator[]
-  ideas         TripIdea[]
+  programs       Program[]
+  accommodations Accommodation[]
+  costs          Cost[]
+  documents      Document[]
+  collaborators  TripCollaborator[]
+  ideas          TripIdea[]
 
   @@index([userId])
   @@index([startDate, endDate])
@@ -125,23 +127,60 @@ model Program {
 }
 
 model TripIdea {
-  id          String             @id @default(uuid())
-  tripId      String
-  trip        Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  title       String
-  url         String?
-  amount      Float?
-  currency    String             @default("HUF")
-  amountScope String             @default("TOTAL")
-  category    String             @default("OTHER")
-  note        String?
-  interests   TripIdeaInterest[]
-  messages    TripIdeaMessage[]
-  programs    Program[]
-  createdAt   DateTime           @default(now())
+  id             String             @id @default(uuid())
+  tripId         String
+  trip           Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  title          String
+  url            String?
+  amount         Float?
+  currency       String             @default("HUF")
+  amountScope    String             @default("TOTAL")
+  category       String             @default("OTHER")
+  checkInDate    DateTime?
+  checkOutDate   DateTime?
+  note           String?
+  interests      TripIdeaInterest[]
+  messages       TripIdeaMessage[]
+  programs       Program[]
+  accommodations Accommodation[]
+  createdAt      DateTime           @default(now())
 
   @@index([tripId])
   @@map("trip_ideas")
+}
+
+model Accommodation {
+  id           String                     @id @default(uuid())
+  tripId       String
+  trip         Trip                       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  ideaId       String?
+  idea         TripIdea?                  @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  title        String
+  url          String?
+  checkIn      DateTime
+  checkOut     DateTime
+  location     String?
+  note         String?
+  participants AccommodationParticipant[]
+  costs        Cost[]
+  documents    Document[]
+
+  @@index([tripId])
+  @@index([ideaId])
+  @@index([checkIn])
+  @@map("accommodations")
+}
+
+model AccommodationParticipant {
+  id              String        @id @default(uuid())
+  accommodationId String
+  accommodation   Accommodation @relation(fields: [accommodationId], references: [id], onDelete: Cascade)
+  familyMemberId  String
+  familyMember    FamilyMember  @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([accommodationId, familyMemberId])
+  @@index([accommodationId])
+  @@map("accommodation_participants")
 }
 
 model TripIdeaMessage {
@@ -182,42 +221,48 @@ model ProgramParticipant {
 }
 
 model Cost {
-  id                   String        @id @default(uuid())
+  id                   String         @id @default(uuid())
   tripId               String
-  trip                 Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip                 Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
   programId            String?
-  program              Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  program              Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
+  accommodationId      String?
+  accommodation        Accommodation? @relation(fields: [accommodationId], references: [id], onDelete: SetNull)
   paidByFamilyMemberId String?
-  paidBy               FamilyMember? @relation(fields: [paidByFamilyMemberId], references: [id], onDelete: SetNull)
+  paidBy               FamilyMember?  @relation(fields: [paidByFamilyMemberId], references: [id], onDelete: SetNull)
   amount               Float
-  currency             String        @default("HUF")
-  amountScope          String        @default("TOTAL")
+  currency             String         @default("HUF")
+  amountScope          String         @default("TOTAL")
   category             String
   title                String
 
   @@index([tripId])
   @@index([programId])
+  @@index([accommodationId])
   @@index([paidByFamilyMemberId])
   @@map("costs")
 }
 
 model Document {
-  id               String        @id @default(uuid())
+  id               String         @id @default(uuid())
   tripId           String
-  trip             Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip             Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
   programId        String?
-  program          Program?      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program          Program?       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  accommodationId  String?
+  accommodation    Accommodation? @relation(fields: [accommodationId], references: [id], onDelete: Cascade)
   familyMemberId   String?
-  familyMember     FamilyMember? @relation(fields: [familyMemberId], references: [id], onDelete: SetNull)
-  category         String        @default("OTHER")
+  familyMember     FamilyMember?  @relation(fields: [familyMemberId], references: [id], onDelete: SetNull)
+  category         String         @default("OTHER")
   fileName         String
   storagePath      String
   mimeType         String
   sizeBytes        Int
-  uploadedAt       DateTime      @default(now())
+  uploadedAt       DateTime       @default(now())
 
   @@index([tripId])
   @@index([programId])
+  @@index([accommodationId])
   @@index([category])
   @@index([familyMemberId])
   @@map("documents")

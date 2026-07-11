@@ -56,6 +56,30 @@ const calendarSelect = {
     },
     orderBy: [{ date: "asc" as const }, { startTime: "asc" as const }],
   },
+  accommodations: {
+    select: {
+      id: true,
+      title: true,
+      checkIn: true,
+      checkOut: true,
+      location: true,
+      url: true,
+      participants: {
+        select: { familyMember: { select: { id: true, name: true } } },
+      },
+      costs: {
+        select: {
+          id: true,
+          amount: true,
+          currency: true,
+          title: true,
+          category: true,
+          amountScope: true,
+        },
+      },
+    },
+    orderBy: { checkIn: "asc" as const },
+  },
   costs: {
     select: {
       id: true,
@@ -63,6 +87,7 @@ const calendarSelect = {
       currency: true,
       title: true,
       programId: true,
+      accommodationId: true,
       category: true,
       amountScope: true,
     },
@@ -76,6 +101,8 @@ const calendarSelect = {
       currency: true,
       amountScope: true,
       category: true,
+      checkInDate: true,
+      checkOutDate: true,
       interests: {
         select: { familyMember: { select: { id: true, name: true } } },
       },
@@ -97,6 +124,13 @@ const tripDetailInclude = {
       },
     },
     orderBy: { createdAt: "asc" as const },
+  },
+  accommodations: {
+    include: {
+      participants: { include: { familyMember: true } },
+      costs: true,
+    },
+    orderBy: { checkIn: "asc" as const },
   },
   programs: {
     include: {

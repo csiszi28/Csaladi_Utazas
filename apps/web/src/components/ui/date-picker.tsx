@@ -1,16 +1,14 @@
 "use client";
 
 import * as React from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { DayPicker, type SelectSingleEventHandler } from "react-day-picker";
+import { createPortal } from "react-dom";
+import { DayPicker, type Modifiers, type WeekProps } from "react-day-picker";
 import { format } from "date-fns";
 import { hu } from "date-fns/locale";
 import { formatDate } from "@csaladi-utazas/shared";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
 import "react-day-picker/style.css";
 
 interface DatePickerProps {
@@ -20,9 +18,72 @@ interface DatePickerProps {
   className?: string;
   minDate?: string;
   maxDate?: string;
+  /** Dialógusban használva – a panel a body-ra portálva jelenik meg a dialógus felett */
+  inDialog?: boolean;
+  /** Desktop naptár szélessége (px). Mobilon mindig a mező szélessége. */
+  dropdownWidth?: number;
 }
 
 const MOBILE_QUERY = "(max-width: 767px)";
+const PANEL_Z_INDEX = 200;
+const PANEL_ESTIMATED_HEIGHT = 320;
+
+let activeDatePickerId: string | null = null;
+const datePickerCloseHandlers = new Map<string, () => void>();
+
+function closeOtherDatePickers(exceptId: string) {
+  const otherId = activeDatePickerId;
+  if (!otherId || otherId === exceptId) return;
+  queueMicrotask(() => {
+    datePickerCloseHandlers.get(otherId)?.();
+  });
+}
+
+function useDatePickerOpen(pickerId: string) {
+  const [open, setOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    datePickerCloseHandlers.set(pickerId, () => setOpen(false));
+    return () => {
+      datePickerCloseHandlers.delete(pickerId);
+      if (activeDatePickerId === pickerId) {
+        activeDatePickerId = null;
+      }
+    };
+  }, [pickerId]);
+
+  const setOpenExclusive = React.useCallback(
+    (next: boolean) => {
+      if (next) {
+        closeOtherDatePickers(pickerId);
+        activeDatePickerId = pickerId;
+      } else if (activeDatePickerId === pickerId) {
+        activeDatePickerId = null;
+      }
+      setOpen(next);
+    },
+    [pickerId]
+  );
+
+  const toggle = React.useCallback(() => {
+    setOpen((current) => {
+      const next = !current;
+      if (next) {
+        closeOtherDatePickers(pickerId);
+        activeDatePickerId = pickerId;
+      } else if (activeDatePickerId === pickerId) {
+        activeDatePickerId = null;
+      }
+      return next;
+    });
+  }, [pickerId]);
+
+  const close = React.useCallback(() => {
+    setOpenExclusive(false);
+  }, [setOpenExclusive]);
+
+  return { open, toggle, close };
+}
 
 function useIsMobileLayout() {
   return React.useSyncExternalStore(
@@ -59,115 +120,77 @@ function resolveDisplayMonth(value?: string, minDate?: string, maxDate?: string)
   return today;
 }
 
+function isEventInsideDatePicker(event: Event, anchor: HTMLElement | null, panel: HTMLElement | null) {
+  const path = event.composedPath();
+  if (anchor && path.includes(anchor)) return true;
+  if (panel && path.includes(panel)) return true;
+  return path.some(
+    (node) => node instanceof Element && node.closest("[data-date-picker-panel]") != null
+  );
+}
+
 const calendarClassName = {
-  base: "date-picker-calendar mx-auto w-full min-w-0 max-w-full",
-  mobile: "[&_.rdp-nav]:mb-1 [&_.rdp-caption_label]:text-base touch-manipulation",
-  desktop: "[&_.rdp-week]:min-h-9",
+  base: "date-picker-calendar w-full min-w-0",
+  mobile:
+    "[&_.rdp-nav]:mb-2 [&_.rdp-caption_label]:text-base [&_.rdp-weekday]:text-xs [&_.rdp-weekday]:font-medium touch-manipulation",
+  desktop: "[&_.rdp-weekday]:text-xs [&_.rdp-weekday]:font-medium",
 };
 
-function DatePickerCalendar({
-  mobile,
-  month,
-  onMonthChange,
-  selected,
-  onSelect,
-  minDate,
-  maxDate,
-}: {
-  mobile: boolean;
-  month: Date;
-  onMonthChange: (month: Date) => void;
-  selected?: Date;
-  onSelect: SelectSingleEventHandler;
-  minDate?: string;
-  maxDate?: string;
-}) {
-  return (
-    <DayPicker
-      mode="single"
-      fixedWeeks
-      showOutsideDays
-      month={month}
-      onMonthChange={onMonthChange}
-      selected={selected}
-      onSelect={onSelect}
-      locale={hu}
-      formatters={
-        mobile
-          ? {
-              formatWeekdayName: (date, _options, dateLib) =>
-                dateLib?.format(date, "EEEEE") ?? format(date, "EEEEE", { locale: hu }),
-            }
-          : undefined
-      }
-      disabled={[
-        ...(minDate ? [{ before: parseDisplayDate(minDate) }] : []),
-        ...(maxDate ? [{ after: parseDisplayDate(maxDate) }] : []),
-      ]}
-      className={cn(calendarClassName.base, mobile ? calendarClassName.mobile : calendarClassName.desktop)}
-    />
-  );
+function MonthWeekRow({ week, children, ...trProps }: WeekProps) {
+  const hasCurrentMonthDay = week.days.some((day) => !day.outside);
+  if (!hasCurrentMonthDay) {
+    return <tr {...trProps} className={cn(trProps.className, "hidden")} aria-hidden />;
+  }
+  return <tr {...trProps}>{children}</tr>;
 }
 
-function DatePickerTriggerButton({
-  value,
-  placeholder,
-  className,
-  onClick,
-}: {
-  value?: string;
-  placeholder: string;
-  className?: string;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      variant="outline"
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "min-h-[var(--touch-target)] w-full justify-start text-left font-normal md:min-h-9",
-        !value && "text-muted-foreground",
-        className
-      )}
-    >
-      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-      <span className="truncate">{value || placeholder}</span>
-    </Button>
-  );
-}
+function usePanelPosition(
+  open: boolean,
+  anchorRef: React.RefObject<HTMLDivElement | null>,
+  isMobile: boolean,
+  dropdownWidth?: number
+) {
+  const [position, setPosition] = React.useState<React.CSSProperties | null>(null);
 
-function MobileDatePickerSheet({
-  open,
-  onOpenChange,
-  calendar,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  calendar: React.ReactNode;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPortal>
-        <DialogOverlay className="z-[75]" />
-        <DialogPrimitive.Content
-          className={cn(
-            "fixed bottom-0 left-1/2 z-[80] flex max-h-[min(92dvh,100dvh)] w-[var(--dialog-max-width)] max-w-[var(--dialog-max-width)] -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl border bg-background shadow-lg outline-none",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-            "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom duration-200"
-          )}
-        >
-          <div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-muted" />
-          <DialogPrimitive.Title className="px-4 pb-2 pt-1 text-left text-base font-semibold">
-            Dátum választása
-          </DialogPrimitive.Title>
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            {calendar}
-          </div>
-        </DialogPrimitive.Content>
-      </DialogPortal>
-    </Dialog>
-  );
+  React.useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+
+    const update = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const useFixedWidth = !isMobile && dropdownWidth != null;
+      const width = useFixedWidth ? dropdownWidth : rect.width;
+      const left = rect.left;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openAbove = spaceBelow < PANEL_ESTIMATED_HEIGHT + 8 && rect.top > spaceBelow;
+
+      setPosition({
+        position: "fixed",
+        left: Math.max(8, Math.min(left, window.innerWidth - width - 8)),
+        width,
+        zIndex: PANEL_Z_INDEX,
+        ...(openAbove
+          ? { bottom: window.innerHeight - rect.top + 4 }
+          : { top: rect.bottom + 4 }),
+      });
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open, isMobile, dropdownWidth, anchorRef]);
+
+  return position;
 }
 
 export function DatePicker({
@@ -177,11 +200,22 @@ export function DatePicker({
   className,
   minDate,
   maxDate,
+  dropdownWidth,
 }: DatePickerProps) {
   const isMobile = useIsMobileLayout();
-  const [open, setOpen] = React.useState(false);
+  const pickerId = React.useId();
+  const { open, toggle, close } = useDatePickerOpen(pickerId);
+  const anchorRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const ignoreOutsideUntilRef = React.useRef(0);
+  const [mounted, setMounted] = React.useState(false);
   const [month, setMonth] = React.useState<Date>(() => resolveDisplayMonth(value, minDate, maxDate));
   const selected = value ? parseDisplayDate(value) : undefined;
+  const position = usePanelPosition(open, anchorRef, isMobile, dropdownWidth);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   React.useEffect(() => {
     if (open) {
@@ -189,52 +223,108 @@ export function DatePicker({
     }
   }, [open, value, minDate, maxDate]);
 
-  const handleSelect: SelectSingleEventHandler = (date) => {
-    if (date) {
-      onChange(formatDate(date));
-      setOpen(false);
-    }
-  };
+  React.useEffect(() => {
+    if (!open) return;
 
-  const calendar = (
-    <DatePickerCalendar
-      mobile={isMobile}
-      month={month}
-      onMonthChange={setMonth}
-      selected={selected}
-      onSelect={handleSelect}
-      minDate={minDate}
-      maxDate={maxDate}
-    />
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (Date.now() < ignoreOutsideUntilRef.current) return;
+      if (isEventInsideDatePicker(event, anchorRef.current, panelRef.current)) return;
+      close();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        close();
+      }
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      document.addEventListener("click", handleOutsideClick);
+    }, 0);
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      document.removeEventListener("click", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, close]);
+
+  const pickDay = React.useCallback(
+    (nextSelected: Date | undefined, triggerDate: Date, modifiers: Modifiers) => {
+      if (modifiers.disabled) return;
+      const chosen = nextSelected ?? triggerDate;
+      onChange(formatDate(chosen));
+      ignoreOutsideUntilRef.current = Date.now() + 400;
+      queueMicrotask(() => close());
+    },
+    [onChange, close]
   );
 
-  if (isMobile) {
-    return (
-      <>
-        <DatePickerTriggerButton
-          value={value}
-          placeholder={placeholder}
-          className={className}
-          onClick={() => setOpen(true)}
-        />
-        <MobileDatePickerSheet open={open} onOpenChange={setOpen} calendar={calendar} />
-      </>
-    );
-  }
+  const handleToggle = React.useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      ignoreOutsideUntilRef.current = Date.now() + 300;
+      toggle();
+    },
+    [toggle]
+  );
+
+  const panel =
+    open && position ? (
+      <div
+        ref={panelRef}
+        data-date-picker-panel=""
+        className="pointer-events-auto rounded-lg border bg-popover text-popover-foreground shadow-lg"
+        style={position}
+      >
+        <div className="p-2">
+          <DayPicker
+            mode="single"
+            showOutsideDays
+            month={month}
+            onMonthChange={setMonth}
+            selected={selected}
+            onSelect={pickDay}
+            locale={hu}
+            components={{
+              Week: MonthWeekRow,
+            }}
+            formatters={{
+              formatWeekdayName: (date, _options, dateLib) =>
+                dateLib?.format(date, "EEEEE") ?? format(date, "EEEEE", { locale: hu }),
+            }}
+            disabled={[
+              ...(minDate ? [{ before: parseDisplayDate(minDate) }] : []),
+              ...(maxDate ? [{ after: parseDisplayDate(maxDate) }] : []),
+            ]}
+            className={cn(
+              calendarClassName.base,
+              isMobile ? calendarClassName.mobile : calendarClassName.desktop
+            )}
+          />
+        </div>
+      </div>
+    ) : null;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <DatePickerTriggerButton
-          value={value}
-          placeholder={placeholder}
-          className={className}
-          onClick={() => setOpen(true)}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="z-[80] w-auto p-0" align="start" side="bottom" collisionPadding={16}>
-        <div className="flex h-[22rem] flex-col overflow-hidden p-3">{calendar}</div>
-      </PopoverContent>
-    </Popover>
+    <div ref={anchorRef} className="relative w-full">
+      <Button
+        variant="outline"
+        type="button"
+        onClick={handleToggle}
+        className={cn(
+          "min-h-[var(--touch-target)] w-full justify-start text-left font-normal md:min-h-9",
+          !value && "text-muted-foreground",
+          className
+        )}
+      >
+        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+        <span className="truncate">{value || placeholder}</span>
+      </Button>
+
+      {mounted && panel ? createPortal(panel, document.body) : null}
+    </div>
   );
 }

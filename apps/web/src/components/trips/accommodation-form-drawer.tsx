@@ -3,21 +3,12 @@
 import { useState, useEffect } from "react";
 import {
   formatDate,
-  formatTimeWhileTyping,
-  normalizeTimeValue,
   type CostCategory,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -26,47 +17,48 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
-import { useCreateProgram, useUpdateProgram } from "@/hooks/use-programs";
+import { useCreateAccommodation, useUpdateAccommodation } from "@/hooks/use-accommodations";
 import { useCreateCost } from "@/hooks/use-costs";
-import { cn } from "@/lib/utils";
+import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
+import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
 
-export interface ProgramIdeaOption {
+export interface AccommodationIdeaOption {
   id: string;
   title: string;
   url: string | null;
   amount: number | null;
   currency: string;
   amountScope: string;
-  category?: string;
+  checkInDate: Date | null;
+  checkOutDate: Date | null;
   interests: { familyMember: { id: string } }[];
 }
 
-interface ProgramFormDrawerProps {
+interface AccommodationFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tripId: string;
   tripStartDate: string;
   tripEndDate: string;
   participantOptions: { id: string; name: string }[];
-  ideaOptions?: ProgramIdeaOption[];
+  ideaOptions?: AccommodationIdeaOption[];
   onSaved?: () => void;
-  defaultDate?: string;
   defaultIdeaId?: string;
-  program?: {
+  accommodation?: {
     id: string;
     title: string;
-    date: Date;
-    startTime: string | null;
-    endTime: string | null;
+    checkIn: Date;
+    checkOut: Date;
     location: string | null;
-    url: string;
+    url: string | null;
+    note: string | null;
     participants: { familyMember: { id: string } }[];
   };
 }
 
-export function ProgramFormDrawer({
+export function AccommodationFormDrawer({
   open,
   onOpenChange,
   tripId,
@@ -75,44 +67,43 @@ export function ProgramFormDrawer({
   participantOptions,
   ideaOptions = [],
   onSaved,
-  defaultDate,
   defaultIdeaId,
-  program,
-}: ProgramFormDrawerProps) {
-  const createMutation = useCreateProgram();
-  const updateMutation = useUpdateProgram();
+  accommodation,
+}: AccommodationFormDrawerProps) {
+  const createMutation = useCreateAccommodation();
+  const updateMutation = useUpdateAccommodation();
   const createCostMutation = useCreateCost();
 
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
   const [location, setLocation] = useState("");
   const [url, setUrl] = useState("");
+  const [note, setNote] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
-  const [selectedIdeaId, setSelectedIdeaId] = useState<string>("");
+  const [selectedIdeaId, setSelectedIdeaId] = useState("");
   const [createCostFromIdea, setCreateCostFromIdea] = useState(true);
 
-  const isConvertMode = !program && Boolean(defaultIdeaId);
+  const isConvertMode = !accommodation && Boolean(defaultIdeaId);
 
   useEffect(() => {
-    if (program && open) {
-      setTitle(program.title);
-      setDate(formatDate(program.date));
-      setStartTime(program.startTime ?? "");
-      setEndTime(program.endTime ?? "");
-      setLocation(program.location ?? "");
-      setUrl(program.url ?? "");
-      setParticipantIds(program.participants.map((p) => p.familyMember.id));
+    if (accommodation && open) {
+      setTitle(accommodation.title);
+      setCheckIn(formatDate(accommodation.checkIn));
+      setCheckOut(formatDate(accommodation.checkOut));
+      setLocation(accommodation.location ?? "");
+      setUrl(accommodation.url ?? "");
+      setNote(accommodation.note ?? "");
+      setParticipantIds(accommodation.participants.map((p) => p.familyMember.id));
       setSelectedIdeaId("");
       setCreateCostFromIdea(false);
-    } else if (!program && open) {
+    } else if (!accommodation && open) {
       setTitle("");
-      setDate(defaultDate ?? tripStartDate);
-      setStartTime("");
-      setEndTime("");
+      setCheckIn(tripStartDate);
+      setCheckOut(tripEndDate);
       setLocation("");
       setUrl("");
+      setNote("");
       setParticipantIds(participantOptions.map((p) => p.id));
       setSelectedIdeaId("");
       setCreateCostFromIdea(true);
@@ -122,7 +113,7 @@ export function ProgramFormDrawer({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [program, open, participantOptions, defaultDate, tripStartDate, defaultIdeaId]);
+  }, [accommodation, open, participantOptions, tripStartDate, tripEndDate, defaultIdeaId]);
 
   function applyIdea(ideaId: string) {
     setSelectedIdeaId(ideaId);
@@ -133,6 +124,8 @@ export function ProgramFormDrawer({
 
     setTitle(idea.title);
     setUrl(idea.url ?? "");
+    if (idea.checkInDate) setCheckIn(formatDate(idea.checkInDate));
+    if (idea.checkOutDate) setCheckOut(formatDate(idea.checkOutDate));
 
     const interestedIds = idea.interests.map((i) => i.familyMember.id);
     if (interestedIds.length > 0) {
@@ -150,14 +143,6 @@ export function ProgramFormDrawer({
     );
   }
 
-  function handleTimeChange(setter: (value: string) => void, value: string) {
-    setter(formatTimeWhileTyping(value));
-  }
-
-  function handleTimeBlur(setter: (value: string) => void, value: string) {
-    if (value) setter(normalizeTimeValue(value));
-  }
-
   const selectedIdea = ideaOptions.find((i) => i.id === selectedIdeaId);
 
   const isPending =
@@ -166,27 +151,24 @@ export function ProgramFormDrawer({
     createCostMutation.isPending;
 
   async function handleSubmit() {
-    const normalizedStart = startTime ? normalizeTimeValue(startTime) : null;
-    const normalizedEnd = endTime ? normalizeTimeValue(endTime) : null;
-
     const data = {
       tripId,
       title,
-      date,
-      startTime: normalizedStart,
-      endTime: normalizedEnd,
+      checkIn,
+      checkOut,
       location: location || null,
       url: url.trim() || null,
+      note: note.trim() || null,
       participantIds,
     };
 
-    if (program) {
-      const result = await updateMutation.mutateAsync({ id: program.id, ...data });
+    if (accommodation) {
+      const result = await updateMutation.mutateAsync({ id: accommodation.id, ...data });
       if (!result.success) return;
     } else {
       const result = await createMutation.mutateAsync({
         ...data,
-        ideaId: selectedIdeaId || null,
+        ideaId: selectedIdeaId || defaultIdeaId || null,
       });
       if (!result.success) return;
 
@@ -198,12 +180,12 @@ export function ProgramFormDrawer({
       ) {
         await createCostMutation.mutateAsync({
           tripId,
-          programId: result.data.id,
+          accommodationId: result.data.id,
           title: selectedIdea.title,
           amount: selectedIdea.amount,
           currency: selectedIdea.currency,
           amountScope: selectedIdea.amountScope,
-          category: (selectedIdea.category ?? "OTHER") as CostCategory,
+          category: "ACCOMMODATION" as CostCategory,
         });
       }
     }
@@ -214,10 +196,14 @@ export function ProgramFormDrawer({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="dialog-accommodation-form">
         <DialogHeader>
           <DialogTitle>
-            {program ? "Program szerkesztése" : isConvertMode ? "Ötlet programmá alakítása" : "Új program"}
+            {accommodation
+              ? "Szállás szerkesztése"
+              : isConvertMode
+                ? "Ötlet szállásként rögzítése"
+                : "Új szállás"}
           </DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-3">
@@ -225,92 +211,44 @@ export function ProgramFormDrawer({
             <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
               <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <p>
-                Az ötlet adatai előtöltve. Válaszd ki a dátumot és időpontot, majd mentsd a programot.
+                A szállás ötlet adatai előtöltve. Ellenőrizd a dátumokat és mentsd a foglalást.
               </p>
             </div>
           )}
 
-          {!program && ideaOptions.length > 0 && !isConvertMode && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Ötletből (opcionális)</Label>
-              <Select
-                value={selectedIdeaId || "__none__"}
-                onValueChange={(value) => applyIdea(value === "__none__" ? "" : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Válassz ötletet…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nincs kiválasztva</SelectItem>
-                  {ideaOptions.map((idea) => (
-                    <SelectItem key={idea.id} value={idea.id}>
-                      {idea.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedIdea?.amount != null && (
-                <p className="text-xs text-muted-foreground">
-                  Becsült költség:{" "}
-                  <CostAmountDisplay
-                    amount={selectedIdea.amount}
-                    currency={selectedIdea.currency}
-                    amountScope={selectedIdea.amountScope}
-                    participantCount={selectedIdea.interests.length}
-                    className="inline-flex"
-                  />
-                </p>
-              )}
-            </div>
-          )}
-
           <div className="space-y-1.5">
-            <Label className="text-xs">Cím</Label>
+            <Label className="text-xs">Megnevezés</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Dátum</Label>
-            <p className="text-xs text-muted-foreground">
-              Egy napot válassz az utazás ideje alatt ({tripStartDate} – {tripEndDate})
-            </p>
-            <DatePicker
-              value={date}
-              onChange={setDate}
-              minDate={tripStartDate}
-              maxDate={tripEndDate}
-              placeholder={tripStartDate}
-              dropdownWidth={320}
-              inDialog
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Kezdés</Label>
-              <Input
-                value={startTime}
-                onChange={(e) => handleTimeChange(setStartTime, e.target.value)}
-                onBlur={() => handleTimeBlur(setStartTime, startTime)}
-                placeholder="0900"
-                inputMode="numeric"
-                maxLength={5}
+              <Label className="text-xs">Bejelentkezés</Label>
+              <DatePicker
+                value={checkIn}
+                onChange={setCheckIn}
+                minDate={tripStartDate}
+                maxDate={tripEndDate}
+                inDialog
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Befejezés</Label>
-              <Input
-                value={endTime}
-                onChange={(e) => handleTimeChange(setEndTime, e.target.value)}
-                onBlur={() => handleTimeBlur(setEndTime, endTime)}
-                placeholder="1200"
-                inputMode="numeric"
-                maxLength={5}
+              <Label className="text-xs">Kijelentkezés</Label>
+              <DatePicker
+                value={checkOut}
+                onChange={setCheckOut}
+                minDate={checkIn || tripStartDate}
+                maxDate={tripEndDate}
+                inDialog
               />
             </div>
           </div>
+
           <div className="space-y-1.5">
-            <Label className="text-xs">Helyszín</Label>
+            <Label className="text-xs">Helyszín (opcionális)</Label>
             <Input value={location} onChange={(e) => setLocation(e.target.value)} />
           </div>
+
           <div className="space-y-1.5">
             <Label className="text-xs">URL (opcionális)</Label>
             <Input
@@ -318,9 +256,21 @@ export function ProgramFormDrawer({
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://..."
             />
+            <UrlPreviewCard url={url} />
           </div>
+
           <div className="space-y-1.5">
-            <Label className="text-xs">Résztvevők</Label>
+            <Label className="text-xs">Megjegyzés (opcionális)</Label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex max-h-[4.5rem] min-h-[4.5rem] w-full resize-none overflow-y-auto rounded-md border px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Kik szállnak meg?</Label>
             <div className="flex flex-wrap gap-1.5">
               {participantOptions.map((m) => (
                 <button
@@ -340,7 +290,7 @@ export function ProgramFormDrawer({
             </div>
           </div>
 
-          {!program && selectedIdea?.amount != null && selectedIdea.amount > 0 && (
+          {!accommodation && selectedIdea?.amount != null && selectedIdea.amount > 0 && (
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm">
               <input
                 type="checkbox"
@@ -376,13 +326,9 @@ export function ProgramFormDrawer({
             size="sm"
             className="w-full min-h-[var(--touch-target)] sm:min-h-9"
             onClick={handleSubmit}
-            disabled={!participantIds.length || !title || !date || isPending}
+            disabled={!participantIds.length || !title || !checkIn || !checkOut || isPending}
           >
-            {isPending
-              ? "Mentés…"
-              : isConvertMode
-                ? "Program létrehozása"
-                : "Mentés"}
+            {isPending ? "Mentés…" : isConvertMode ? "Szállás rögzítése" : "Mentés"}
           </Button>
         </DialogFooter>
       </DialogContent>

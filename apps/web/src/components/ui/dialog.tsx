@@ -25,16 +25,49 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onInteractOutside, onFocusOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-1/2 top-1/2 z-[60] flex w-[var(--dialog-max-width)] max-h-[min(90dvh,40rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border bg-background p-0 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+        "fixed left-1/2 top-1/2 z-[60] flex w-[var(--dialog-max-width)] max-h-[var(--dialog-max-height)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border bg-background p-0 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         "md:[body[data-dashboard-layout=true]_&]:left-[calc(50%+min(8rem,var(--app-sidebar-width)/2))]",
         className
       )}
+      onPointerDownOutside={(event) => {
+        const target = event.target as HTMLElement;
+        const path = event.detail?.originalEvent?.composedPath?.() ?? [];
+        const insidePanel =
+          target.closest("[data-date-picker-panel]") != null ||
+          path.some(
+            (node) => node instanceof Element && node.closest("[data-date-picker-panel]") != null
+          );
+        if (insidePanel) {
+          event.preventDefault();
+        }
+        onPointerDownOutside?.(event);
+      }}
+      onInteractOutside={(event) => {
+        const target = event.target as HTMLElement;
+        const path = event.detail?.originalEvent?.composedPath?.() ?? [];
+        const insidePanel =
+          target.closest("[data-date-picker-panel]") != null ||
+          path.some(
+            (node) => node instanceof Element && node.closest("[data-date-picker-panel]") != null
+          );
+        if (insidePanel) {
+          event.preventDefault();
+        }
+        onInteractOutside?.(event);
+      }}
+      onFocusOutside={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest("[data-date-picker-panel]")) {
+          event.preventDefault();
+        }
+        onFocusOutside?.(event);
+      }}
       {...props}
     >
       {children}

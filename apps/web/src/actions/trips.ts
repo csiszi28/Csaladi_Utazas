@@ -215,6 +215,7 @@ export async function duplicateTrip(data: {
   startDate: string;
   endDate: string;
   copyPrograms?: boolean;
+  copyAccommodations?: boolean;
   copyIdeas?: boolean;
   copyBudget?: boolean;
   shiftProgramDates?: boolean;
@@ -235,6 +236,12 @@ export async function duplicateTrip(data: {
           participants: { select: { familyMemberId: true } },
         },
         orderBy: { date: "asc" },
+      },
+      accommodations: {
+        include: {
+          participants: { select: { familyMemberId: true } },
+        },
+        orderBy: { checkIn: "asc" },
       },
       ideas: true,
     },
@@ -278,6 +285,12 @@ export async function duplicateTrip(data: {
               amountScope: idea.amountScope,
               category: idea.category,
               note: idea.note,
+              checkInDate: idea.checkInDate
+                ? shiftDateValue(idea.checkInDate, dateOffset)
+                : null,
+              checkOutDate: idea.checkOutDate
+                ? shiftDateValue(idea.checkOutDate, dateOffset)
+                : null,
             })),
           }
         : undefined,
@@ -292,6 +305,23 @@ export async function duplicateTrip(data: {
               url: program.url,
               participants: {
                 create: program.participants.map((p) => ({
+                  familyMemberId: p.familyMemberId,
+                })),
+              },
+            })),
+          }
+        : undefined,
+      accommodations: parsed.data.copyAccommodations
+        ? {
+            create: source.accommodations.map((accommodation) => ({
+              title: accommodation.title,
+              checkIn: shiftDateValue(accommodation.checkIn, dateOffset),
+              checkOut: shiftDateValue(accommodation.checkOut, dateOffset),
+              url: accommodation.url,
+              location: accommodation.location,
+              note: accommodation.note,
+              participants: {
+                create: accommodation.participants.map((p) => ({
                   familyMemberId: p.familyMemberId,
                 })),
               },

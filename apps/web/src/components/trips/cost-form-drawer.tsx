@@ -40,6 +40,13 @@ interface CostProgramOption {
   date?: Date | string;
 }
 
+interface CostAccommodationOption {
+  id: string;
+  title: string;
+  checkIn: Date | string;
+  checkOut: Date | string;
+}
+
 export interface CostIdeaOption {
   id: string;
   title: string;
@@ -54,6 +61,7 @@ interface CostFormDrawerProps {
   onOpenChange: (open: boolean) => void;
   tripId: string;
   programs: CostProgramOption[];
+  accommodations?: CostAccommodationOption[];
   participantOptions?: { id: string; name: string }[];
   ideaOptions?: CostIdeaOption[];
   onSaved?: (cost: {
@@ -65,9 +73,11 @@ interface CostFormDrawerProps {
     amountScope: string;
     category: string;
     programId: string | null;
+    accommodationId?: string | null;
     paidByFamilyMemberId?: string | null;
   }) => void;
   defaultProgramId?: string;
+  defaultAccommodationId?: string;
   cost?: {
     id: string;
     title: string;
@@ -76,6 +86,7 @@ interface CostFormDrawerProps {
     amountScope?: string;
     category: string;
     programId: string | null;
+    accommodationId?: string | null;
     paidByFamilyMemberId?: string | null;
   };
 }
@@ -88,10 +99,12 @@ export function CostFormDrawer({
   onOpenChange,
   tripId,
   programs,
+  accommodations = [],
   participantOptions = [],
   ideaOptions = [],
   onSaved,
   defaultProgramId,
+  defaultAccommodationId,
   cost,
 }: CostFormDrawerProps) {
   const createMutation = useCreateCost();
@@ -103,12 +116,15 @@ export function CostFormDrawer({
   const [amountScope, setAmountScope] = useState<string>("TOTAL");
   const [category, setCategory] = useState<string>("OTHER");
   const [programId, setProgramId] = useState<string>("");
+  const [accommodationId, setAccommodationId] = useState<string>("");
   const [selectedIdeaId, setSelectedIdeaId] = useState("");
   const [selectedProgramPrefillId, setSelectedProgramPrefillId] = useState("");
+  const [selectedAccommodationPrefillId, setSelectedAccommodationPrefillId] = useState("");
   const [paidByFamilyMemberId, setPaidByFamilyMemberId] = useState("");
 
   const selectedIdea = ideaOptions.find((i) => i.id === selectedIdeaId);
   const isProgramPrefillMode = !cost && Boolean(defaultProgramId);
+  const isAccommodationPrefillMode = !cost && Boolean(defaultAccommodationId);
 
   useEffect(() => {
     if (cost && open) {
@@ -118,9 +134,11 @@ export function CostFormDrawer({
       setAmountScope(cost.amountScope ?? "TOTAL");
       setCategory(cost.category);
       setProgramId(cost.programId ?? "");
+      setAccommodationId(cost.accommodationId ?? "");
       setPaidByFamilyMemberId(cost.paidByFamilyMemberId ?? "");
       setSelectedIdeaId("");
       setSelectedProgramPrefillId(cost.programId ?? "");
+      setSelectedAccommodationPrefillId(cost.accommodationId ?? "");
     } else if (!cost && open) {
       setTitle("");
       setAmount("");
@@ -128,24 +146,37 @@ export function CostFormDrawer({
       setAmountScope("TOTAL");
       setCategory("OTHER");
       setProgramId("");
+      setAccommodationId("");
       setPaidByFamilyMemberId("");
       setSelectedIdeaId("");
       setSelectedProgramPrefillId("");
+      setSelectedAccommodationPrefillId("");
 
       if (defaultProgramId) {
         const program = programs.find((p) => p.id === defaultProgramId);
         if (program) {
           setProgramId(program.id);
+          setAccommodationId("");
           setTitle(program.title);
           setCategory("TICKET");
           setSelectedProgramPrefillId(program.id);
         }
+      } else if (defaultAccommodationId) {
+        const accommodation = accommodations.find((a) => a.id === defaultAccommodationId);
+        if (accommodation) {
+          setAccommodationId(accommodation.id);
+          setProgramId("");
+          setTitle(accommodation.title);
+          setCategory("ACCOMMODATION");
+          setSelectedAccommodationPrefillId(accommodation.id);
+        }
       }
     }
-  }, [cost, open, defaultProgramId, programs]);
+  }, [cost, open, defaultProgramId, defaultAccommodationId, programs, accommodations]);
 
   function applyProgram(programPrefillId: string) {
     setSelectedProgramPrefillId(programPrefillId);
+    setSelectedAccommodationPrefillId("");
     if (!programPrefillId) {
       setProgramId("");
       return;
@@ -155,8 +186,26 @@ export function CostFormDrawer({
     if (!program) return;
 
     setProgramId(program.id);
+    setAccommodationId("");
     setTitle(program.title);
     setCategory("TICKET");
+  }
+
+  function applyAccommodation(accommodationPrefillId: string) {
+    setSelectedAccommodationPrefillId(accommodationPrefillId);
+    setSelectedProgramPrefillId("");
+    if (!accommodationPrefillId) {
+      setAccommodationId("");
+      return;
+    }
+
+    const accommodation = accommodations.find((a) => a.id === accommodationPrefillId);
+    if (!accommodation) return;
+
+    setAccommodationId(accommodation.id);
+    setProgramId("");
+    setTitle(accommodation.title);
+    setCategory("ACCOMMODATION");
   }
 
   function applyIdea(ideaId: string) {
@@ -184,6 +233,7 @@ export function CostFormDrawer({
     const savedPayload = {
       tripId,
       programId: programId || null,
+      accommodationId: accommodationId || null,
       amount: parsedAmount,
       currency,
       amountScope,
@@ -210,6 +260,10 @@ export function CostFormDrawer({
     return `${program.title} (${formatDate(program.date)})`;
   }
 
+  function accommodationLabel(accommodation: CostAccommodationOption) {
+    return `${accommodation.title} (${formatDate(accommodation.checkIn)} – ${formatDate(accommodation.checkOut)})`;
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -219,7 +273,9 @@ export function CostFormDrawer({
               ? "Költség szerkesztése"
               : isProgramPrefillMode
                 ? "Költség a programhoz"
-                : "Új költség"}
+                : isAccommodationPrefillMode
+                  ? "Költség a szálláshoz"
+                  : "Új költség"}
           </DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-3">
@@ -228,6 +284,15 @@ export function CostFormDrawer({
               <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <p>
                 A program adatai előtöltve. Add meg az összeget és a fizetőt, majd mentsd a költséget.
+              </p>
+            </div>
+          )}
+
+          {isAccommodationPrefillMode && (
+            <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <p>
+                A szállás adatai előtöltve. Add meg az összeget és a fizetőt, majd mentsd a költséget.
               </p>
             </div>
           )}
@@ -329,30 +394,76 @@ export function CostFormDrawer({
             </Select>
           </div>
 
+          {!cost && accommodations.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Szállásból (opcionális)</Label>
+              <Select
+                value={selectedAccommodationPrefillId || "__none__"}
+                onValueChange={(value) =>
+                  applyAccommodation(value === "__none__" ? "" : value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Válassz szállást…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nincs kiválasztva</SelectItem>
+                  {accommodations.map((accommodation) => (
+                    <SelectItem key={accommodation.id} value={accommodation.id}>
+                      {accommodationLabel(accommodation)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1.5">
-            <Label className="text-xs">Program</Label>
-            <Select value={programId || "none"} onValueChange={(v) => {
-              const id = v === "none" ? "" : v;
-              setProgramId(id);
-              setSelectedProgramPrefillId(id);
-            }}>
+            <Label className="text-xs">Hozzárendelés</Label>
+            <Select
+              value={
+                accommodationId
+                  ? `acc:${accommodationId}`
+                  : programId
+                    ? `prog:${programId}`
+                    : "none"
+              }
+              onValueChange={(v) => {
+                if (v === "none") {
+                  setProgramId("");
+                  setAccommodationId("");
+                  setSelectedProgramPrefillId("");
+                  setSelectedAccommodationPrefillId("");
+                  return;
+                }
+                if (v.startsWith("acc:")) {
+                  const id = v.slice(4);
+                  applyAccommodation(id);
+                  return;
+                }
+                if (v.startsWith("prog:")) {
+                  const id = v.slice(5);
+                  applyProgram(id);
+                }
+              }}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Válassz programot vagy utazás szintű" />
+                <SelectValue placeholder="Utazás, program vagy szállás" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Utazás szintű költség</SelectItem>
                 {programs.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {programLabel(p)}
+                  <SelectItem key={p.id} value={`prog:${p.id}`}>
+                    Program: {programLabel(p)}
+                  </SelectItem>
+                ))}
+                {accommodations.map((a) => (
+                  <SelectItem key={a.id} value={`acc:${a.id}`}>
+                    Szállás: {accommodationLabel(a)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {programs.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                Még nincs program — a költség utazás szinten lesz rögzítve.
-              </p>
-            )}
           </div>
 
           <div className="space-y-1.5">

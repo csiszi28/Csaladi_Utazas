@@ -2,11 +2,12 @@
 
 import { cn } from "@/lib/utils";
 
-export type TripDetailTab = "planning" | "finances" | "documents";
+export type TripDetailTab = "planning" | "accommodations" | "finances" | "documents";
 
 const TABS: { id: TripDetailTab; label: string; shortLabel?: string }[] = [
-  { id: "planning", label: "Tervezés" },
-  { id: "finances", label: "Pénzügyek" },
+  { id: "planning", label: "Programok", shortLabel: "Prog." },
+  { id: "accommodations", label: "Szállás" },
+  { id: "finances", label: "Pénzügyek", shortLabel: "Pénz" },
   { id: "documents", label: "Dokumentumok", shortLabel: "Dok." },
 ];
 

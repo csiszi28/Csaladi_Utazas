@@ -13,6 +13,10 @@ interface TripSettlementPanelProps {
       id: string;
       participants: { familyMemberId: string }[];
     }[];
+    accommodations?: {
+      id: string;
+      participants: { familyMemberId: string }[];
+    }[];
     costs: {
       id: string;
       title: string;
@@ -20,6 +24,7 @@ interface TripSettlementPanelProps {
       currency: string;
       amountScope?: string;
       programId?: string | null;
+      accommodationId?: string | null;
       paidByFamilyMemberId?: string | null;
     }[];
   };
@@ -43,6 +48,10 @@ export function TripSettlementPanel({ trip }: TripSettlementPanelProps) {
           programs: trip.programs.map((p) => ({
             id: p.id,
             participantIds: p.participants.map((x) => x.familyMemberId),
+          })),
+          accommodations: (trip.accommodations ?? []).map((a) => ({
+            id: a.id,
+            participantIds: a.participants.map((x) => x.familyMemberId),
           })),
           costs: trip.costs.map((c) => ({
             ...c,

@@ -40,6 +40,7 @@ type CalendarDayCost = {
   category: string;
   amountScope?: string;
   programId: string | null;
+  accommodationId?: string | null;
   tripId: string;
 };
 
@@ -72,10 +73,28 @@ function tripToCostContext(trip: CalendarTripRow): TripCostContext {
       participantIds: p.participants.map((x) => x.familyMember.id),
       costs: p.costs.map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
     })),
+    accommodations: (trip.accommodations ?? []).map((a) => ({
+      id: a.id,
+      title: a.title,
+      checkIn: new Date(a.checkIn),
+      checkOut: new Date(a.checkOut),
+      participantIds: a.participants.map((x) => x.familyMember.id),
+      costs: a.costs.map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
+    })),
     tripLevelCosts: trip.costs
-      .filter((c) => !c.programId)
+      .filter((c) => !c.programId && !c.accommodationId)
       .map((c) => ({ ...c, amountScope: c.amountScope ?? "TOTAL" })),
   };
+}
+
+function isAccommodationNight(day: Date, checkIn: Date | string, checkOut: Date | string): boolean {
+  const d = new Date(day);
+  d.setHours(0, 0, 0, 0);
+  const start = new Date(checkIn);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(checkOut);
+  end.setHours(0, 0, 0, 0);
+  return d >= start && d < end;
 }
 
 export function CalendarDayDrawer({
@@ -116,17 +135,29 @@ export function CalendarDayDrawer({
           ...c,
           amountScope: c.amountScope ?? "TOTAL",
           programId: p.id,
+          accommodationId: null,
+          tripId: t.id,
+        }))
+      );
+    const accommodationCosts = (t.accommodations ?? [])
+      .filter((a) => isAccommodationNight(date, a.checkIn, a.checkOut))
+      .flatMap((a) =>
+        a.costs.map((c) => ({
+          ...c,
+          amountScope: c.amountScope ?? "TOTAL",
+          programId: null,
+          accommodationId: a.id,
           tripId: t.id,
         }))
       );
     const tripCosts = t.costs
-      .filter((c) => !c.programId)
+      .filter((c) => !c.programId && !c.accommodationId)
       .map((c) => ({
         ...c,
         amountScope: c.amountScope ?? "TOTAL",
         tripId: t.id,
       }));
-    return [...tripCosts, ...programCosts];
+    return [...tripCosts, ...programCosts, ...accommodationCosts];
   });
 
   const totalCostHuf = dayTrips.reduce((sum, t) => {

@@ -3,11 +3,9 @@
 import { useState, useTransition, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Plus, Pencil, Trash2, ExternalLink, Download, Copy, MapPin, Calendar, Receipt } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Download, Copy, MapPin, Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { formatDate, COST_CATEGORY_LABELS } from "@csaladi-utazas/shared";
-import { MoneyDisplay } from "@/components/money-display";
-import { CostAmountDisplay } from "@/components/cost-amount-display";
+import { formatDate } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
 import { deleteTrip } from "@/actions/trips";
@@ -16,29 +14,18 @@ import { deleteCost } from "@/actions/costs";
 import type { FamilyMemberRow } from "@/lib/queries/family";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import { TripFormDrawer } from "./trip-form-drawer";
-import { ProgramFormDrawer } from "./program-form-drawer";
 import { CostFormDrawer } from "./cost-form-drawer";
 import { DocumentUpload, type DocumentItem } from "@/components/documents/document-upload";
 import { TripInvitePanel } from "@/components/trips/trip-invite-panel";
-import { TripIdeasSection } from "@/components/trips/trip-ideas-section";
+import { TripProgramsSection } from "@/components/trips/trip-programs-section";
+import { TripAccommodationsSection } from "@/components/trips/trip-accommodations-section";
+import { TripFinancesSection } from "@/components/trips/trip-finances-section";
 import { TripDetailTabs, TripSectionHeading, type TripDetailTab } from "@/components/trips/trip-detail-tabs";
 import { TripBudgetPanel } from "@/components/trips/trip-budget-panel";
-import { TripSettlementPanel } from "@/components/trips/trip-settlement-panel";
 import { DuplicateTripDialog } from "@/components/trips/duplicate-trip-dialog";
 import { TripClaimProfilePanel } from "@/components/trips/trip-claim-profile-panel";
 import { DocumentChecklistPanel } from "@/components/documents/document-checklist-panel";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
-import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
-import { TRIP_SECTION_BTN_CLASS } from "@/components/trips/trip-section-styles";
-
-function programDateParts(date: Date | string) {
-  const d = new Date(date);
-  return {
-    month: d.toLocaleDateString("hu-HU", { month: "short" }).replace(".", ""),
-    day: d.getDate(),
-    weekday: d.toLocaleDateString("hu-HU", { weekday: "short" }),
-  };
-}
 
 export function TripDetailPage({
   trip,
@@ -56,12 +43,17 @@ export function TripDetailPage({
   const [isPending, startTransition] = useTransition();
 
   const [tripDrawerOpen, setTripDrawerOpen] = useState(false);
-  const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
   const [costDrawerOpen, setCostDrawerOpen] = useState(false);
   const [ideaOpenSignal, setIdeaOpenSignal] = useState(0);
-  const [editingProgram, setEditingProgram] = useState<TripDetailRow["programs"][0] | null>(null);
+  const [programOpenSignal, setProgramOpenSignal] = useState(0);
+  const [accommodationIdeaOpenSignal, setAccommodationIdeaOpenSignal] = useState(0);
+  const [accommodationOpenSignal, setAccommodationOpenSignal] = useState(0);
+  const [convertAccommodationIdeaId, setConvertAccommodationIdeaId] = useState<string | undefined>();
+  const [convertProgramIdeaId, setConvertProgramIdeaId] = useState<string | undefined>();
+  const [defaultCostAccommodationId, setDefaultCostAccommodationId] = useState<
+    string | undefined
+  >();
   const [editingCost, setEditingCost] = useState<TripDetailRow["costs"][0] | null>(null);
-  const [defaultIdeaId, setDefaultIdeaId] = useState<string | undefined>();
   const [defaultCostProgramId, setDefaultCostProgramId] = useState<string | undefined>();
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TripDetailTab>("planning");
@@ -116,9 +108,8 @@ export function TripDetailPage({
   useEffect(() => {
     const action = searchParams.get("new");
     if (action === "program") {
-      setEditingProgram(null);
       setActiveTab("planning");
-      setProgramDrawerOpen(true);
+      setProgramOpenSignal((n) => n + 1);
     } else if (action === "cost") {
       setEditingCost(null);
       setActiveTab("finances");
@@ -131,6 +122,22 @@ export function TripDetailPage({
     [trip.programs]
   );
 
+  const accommodationTitleById = useMemo(
+    () =>
+      new Map(trip.accommodations.map((accommodation) => [accommodation.id, accommodation.title])),
+    [trip.accommodations]
+  );
+
+  const generalIdeas = useMemo(
+    () => trip.ideas.filter((idea) => idea.category !== "ACCOMMODATION"),
+    [trip.ideas]
+  );
+
+  const accommodationIdeas = useMemo(
+    () => trip.ideas.filter((idea) => idea.category === "ACCOMMODATION"),
+    [trip.ideas]
+  );
+
   const participantNameById = useMemo(
     () => new Map(trip.participants.map((p) => [p.familyMember.id, p.familyMember.name])),
     [trip.participants]
@@ -138,36 +145,49 @@ export function TripDetailPage({
 
   const convertedIdeaIds = useMemo(
     () =>
-      new Set(
-        trip.programs
+      new Set([
+        ...trip.programs
           .map((program) => program.ideaId)
-          .filter((id): id is string => Boolean(id))
-      ),
-    [trip.programs]
+          .filter((id): id is string => Boolean(id)),
+        ...trip.accommodations
+          .map((accommodation) => accommodation.ideaId)
+          .filter((id): id is string => Boolean(id)),
+      ]),
+    [trip.programs, trip.accommodations]
   );
 
+  function handleConvertIdeaToAccommodation(ideaId: string) {
+    setConvertAccommodationIdeaId(ideaId);
+    setActiveTab("accommodations");
+  }
+
+  function handleAddCostForAccommodation(accommodationId: string) {
+    setEditingCost(null);
+    setDefaultCostAccommodationId(accommodationId);
+    setDefaultCostProgramId(undefined);
+    setActiveTab("finances");
+    setCostDrawerOpen(true);
+  }
+
   function handleConvertIdeaToProgram(ideaId: string) {
-    setEditingProgram(null);
-    setDefaultIdeaId(ideaId);
+    setConvertProgramIdeaId(ideaId);
     setActiveTab("planning");
-    setProgramDrawerOpen(true);
-  }
-
-  function handleProgramDrawerChange(open: boolean) {
-    setProgramDrawerOpen(open);
-    if (!open) setDefaultIdeaId(undefined);
-  }
-
-  function handleCostDrawerChange(open: boolean) {
-    setCostDrawerOpen(open);
-    if (!open) setDefaultCostProgramId(undefined);
   }
 
   function handleAddCostForProgram(programId: string) {
     setEditingCost(null);
     setDefaultCostProgramId(programId);
+    setDefaultCostAccommodationId(undefined);
     setActiveTab("finances");
     setCostDrawerOpen(true);
+  }
+
+  function handleCostDrawerChange(open: boolean) {
+    setCostDrawerOpen(open);
+    if (!open) {
+      setDefaultCostProgramId(undefined);
+      setDefaultCostAccommodationId(undefined);
+    }
   }
 
   function handleCostSaved(cost: {
@@ -260,7 +280,8 @@ export function TripDetailPage({
   }
 
   const tabCounts: Record<TripDetailTab, number> = {
-    planning: trip.ideas.length + trip.programs.length,
+    planning: generalIdeas.length + trip.programs.length,
+    accommodations: accommodationIdeas.length + trip.accommodations.length,
     finances: localCosts.length,
     documents: localDocuments.length,
   };
@@ -364,318 +385,93 @@ export function TripDetailPage({
         </div>
       </section>
 
+      {isOwner && (
+        <CollapsiblePanel
+          title="Meghívó"
+          subtitle="Hívd meg a családtagokat az utazásba"
+          defaultOpen={false}
+        >
+          <TripInvitePanel tripId={trip.id} isOwner={isOwner} />
+        </CollapsiblePanel>
+      )}
+
       <TripDetailTabs active={activeTab} onChange={setActiveTab} counts={tabCounts} />
 
       {activeTab === "planning" && (
-        <div className="space-y-8">
-          {isOwner && (
-            <CollapsiblePanel
-              title="Meghívó"
-              subtitle="Hívd meg a családtagokat az utazásba"
-              defaultOpen={false}
-            >
-              <TripInvitePanel tripId={trip.id} isOwner={isOwner} />
-            </CollapsiblePanel>
-          )}
-
-          <section className="space-y-4">
-            <TripSectionHeading
-              title="Ötletek"
-              description="Gyűjts ötleteket, majd alakítsd őket programmá"
-              action={
-                <Button size="sm" className={TRIP_SECTION_BTN_CLASS} onClick={() => setIdeaOpenSignal((n) => n + 1)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Új ötlet
-                </Button>
-              }
-            />
-            <TripIdeasSection
-              embedded
-              openSignal={ideaOpenSignal}
+        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+          <TripProgramsSection
               tripId={trip.id}
-              ideas={trip.ideas}
+              tripStartDate={formatDate(trip.startDate)}
+              tripEndDate={formatDate(trip.endDate)}
+              ideas={generalIdeas}
+              programs={trip.programs}
+              costs={localCosts}
+              documents={localDocuments}
               participants={trip.participants.map((p) => p.familyMember)}
               currentUserId={currentUserId}
               currentUserName={currentUserName}
               onRefresh={refresh}
+              onDeleteProgram={handleDeleteProgram}
+              onAddCostForProgram={handleAddCostForProgram}
               onConvertToProgram={handleConvertIdeaToProgram}
               convertedIdeaIds={convertedIdeaIds}
-            />
-          </section>
+              isPending={isPending}
+              ideaOpenSignal={ideaOpenSignal}
+              programOpenSignal={programOpenSignal}
+              convertIdeaId={convertProgramIdeaId}
+              onConvertIdeaHandled={() => setConvertProgramIdeaId(undefined)}
+            onDocumentUploaded={handleDocumentUploaded}
+            onDocumentDeleted={handleDocumentDeleted}
+          />
+        </section>
+      )}
 
-          <section className="space-y-4">
-            <TripSectionHeading
-              title="Programok"
-              description="Napi programok időponttal és résztvevőkkel"
-              action={
-                <Button
-                  size="sm"
-                  className={TRIP_SECTION_BTN_CLASS}
-                  onClick={() => {
-                    setEditingProgram(null);
-                    setProgramDrawerOpen(true);
-                  }}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Új program
-                </Button>
-              }
-            />
-            <div className="space-y-3">
-              {trip.programs.map((program) => {
-                const dateParts = programDateParts(program.date);
-                const programCosts = localCosts.filter((c) => c.programId === program.id);
-
-                return (
-                  <CollapsiblePanel
-                    key={program.id}
-                    defaultOpen={false}
-                    title={
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-primary/10 px-2 text-xs font-bold text-primary">
-                          {dateParts.day}. {dateParts.month}
-                        </span>
-                        {program.title}
-                      </span>
-                    }
-                    subtitle={
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span>
-                          {program.startTime && program.endTime
-                            ? `${program.startTime} – ${program.endTime}`
-                            : program.startTime
-                              ? program.startTime
-                              : "Egész napos"}
-                        </span>
-                        {program.location && (
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5" />
-                            {program.location}
-                          </span>
-                        )}
-                      </span>
-                    }
-                    alwaysVisible={
-                      program.url ? (
-                        <UrlPreviewCard url={program.url} compact className="w-full" />
-                      ) : undefined
-                    }
-                    actions={
-                      <div className="flex shrink-0 gap-0.5">
-                        {program.url && (
-                          <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
-                            <a href={program.url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9"
-                          onClick={() => {
-                            setEditingProgram(program);
-                            setProgramDrawerOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9"
-                          title="Költség hozzáadása"
-                          onClick={() => handleAddCostForProgram(program.id)}
-                        >
-                          <Receipt className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9"
-                          onClick={() => handleDeleteProgram(program.id)}
-                          disabled={isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    }
-                  >
-                    <div className="space-y-4">
-                      <MonogramGroup names={program.participants.map((p) => p.familyMember.name)} />
-
-                      {programCosts.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {programCosts.map((c) => (
-                            <span
-                              key={c.id}
-                              className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-1 text-xs"
-                            >
-                              {c.title}:{" "}
-                              <CostAmountDisplay
-                                amount={c.amount}
-                                currency={c.currency}
-                                amountScope={c.amountScope}
-                                participantCount={program.participants.length}
-                                className="ml-1 font-medium"
-                              />
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <CollapsiblePanel
-                        title="Program dokumentumok"
-                        subtitle={`${localDocuments.filter((d) => d.programId === program.id).length} fájl`}
-                        defaultOpen={false}
-                        className="overflow-hidden border-dashed shadow-none"
-                      >
-                        <DocumentUpload
-                          tripId={trip.id}
-                          programId={program.id}
-                          documents={localDocuments.filter((d) => d.programId === program.id)}
-                          participantOptions={tripParticipants}
-                          programTitleById={programTitleById}
-                          onDocumentUploaded={handleDocumentUploaded}
-                          onDocumentDeleted={handleDocumentDeleted}
-                          compact
-                        />
-                      </CollapsiblePanel>
-                    </div>
-                  </CollapsiblePanel>
-                );
-              })}
-              {trip.programs.length === 0 && (
-                <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                  Még nincsenek programok. Adj hozzá egyet, vagy alakíts ötletet programmá.
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
+      {activeTab === "accommodations" && (
+        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+          <TripAccommodationsSection
+            tripId={trip.id}
+            tripStartDate={formatDate(trip.startDate)}
+            tripEndDate={formatDate(trip.endDate)}
+            ideas={trip.ideas}
+            accommodations={trip.accommodations}
+            participants={trip.participants.map((p) => p.familyMember)}
+            costs={localCosts}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            onRefresh={refresh}
+            onConvertToAccommodation={handleConvertIdeaToAccommodation}
+            onAddCostForAccommodation={handleAddCostForAccommodation}
+            convertedIdeaIds={convertedIdeaIds}
+            ideaOpenSignal={accommodationIdeaOpenSignal}
+            accommodationOpenSignal={accommodationOpenSignal}
+            convertIdeaId={convertAccommodationIdeaId}
+            onConvertIdeaHandled={() => setConvertAccommodationIdeaId(undefined)}
+          />
+        </section>
       )}
 
       {activeTab === "finances" && (
-        <div className="space-y-8">
-          <section className="space-y-4">
-            <TripSectionHeading
-              title="Költségek"
-              description="Utazás és program szintű kiadások"
-              action={
-                <Button
-                  size="sm"
-                  className={TRIP_SECTION_BTN_CLASS}
-                  onClick={() => {
-                    setEditingCost(null);
-                    setCostDrawerOpen(true);
-                  }}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Új költség
-                </Button>
-              }
-            />
-            <div className="space-y-2">
-              {localCosts.map((cost) => {
-                const participantCount = cost.programId
-                  ? (trip.programs.find((p) => p.id === cost.programId)?.participants.length ?? 0)
-                  : trip.participants.length;
-
-                return (
-                <CollapsiblePanel
-                  key={cost.id}
-                  defaultOpen={false}
-                  title={cost.title}
-                  subtitle={
-                    <CostAmountDisplay
-                      amount={cost.amount}
-                      currency={cost.currency}
-                      amountScope={cost.amountScope}
-                      participantCount={participantCount}
-                    />
-                  }
-                  badge={
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {COST_CATEGORY_LABELS[cost.category as keyof typeof COST_CATEGORY_LABELS] ??
-                        cost.category}
-                    </span>
-                  }
-                  actions={
-                    <div className="flex shrink-0 gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => {
-                          setEditingCost(cost);
-                          setCostDrawerOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => handleDeleteCost(cost.id)}
-                        disabled={isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  }
-                  className="shadow-none"
-                >
-                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt className="text-muted-foreground">Szint</dt>
-                      <dd className="font-medium">
-                        {cost.programId
-                          ? programTitleById.get(cost.programId) ?? "Program"
-                          : "Utazás szint"}
-                      </dd>
-                    </div>
-                    {cost.paidByFamilyMemberId && (
-                      <div>
-                        <dt className="text-muted-foreground">Fizette</dt>
-                        <dd className="font-medium">
-                          {participantNameById.get(cost.paidByFamilyMemberId) ?? "Ismeretlen"}
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                </CollapsiblePanel>
-                );
-              })}
-              {localCosts.length === 0 && (
-                <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                  Még nincsenek költségek.
-                </p>
-              )}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
-            <CollapsiblePanel
-              title="Elszámolás"
-              subtitle="Ki mennyit fizetett és kinek kell visszafizetnie"
-              defaultOpen={false}
-              className="border-0 shadow-none"
-              headerClassName="px-0 pt-0"
-            >
-              <TripSettlementPanel
-                trip={{
-                  participants: trip.participants,
-                  programs: trip.programs.map((p) => ({
-                    id: p.id,
-                    participants: p.participants.map((x) => ({ familyMemberId: x.familyMember.id })),
-                  })),
-                  costs: localCosts,
-                }}
-              />
-            </CollapsiblePanel>
-          </section>
-        </div>
+        <TripFinancesSection
+          trip={{
+            participants: trip.participants,
+            programs: trip.programs,
+            accommodations: trip.accommodations,
+          }}
+          costs={localCosts}
+          programTitleById={programTitleById}
+          accommodationTitleById={accommodationTitleById}
+          participantNameById={participantNameById}
+          isPending={isPending}
+          onAddCost={() => {
+            setEditingCost(null);
+            setCostDrawerOpen(true);
+          }}
+          onEditCost={(cost) => {
+            setEditingCost(cost);
+            setCostDrawerOpen(true);
+          }}
+          onDeleteCost={handleDeleteCost}
+        />
       )}
 
       {activeTab === "documents" && (
@@ -712,24 +508,14 @@ export function TripDetailPage({
         members={members}
         onSaved={refresh}
       />
-      <ProgramFormDrawer
-        open={programDrawerOpen}
-        onOpenChange={handleProgramDrawerChange}
-        tripId={trip.id}
-        tripStartDate={formatDate(trip.startDate)}
-        tripEndDate={formatDate(trip.endDate)}
-        participantOptions={trip.participants.map((p) => p.familyMember)}
-        ideaOptions={trip.ideas}
-        defaultIdeaId={defaultIdeaId}
-        program={editingProgram ?? undefined}
-        onSaved={refresh}
-      />
       <CostFormDrawer
         open={costDrawerOpen}
         onOpenChange={handleCostDrawerChange}
         tripId={trip.id}
         programs={trip.programs}
+        accommodations={trip.accommodations}
         defaultProgramId={defaultCostProgramId}
+        defaultAccommodationId={defaultCostAccommodationId}
         participantOptions={trip.participants.map((p) => p.familyMember)}
         ideaOptions={trip.ideas.map((idea) => ({
           id: idea.id,

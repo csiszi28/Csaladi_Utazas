@@ -11,6 +11,7 @@ import { findAccessibleTrip, tripAccessFilter } from "@/lib/trip-access";
 export async function createCost(data: {
   tripId: string;
   programId?: string | null;
+  accommodationId?: string | null;
   amount: number;
   currency?: string;
   amountScope?: string;
@@ -34,6 +35,7 @@ export async function createCost(data: {
     data: {
       tripId: parsed.data.tripId,
       programId: parsed.data.programId ?? null,
+      accommodationId: parsed.data.accommodationId ?? null,
       amount: parsed.data.amount,
       currency: parsed.data.currency ?? "HUF",
       amountScope: parsed.data.amountScope ?? "TOTAL",
@@ -51,6 +53,7 @@ export async function updateCost(data: {
   id: string;
   tripId: string;
   programId?: string | null;
+  accommodationId?: string | null;
   amount: number;
   currency?: string;
   amountScope?: string;
@@ -74,6 +77,7 @@ export async function updateCost(data: {
     where: { id: parsed.data.id },
     data: {
       programId: parsed.data.programId ?? null,
+      accommodationId: parsed.data.accommodationId ?? null,
       amount: parsed.data.amount,
       currency: parsed.data.currency ?? "HUF",
       amountScope: parsed.data.amountScope ?? "TOTAL",

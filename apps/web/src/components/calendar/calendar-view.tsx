@@ -57,6 +57,7 @@ function emptyDayData(): DayData {
   return {
     dayTrips: [],
     dayPrograms: [],
+    dayAccommodations: [],
     dayCosts: [],
     totalCost: 0,
     totalCostHuf: 0,
@@ -81,8 +82,26 @@ function tripToCostContext(trip: CalendarTripRow): TripCostContext {
       participantIds: p.participants.map((x) => x.familyMember.id),
       costs: p.costs,
     })),
-    tripLevelCosts: trip.costs.filter((c) => !c.programId),
+    accommodations: (trip.accommodations ?? []).map((a) => ({
+      id: a.id,
+      title: a.title,
+      checkIn: new Date(a.checkIn),
+      checkOut: new Date(a.checkOut),
+      participantIds: a.participants.map((x) => x.familyMember.id),
+      costs: a.costs,
+    })),
+    tripLevelCosts: trip.costs.filter((c) => !c.programId && !c.accommodationId),
   };
+}
+
+function isAccommodationNight(day: Date, checkIn: Date | string, checkOut: Date | string): boolean {
+  const d = new Date(day);
+  d.setHours(0, 0, 0, 0);
+  const start = new Date(checkIn);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(checkOut);
+  end.setHours(0, 0, 0, 0);
+  return d >= start && d < end;
 }
 
 function buildDayData(day: Date, trips: CalendarTripRow[], rates: HufRateMap) {
@@ -96,11 +115,24 @@ function buildDayData(day: Date, trips: CalendarTripRow[], rates: HufRateMap) {
       .map((p) => ({ ...p, tripTitle: t.title, tripId: t.id }))
   );
 
+  const dayAccommodations = dayTrips.flatMap((t) =>
+    (t.accommodations ?? [])
+      .filter((a) => isAccommodationNight(day, a.checkIn, a.checkOut))
+      .map((a) => ({ ...a, tripTitle: t.title, tripId: t.id }))
+  );
+
   const dayCosts = dayTrips.flatMap((t) => {
     const programCosts = t.programs
       .filter((p) => isSameDay(new Date(p.date), day))
       .flatMap((p) => p.costs);
-    return [...t.costs.filter((c) => !c.programId), ...programCosts];
+    const accommodationCosts = (t.accommodations ?? [])
+      .filter((a) => isAccommodationNight(day, a.checkIn, a.checkOut))
+      .flatMap((a) => a.costs);
+    return [
+      ...t.costs.filter((c) => !c.programId && !c.accommodationId),
+      ...programCosts,
+      ...accommodationCosts,
+    ];
   });
 
   const totalCost = dayCosts.reduce((sum, c) => sum + c.amount, 0);
@@ -120,11 +152,16 @@ function buildDayData(day: Date, trips: CalendarTripRow[], rates: HufRateMap) {
   const badgeNames =
     programParticipantNames.length > 0 ? programParticipantNames : tripParticipantNames;
 
-  return { dayTrips, dayPrograms, dayCosts, totalCost, totalCostHuf, badgeNames };
+  return { dayTrips, dayPrograms, dayAccommodations, dayCosts, totalCost, totalCostHuf, badgeNames };
 }
 
 function hasDayActivity(data: DayData) {
-  return data.dayTrips.length > 0 || data.dayPrograms.length > 0 || data.dayCosts.length > 0;
+  return (
+    data.dayTrips.length > 0 ||
+    data.dayPrograms.length > 0 ||
+    data.dayAccommodations.length > 0 ||
+    data.dayCosts.length > 0
+  );
 }
 
 function MonthNavigation({
@@ -260,10 +297,15 @@ function DayAgendaCard({
                 {data.dayPrograms.length} program
               </span>
             )}
+            {data.dayAccommodations.length > 0 && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {data.dayAccommodations.length} szállás
+              </span>
+            )}
           </div>
 
           <div className="space-y-1">
-            {data.dayPrograms.slice(0, 3).map((program) => (
+            {data.dayPrograms.slice(0, 2).map((program) => (
               <p key={program.id} className="truncate text-sm">
                 {program.startTime && (
                   <span className="font-medium text-muted-foreground">{program.startTime} </span>
@@ -271,9 +313,14 @@ function DayAgendaCard({
                 {program.title}
               </p>
             ))}
-            {data.dayPrograms.length > 3 && (
+            {data.dayAccommodations.slice(0, 2).map((accommodation) => (
+              <p key={accommodation.id} className="truncate text-sm text-muted-foreground">
+                🏨 {accommodation.title}
+              </p>
+            ))}
+            {data.dayPrograms.length + data.dayAccommodations.length > 4 && (
               <p className="text-xs text-muted-foreground">
-                +{data.dayPrograms.length - 3} további program
+                +{data.dayPrograms.length + data.dayAccommodations.length - 4} további
               </p>
             )}
           </div>

@@ -43,6 +43,7 @@ export function DuplicateTripDialog({
   const [startDate, setStartDate] = useState(formatDate(sourceTrip.startDate));
   const [endDate, setEndDate] = useState(formatDate(sourceTrip.endDate));
   const [copyPrograms, setCopyPrograms] = useState(true);
+  const [copyAccommodations, setCopyAccommodations] = useState(true);
   const [copyIdeas, setCopyIdeas] = useState(true);
   const [copyBudget, setCopyBudget] = useState(true);
   const [shiftProgramDates, setShiftProgramDates] = useState(true);
@@ -60,6 +61,7 @@ export function DuplicateTripDialog({
         startDate,
         endDate,
         copyPrograms,
+        copyAccommodations,
         copyIdeas,
         copyBudget,
         shiftProgramDates,
@@ -96,20 +98,21 @@ export function DuplicateTripDialog({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Kezdő dátum</Label>
-              <DatePicker value={startDate} onChange={handleStartChange} />
+              <DatePicker value={startDate} onChange={handleStartChange} inDialog />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Záró dátum</Label>
-              <DatePicker value={endDate} onChange={setEndDate} minDate={startDate || undefined} />
+              <DatePicker value={endDate} onChange={setEndDate} minDate={startDate || undefined} inDialog />
             </div>
           </div>
 
           <div className="space-y-2 rounded-lg border p-3">
             {[
               ["copyPrograms", "Programok másolása", copyPrograms, setCopyPrograms],
+              ["copyAccommodations", "Szállások másolása", copyAccommodations, setCopyAccommodations],
               ["copyIdeas", "Ötletek másolása", copyIdeas, setCopyIdeas],
               ["copyBudget", "Költségvetési limit másolása", copyBudget, setCopyBudget],
-              ["shiftProgramDates", "Program dátumok eltolása az új kezdő dátumhoz", shiftProgramDates, setShiftProgramDates],
+              ["shiftProgramDates", "Dátumok eltolása az új kezdő dátumhoz", shiftProgramDates, setShiftProgramDates],
             ].map(([key, label, checked, setter]) => (
               <label key={key as string} className="flex cursor-pointer items-start gap-2 text-sm">
                 <input

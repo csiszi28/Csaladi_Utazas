@@ -9,6 +9,16 @@ export interface IcalProgram {
   description?: string | null;
 }
 
+export interface IcalAccommodation {
+  id: string;
+  title: string;
+  checkIn: Date | string;
+  checkOut: Date | string;
+  location?: string | null;
+  url?: string | null;
+  description?: string | null;
+}
+
 export interface IcalTrip {
   id: string;
   title: string;
@@ -16,6 +26,7 @@ export interface IcalTrip {
   startDate: Date | string;
   endDate: Date | string;
   programs: IcalProgram[];
+  accommodations?: IcalAccommodation[];
 }
 
 function escapeIcalText(value: string): string {
@@ -70,8 +81,8 @@ function parseProgramDateTime(program: IcalProgram): { start: Date; end: Date; a
   return { start, end, allDay: true };
 }
 
-function buildEventUid(tripId: string, programId: string): string {
-  return `${programId}@csaladi-utazas/${tripId}`;
+function buildEventUid(tripId: string, eventId: string, prefix = "program"): string {
+  return `${prefix}-${eventId}@csaladi-utazas/${tripId}`;
 }
 
 function buildEventBlock(trip: IcalTrip, program: IcalProgram, now: Date): string {
@@ -115,9 +126,55 @@ function buildEventBlock(trip: IcalTrip, program: IcalProgram, now: Date): strin
   return lines.join("\r\n");
 }
 
+function buildAccommodationEventBlock(trip: IcalTrip, accommodation: IcalAccommodation, now: Date): string {
+  const checkIn = typeof accommodation.checkIn === "string"
+    ? new Date(accommodation.checkIn)
+    : new Date(accommodation.checkIn);
+  const checkOut = typeof accommodation.checkOut === "string"
+    ? new Date(accommodation.checkOut)
+    : new Date(accommodation.checkOut);
+
+  checkIn.setHours(0, 0, 0, 0);
+  checkOut.setHours(0, 0, 0, 0);
+
+  const lines: string[] = [
+    "BEGIN:VEVENT",
+    `UID:${buildEventUid(trip.id, accommodation.id, "accommodation")}`,
+    `DTSTAMP:${formatIcalDateTime(now)}`,
+    `DTSTART;VALUE=DATE:${formatIcalDate(checkIn)}`,
+    `DTEND;VALUE=DATE:${formatIcalDate(checkOut)}`,
+    `SUMMARY:${escapeIcalText(`🏨 ${accommodation.title}`)}`,
+  ];
+
+  const descriptionParts = [
+    `Utazás: ${trip.title}`,
+    `Desztináció: ${trip.destination}`,
+    accommodation.description,
+    accommodation.url ? `Link: ${accommodation.url}` : null,
+  ].filter(Boolean);
+
+  if (descriptionParts.length > 0) {
+    lines.push(`DESCRIPTION:${escapeIcalText(descriptionParts.join("\\n"))}`);
+  }
+
+  if (accommodation.location) {
+    lines.push(`LOCATION:${escapeIcalText(accommodation.location)}`);
+  }
+
+  if (accommodation.url) {
+    lines.push(`URL:${accommodation.url}`);
+  }
+
+  lines.push("END:VEVENT");
+  return lines.join("\r\n");
+}
+
 export function buildTripIcal(trip: IcalTrip): string {
   const now = new Date();
-  const events = trip.programs.map((program) => buildEventBlock(trip, program, now));
+  const programEvents = trip.programs.map((program) => buildEventBlock(trip, program, now));
+  const accommodationEvents = (trip.accommodations ?? []).map((accommodation) =>
+    buildAccommodationEventBlock(trip, accommodation, now)
+  );
 
   return [
     "BEGIN:VCALENDAR",
@@ -126,7 +183,8 @@ export function buildTripIcal(trip: IcalTrip): string {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeIcalText(trip.title)}`,
-    ...events,
+    ...programEvents,
+    ...accommodationEvents,
     "END:VCALENDAR",
   ].join("\r\n");
 }
