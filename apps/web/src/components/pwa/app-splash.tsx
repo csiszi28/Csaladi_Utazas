@@ -104,12 +104,7 @@ export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
     if (phase !== "visible" || splashReadyRef.current) return;
 
     splashReadyRef.current = true;
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        document.getElementById("app-splash-blocker")?.remove();
-      });
-    });
+    document.getElementById("app-splash-blocker")?.remove();
   }, [phase]);
 
   if (phase === "hidden" || typeof document === "undefined") return null;
@@ -118,33 +113,20 @@ export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
     <div className="app-splash-root" role="presentation" aria-hidden={phase === "fading"}>
       <div
         className={cn(
-          "app-splash-content flex h-full w-full flex-col text-white transition-[opacity,transform] ease-[cubic-bezier(0.4,0,0.2,1)]",
-          phase === "fading"
-            ? "pointer-events-none scale-[1.015] opacity-0"
-            : "scale-100 opacity-100"
+          "app-splash-content transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]",
+          phase === "fading" ? "pointer-events-none opacity-0" : "opacity-100"
         )}
         style={{ transitionDuration: `${fadeMs}ms` }}
       >
-        <main className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4">
-          <div className="flex flex-col items-center space-y-6 text-center">
-            <h1 className="text-4xl font-bold tracking-[0.35em] text-white drop-shadow-sm sm:text-5xl">
-              F.A.M.
-            </h1>
-            <p className="text-sm font-semibold tracking-[0.28em] text-[#d6e3ff]/90">
-              FAMILY ADVENTURE MANAGER
-            </p>
-          </div>
-        </main>
+        <div className="app-splash-brand">
+          <h1 className="app-splash-title">F.A.M.</h1>
+          <p className="app-splash-subtitle">FAMILY ADVENTURE MANAGER</p>
+        </div>
 
-        <footer
-          className="splash-reveal-up relative flex w-full max-w-md shrink-0 flex-col items-center space-y-3 self-center px-4 pb-6"
-          style={{ animationDelay: "0.15s" }}
-        >
-          <span className="animate-pulse text-sm font-semibold tracking-wide text-[#adc7f7]">
-            Connecting...
-          </span>
-          <div className="relative h-0.5 w-48 overflow-hidden rounded-full bg-white/25">
-            <div className="splash-progress-shimmer absolute inset-y-0 w-1/3 rounded-full bg-[#ffb866]" />
+        <footer className="app-splash-footer">
+          <span className="app-splash-connecting splash-connecting-pulse">Connecting...</span>
+          <div className="app-splash-progress-track">
+            <div className="app-splash-progress-shimmer-bar splash-progress-shimmer" />
           </div>
         </footer>
       </div>
