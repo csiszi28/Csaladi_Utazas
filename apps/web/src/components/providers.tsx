@@ -3,7 +3,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useCallback, useLayoutEffect, useState, type CSSProperties } from "react";
 import { Toaster } from "sonner";
-import { getSplashContentFadeMs, shouldShowSplash } from "@/lib/app-splash";
+import {
+  getSplashContentFadeMs,
+  getSplashCrossfadeMs,
+  shouldShowSplash,
+} from "@/lib/app-splash";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
 import { AppSplash } from "@/components/pwa/app-splash";
@@ -27,26 +31,35 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const handleSplashFadeStart = useCallback(() => {
     setUseEnterTransition(true);
     window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => setContentVisible(true));
+      setContentVisible(true);
     });
   }, []);
 
   const handleSplashFinished = useCallback(() => {
     setContentVisible(true);
+    setUseEnterTransition(false);
   }, []);
 
   useLayoutEffect(() => {
     if (!shouldShowSplash()) {
       setContentVisible(true);
+      return;
     }
+
+    setUseEnterTransition(true);
   }, []);
 
   const showAppShell = !useEnterTransition || contentVisible;
   const contentFadeMs = getSplashContentFadeMs();
+  const crossfadeMs = getSplashCrossfadeMs();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppSplash onFadeStart={handleSplashFadeStart} onFinished={handleSplashFinished} />
+      <AppSplash
+        crossfadeMs={crossfadeMs}
+        onFadeStart={handleSplashFadeStart}
+        onFinished={handleSplashFinished}
+      />
       <div
         id="app-root"
         className={

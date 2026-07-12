@@ -2,8 +2,9 @@ export const SPLASH_KEY = "app-splash-seen-v2";
 export const SPLASH_BG = "#1a365d";
 
 export const SPLASH_DISPLAY_MS = 8000;
-export const SPLASH_FADE_MS = 1100;
-export const SPLASH_CONTENT_FADE_MS = 1100;
+export const SPLASH_ENTER_MS = 1000;
+export const SPLASH_FADE_MS = 1400;
+export const SPLASH_CONTENT_FADE_MS = 1400;
 
 export function shouldShowSplash(): boolean {
   if (typeof window === "undefined") return false;
@@ -39,12 +40,20 @@ export function getSplashDisplayMs(): number {
   return prefersReducedMotion() ? 1200 : SPLASH_DISPLAY_MS;
 }
 
+export function getSplashEnterMs(): number {
+  return prefersReducedMotion() ? 200 : SPLASH_ENTER_MS;
+}
+
 export function getSplashFadeMs(): number {
   return prefersReducedMotion() ? 200 : SPLASH_FADE_MS;
 }
 
 export function getSplashContentFadeMs(): number {
   return prefersReducedMotion() ? 200 : SPLASH_CONTENT_FADE_MS;
+}
+
+export function getSplashCrossfadeMs(): number {
+  return Math.max(getSplashFadeMs(), getSplashContentFadeMs());
 }
 
 export function beginSplashExit(): void {

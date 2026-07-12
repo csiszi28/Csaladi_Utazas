@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -8,21 +8,25 @@ import {
   beginSplashExit,
   cleanupSplashPrep,
   getSplashDisplayMs,
+  getSplashEnterMs,
   getSplashFadeMs,
   markSplashSeen,
   shouldShowSplash,
 } from "@/lib/app-splash";
 
 interface AppSplashProps {
+  crossfadeMs: number;
   onFadeStart?: () => void;
   onFinished?: () => void;
 }
 
-export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
+export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashProps) {
   const [phase, setPhase] = useState<"hidden" | "visible" | "fading">("hidden");
+  const [introShown, setIntroShown] = useState(false);
   const onFadeStartRef = useRef(onFadeStart);
   const onFinishedRef = useRef(onFinished);
-  const splashReadyRef = useRef(false);
+  const blockerHandoffRef = useRef(false);
+  const enterMs = getSplashEnterMs();
   const fadeMs = getSplashFadeMs();
 
   useEffect(() => {
@@ -40,11 +44,39 @@ export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
     setPhase("visible");
   }, []);
 
+  useLayoutEffect(() => {
+    if (phase !== "visible") return;
+
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        setIntroShown(true);
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [phase]);
+
+  useLayoutEffect(() => {
+    if (!introShown || blockerHandoffRef.current) return;
+
+    blockerHandoffRef.current = true;
+    document.getElementById("app-splash-blocker")?.classList.add("app-splash-blocker--handoff");
+
+    const timer = window.setTimeout(() => {
+      document.getElementById("app-splash-blocker")?.remove();
+    }, enterMs);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [introShown, enterMs]);
+
   useEffect(() => {
     if (!shouldShowSplash()) return;
 
     const displayMs = getSplashDisplayMs();
-    const fadeDurationMs = getSplashFadeMs();
 
     const fadeTimer = window.setTimeout(() => {
       beginSplashExit();
@@ -57,13 +89,13 @@ export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
       setPhase("hidden");
       cleanupSplashPrep();
       onFinishedRef.current?.();
-    }, displayMs + fadeDurationMs);
+    }, displayMs + crossfadeMs);
 
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(hideTimer);
     };
-  }, []);
+  }, [crossfadeMs]);
 
   useLayoutEffect(() => {
     if (phase === "hidden") return;
@@ -100,23 +132,21 @@ export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
     };
   }, [phase]);
 
-  useLayoutEffect(() => {
-    if (phase !== "visible" || splashReadyRef.current) return;
-
-    splashReadyRef.current = true;
-    document.getElementById("app-splash-blocker")?.remove();
-  }, [phase]);
-
   if (phase === "hidden" || typeof document === "undefined") return null;
 
   const splash = (
-    <div className="app-splash-root" role="presentation" aria-hidden={phase === "fading"}>
+    <div
+      className={cn(
+        "app-splash-root transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]",
+        phase === "fading" && "pointer-events-none opacity-0"
+      )}
+      style={{ transitionDuration: `${fadeMs}ms` }}
+      role="presentation"
+      aria-hidden={phase === "fading"}
+    >
       <div
-        className={cn(
-          "app-splash-content transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]",
-          phase === "fading" ? "pointer-events-none opacity-0" : "opacity-100"
-        )}
-        style={{ transitionDuration: `${fadeMs}ms` }}
+        className={cn("app-splash-content app-splash-intro", introShown && "app-splash-intro--shown")}
+        style={{ "--splash-enter-ms": `${enterMs}ms` } as CSSProperties}
       >
         <div className="app-splash-brand">
           <h1 className="app-splash-title">F.A.M.</h1>
