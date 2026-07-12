@@ -23,10 +23,9 @@ interface AppSplashProps {
 
 export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashProps) {
   const [phase, setPhase] = useState<"hidden" | "visible" | "fading">("hidden");
-  const [introShown, setIntroShown] = useState(false);
+  const [enterVisible, setEnterVisible] = useState(false);
   const onFadeStartRef = useRef(onFadeStart);
   const onFinishedRef = useRef(onFinished);
-  const blockerHandoffRef = useRef(false);
   const enterMs = getSplashEnterMs();
   const fadeMs = getSplashFadeMs();
 
@@ -49,9 +48,7 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
     if (phase !== "visible") return;
 
     const frame = window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        setIntroShown(true);
-      });
+      setEnterVisible(true);
     });
 
     return () => {
@@ -60,19 +57,14 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
   }, [phase]);
 
   useLayoutEffect(() => {
-    if (!introShown || blockerHandoffRef.current) return;
+    if (!enterVisible) return;
 
-    blockerHandoffRef.current = true;
-    document.getElementById("app-splash-blocker")?.classList.add("app-splash-blocker--handoff");
-
-    const timer = window.setTimeout(() => {
-      document.getElementById("app-splash-blocker")?.remove();
-    }, enterMs);
+    document.documentElement.classList.add("app-splash-entered");
 
     return () => {
-      window.clearTimeout(timer);
+      document.documentElement.classList.remove("app-splash-entered");
     };
-  }, [introShown, enterMs]);
+  }, [enterVisible]);
 
   useEffect(() => {
     if (!shouldShowSplash()) return;
@@ -138,17 +130,20 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
   const splash = (
     <div
       className={cn(
-        "app-splash-root transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]",
-        phase === "fading" && "pointer-events-none opacity-0"
+        "app-splash-root app-splash-root--enter ease-[cubic-bezier(0.22,1,0.36,1)]",
+        enterVisible && "app-splash-root--enter-visible",
+        phase === "fading" && "app-splash-root--exit pointer-events-none"
       )}
-      style={{ transitionDuration: `${fadeMs}ms` }}
+      style={
+        {
+          "--splash-enter-ms": `${enterMs}ms`,
+          "--splash-fade-ms": `${fadeMs}ms`,
+        } as CSSProperties
+      }
       role="presentation"
       aria-hidden={phase === "fading"}
     >
-      <div
-        className={cn("app-splash-content app-splash-intro", introShown && "app-splash-intro--shown")}
-        style={{ "--splash-enter-ms": `${enterMs}ms` } as CSSProperties}
-      >
+      <div className="app-splash-stage">
         <div className="app-splash-brand">
           <h1 className="app-splash-title">F.A.M.</h1>
           <p className="app-splash-subtitle">FAMILY ADVENTURE MANAGER</p>
