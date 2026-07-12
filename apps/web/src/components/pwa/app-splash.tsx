@@ -5,8 +5,9 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 const SPLASH_KEY = "app-splash-seen";
-const DISPLAY_MS = 5000;
+const DISPLAY_MS = 8000;
 const FADE_MS = 700;
+const SPLASH_BG = "#001b3c";
 
 export function AppSplash() {
   const [phase, setPhase] = useState<"hidden" | "visible" | "fading">("hidden");
@@ -39,24 +40,50 @@ export function AppSplash() {
 
   useEffect(() => {
     if (phase === "hidden") return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlBg = html.style.backgroundColor;
+    const previousBodyBg = body.style.backgroundColor;
+    const previousBodyOverflow = body.style.overflow;
+
+    html.classList.add("app-splash-active");
+    html.style.backgroundColor = SPLASH_BG;
+    body.style.backgroundColor = SPLASH_BG;
+    body.style.overflow = "hidden";
+
+    let themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const previousTheme = themeMeta?.getAttribute("content") ?? null;
+    if (!themeMeta) {
+      themeMeta = document.createElement("meta");
+      themeMeta.setAttribute("name", "theme-color");
+      document.head.appendChild(themeMeta);
+    }
+    themeMeta.setAttribute("content", SPLASH_BG);
+
     return () => {
-      document.body.style.overflow = previousOverflow;
+      html.classList.remove("app-splash-active");
+      html.style.backgroundColor = previousHtmlBg;
+      body.style.backgroundColor = previousBodyBg;
+      body.style.overflow = previousBodyOverflow;
+      if (themeMeta) {
+        if (previousTheme) themeMeta.setAttribute("content", previousTheme);
+        else themeMeta.remove();
+      }
     };
   }, [phase]);
 
   if (phase === "hidden" || !mounted) return null;
 
   const splash = (
-    <div
-      className={cn(
-        "app-splash-bg fixed z-[9999] flex flex-col text-white transition-all duration-700 ease-in-out",
-        phase === "fading" ? "pointer-events-none scale-[0.98] opacity-0" : "scale-100 opacity-100"
-      )}
-      aria-hidden={phase === "fading"}
-      role="presentation"
-    >
+    <div className="app-splash-root" role="presentation" aria-hidden={phase === "fading"}>
+      <div className="app-splash-backdrop" aria-hidden />
+      <div
+        className={cn(
+          "app-splash-bg relative flex h-full w-full flex-col text-white transition-all duration-700 ease-in-out",
+          phase === "fading" ? "pointer-events-none scale-[0.98] opacity-0" : "scale-100 opacity-100"
+        )}
+      >
       <main className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4">
         <div
           className="splash-reveal-up flex flex-col items-center space-y-6 text-center"
@@ -82,6 +109,7 @@ export function AppSplash() {
           <div className="splash-progress-shimmer absolute inset-y-0 w-1/3 rounded-full bg-[#ffb866]" />
         </div>
       </footer>
+      </div>
     </div>
   );
 

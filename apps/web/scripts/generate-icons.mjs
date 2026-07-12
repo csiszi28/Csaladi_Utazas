@@ -1,4 +1,4 @@
-import { mkdir, readFileSync } from "node:fs";
+import { mkdir, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -6,10 +6,15 @@ import sharp from "sharp";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(__dirname, "..", "public");
 const iconsDir = join(publicDir, "icons");
+const pngSource = join(publicDir, "app-icon-source.png");
+const svgSource = join(publicDir, "icon.svg");
 
 mkdir(iconsDir, { recursive: true }, () => {});
 
-const svg = readFileSync(join(publicDir, "icon.svg"));
+const source = existsSync(pngSource) ? pngSource : svgSource;
+const pipeline = source.endsWith(".png")
+  ? sharp(pngSource)
+  : sharp(readFileSync(svgSource));
 
 const sizes = [
   { name: "icon-192.png", size: 192 },
@@ -18,6 +23,10 @@ const sizes = [
 ];
 
 for (const { name, size } of sizes) {
-  await sharp(svg).resize(size, size).png().toFile(join(iconsDir, name));
+  await pipeline
+    .clone()
+    .resize(size, size, { fit: "cover" })
+    .png()
+    .toFile(join(iconsDir, name));
   console.log(`Generated public/icons/${name}`);
 }

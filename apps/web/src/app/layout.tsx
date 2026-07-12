@@ -41,7 +41,14 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="hu">
+    <html lang="hu" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var mobile=window.matchMedia("(max-width:767px)").matches;var standalone=window.matchMedia("(display-mode:standalone)").matches||("standalone" in navigator&&navigator.standalone);if((mobile||standalone)&&sessionStorage.getItem("app-splash-seen")!=="1"){document.documentElement.style.backgroundColor="#001b3c";document.documentElement.classList.add("app-splash-active");if(document.body){document.body.style.backgroundColor="#001b3c";}}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>
