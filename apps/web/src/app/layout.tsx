@@ -36,7 +36,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: "#001b3c",
+  themeColor: "#1a365d",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var mobile=window.matchMedia("(max-width:767px)").matches;var standalone=window.matchMedia("(display-mode:standalone)").matches||("standalone" in navigator&&navigator.standalone);if((mobile||standalone)&&sessionStorage.getItem("app-splash-seen-v2")!=="1"){document.documentElement.style.backgroundColor="#001b3c";document.documentElement.classList.add("app-splash-active");if(document.body){document.body.style.backgroundColor="#001b3c";}}}catch(e){}})();`,
+            __html: `(function(){try{var k="app-splash-seen-v2",bg="#1a365d";var mobile=matchMedia("(max-width:767px)").matches;var standalone=matchMedia("(display-mode:standalone)").matches||("standalone" in navigator&&navigator.standalone);if(!(mobile||standalone)||sessionStorage.getItem(k)==="1")return;var html=document.documentElement;html.classList.add("app-splash-active");html.style.backgroundColor=bg;var css='html.app-splash-active,html.app-splash-active body{background-color:'+bg+'!important;overflow:hidden!important}html.app-splash-active body>*:not(.app-splash-root){visibility:hidden!important;pointer-events:none!important}#app-splash-blocker{position:fixed;inset:0;z-index:99998;background:'+bg+';width:100vw;height:100dvh;min-height:-webkit-fill-available}';var style=document.createElement("style");style.id="app-splash-prep-style";style.textContent=css;document.head.appendChild(style);function mountBlocker(){if(document.getElementById("app-splash-blocker"))return;var blocker=document.createElement("div");blocker.id="app-splash-blocker";blocker.setAttribute("aria-hidden","true");(document.body||html).appendChild(blocker);if(document.body){document.body.style.backgroundColor=bg;document.body.style.overflow="hidden"}}if(document.body)mountBlocker();else document.addEventListener("DOMContentLoaded",mountBlocker,{once:true})}catch(e){}})();`,
           }}
         />
       </head>

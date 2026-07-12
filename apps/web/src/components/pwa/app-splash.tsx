@@ -1,49 +1,51 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import {
+  SPLASH_BG,
+  SPLASH_DISPLAY_MS,
+  SPLASH_FADE_MS,
+  cleanupSplashPrep,
+  markSplashSeen,
+  shouldShowSplash,
+} from "@/lib/app-splash";
 
-const SPLASH_KEY = "app-splash-seen-v2";
-const DISPLAY_MS = 8000;
-const FADE_MS = 700;
-const SPLASH_BG = "#001b3c";
-
-function shouldShowSplash(): boolean {
-  if (typeof window === "undefined") return false;
-
-  const isMobile = window.matchMedia("(max-width: 767px)").matches;
-  const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    ("standalone" in navigator && (navigator as Navigator & { standalone?: boolean }).standalone);
-
-  if (!isMobile && !isStandalone) return false;
-  if (sessionStorage.getItem(SPLASH_KEY) === "1") return false;
-
-  return true;
+interface AppSplashProps {
+  onFinished?: () => void;
 }
 
-function markSplashSeen(): void {
-  try {
-    sessionStorage.setItem(SPLASH_KEY, "1");
-  } catch {
-    // Private mode / storage blocked
-  }
+function getInitialPhase(): "hidden" | "visible" | "fading" {
+  if (typeof window === "undefined") return "hidden";
+  return shouldShowSplash() ? "visible" : "hidden";
 }
 
-export function AppSplash() {
-  const [phase, setPhase] = useState<"hidden" | "visible" | "fading">("hidden");
+export function AppSplash({ onFinished }: AppSplashProps) {
+  const [phase, setPhase] = useState<"hidden" | "visible" | "fading">(getInitialPhase);
+  const onFinishedRef = useRef(onFinished);
 
   useEffect(() => {
-    if (!shouldShowSplash()) return;
+    onFinishedRef.current = onFinished;
+  }, [onFinished]);
 
+  useEffect(() => {
+    if (!shouldShowSplash()) {
+      cleanupSplashPrep();
+      onFinishedRef.current?.();
+      return;
+    }
+
+    document.getElementById("app-splash-blocker")?.remove();
     setPhase("visible");
 
-    const fadeTimer = window.setTimeout(() => setPhase("fading"), DISPLAY_MS);
+    const fadeTimer = window.setTimeout(() => setPhase("fading"), SPLASH_DISPLAY_MS);
     const hideTimer = window.setTimeout(() => {
       markSplashSeen();
       setPhase("hidden");
-    }, DISPLAY_MS + FADE_MS);
+      cleanupSplashPrep();
+      onFinishedRef.current?.();
+    }, SPLASH_DISPLAY_MS + SPLASH_FADE_MS);
 
     return () => {
       window.clearTimeout(fadeTimer);
@@ -56,9 +58,6 @@ export function AppSplash() {
 
     const html = document.documentElement;
     const body = document.body;
-    const previousHtmlBg = html.style.backgroundColor;
-    const previousBodyBg = body.style.backgroundColor;
-    const previousBodyOverflow = body.style.overflow;
 
     html.classList.add("app-splash-active");
     html.style.backgroundColor = SPLASH_BG;
@@ -75,10 +74,6 @@ export function AppSplash() {
     themeMeta.setAttribute("content", SPLASH_BG);
 
     return () => {
-      html.classList.remove("app-splash-active");
-      html.style.backgroundColor = previousHtmlBg;
-      body.style.backgroundColor = previousBodyBg;
-      body.style.overflow = previousBodyOverflow;
       if (themeMeta) {
         if (previousTheme) themeMeta.setAttribute("content", previousTheme);
         else themeMeta.remove();
@@ -90,11 +85,10 @@ export function AppSplash() {
 
   const splash = (
     <div className="app-splash-root" role="presentation" aria-hidden={phase === "fading"}>
-      <div className="app-splash-backdrop" aria-hidden />
       <div
         className={cn(
-          "app-splash-bg relative flex h-full w-full flex-col text-white transition-all duration-700 ease-in-out",
-          phase === "fading" ? "pointer-events-none scale-[0.98] opacity-0" : "scale-100 opacity-100"
+          "app-splash-content flex h-full w-full flex-col text-white transition-opacity duration-700 ease-out",
+          phase === "fading" ? "pointer-events-none opacity-0" : "opacity-100"
         )}
       >
         <main className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4">
@@ -112,7 +106,7 @@ export function AppSplash() {
         </main>
 
         <footer
-          className="splash-reveal-up relative flex w-full max-w-md shrink-0 flex-col items-center space-y-3 self-center px-4"
+          className="splash-reveal-up relative flex w-full max-w-md shrink-0 flex-col items-center space-y-3 self-center px-4 pb-6"
           style={{ animationDelay: "0.15s" }}
         >
           <span className="animate-pulse text-sm font-semibold tracking-wide text-[#adc7f7]">
