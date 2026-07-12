@@ -114,19 +114,15 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
     body.style.backgroundColor = SPLASH_BG;
     body.style.overflow = "hidden";
 
-    let themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const previousTheme = themeMeta?.getAttribute("content") ?? null;
-    if (!themeMeta) {
-      themeMeta = document.createElement("meta");
-      themeMeta.setAttribute("name", "theme-color");
-      document.head.appendChild(themeMeta);
+    if (themeMeta) {
+      themeMeta.setAttribute("content", SPLASH_BG);
     }
-    themeMeta.setAttribute("content", SPLASH_BG);
 
     return () => {
-      if (themeMeta) {
-        if (previousTheme) themeMeta.setAttribute("content", previousTheme);
-        else themeMeta.remove();
+      if (themeMeta && previousTheme) {
+        themeMeta.setAttribute("content", previousTheme);
       }
     };
   }, [phase]);

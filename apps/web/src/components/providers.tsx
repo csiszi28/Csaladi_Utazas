@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { useCallback, useLayoutEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
 import {
   ensureAppInteractive,
   getSplashContentFadeMs,
@@ -54,7 +54,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (shouldShowSplash()) return;
 
     ensureAppInteractive();

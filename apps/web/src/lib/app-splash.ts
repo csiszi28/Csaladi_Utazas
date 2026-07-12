@@ -90,7 +90,6 @@ export function cleanupSplashPrep(): void {
     document.body.style.backgroundColor = "";
     document.body.style.overflow = "";
   }
-  document.getElementById("app-splash-blocker")?.remove();
 }
 
 /** Navigáció / bejelentkezés előtt: biztosítja, hogy az app interaktív állapotban legyen. */

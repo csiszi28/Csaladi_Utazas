@@ -51,6 +51,7 @@ const SPLASH_CRITICAL_CSS = [
   "html.app-splash-active,html.app-splash-active body{background-color:#1a365d!important;overflow:hidden!important}",
   "html.app-splash-exiting,html.app-splash-exiting body{background-color:#1a365d!important}",
   "html.app-splash-entered #app-splash-blocker{visibility:hidden!important;pointer-events:none!important}",
+  "html.app-ready #app-splash-blocker{display:none!important;visibility:hidden!important;pointer-events:none!important}",
   "html.app-splash-active body>*:not(.app-splash-root):not(#app-splash-blocker){visibility:hidden!important;pointer-events:none!important}",
   "html.splash-gate.app-splash-exiting body>*:not(.app-splash-root){visibility:visible!important;pointer-events:auto!important}",
   "html.app-splash-exiting body{overflow:hidden!important}",

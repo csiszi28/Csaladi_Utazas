@@ -302,6 +302,12 @@ html.app-splash-entered #app-splash-blocker {
   pointer-events: none !important;
 }
 
+html.app-ready #app-splash-blocker {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .app-splash-stage {
   position: relative;
   display: flex;
