@@ -92,3 +92,8 @@ export function cleanupSplashPrep(): void {
   }
   document.getElementById("app-splash-blocker")?.remove();
 }
+
+/** Navigáció / bejelentkezés előtt: biztosítja, hogy az app interaktív állapotban legyen. */
+export function ensureAppInteractive(): void {
+  cleanupSplashPrep();
+}

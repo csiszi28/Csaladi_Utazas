@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ActionResult } from "@/actions/auth";
 import { formatAuthError } from "@/lib/auth/errors";
+import { ensureAppInteractive } from "@/lib/app-splash";
 
 interface AuthField {
   name: string;
@@ -24,7 +25,13 @@ interface AuthFormProps {
   successMessage?: string;
 }
 
-export function AuthForm({ action, fields, submitLabel, redirectOnSuccess, successMessage }: AuthFormProps) {
+export function AuthForm({
+  action,
+  fields,
+  submitLabel,
+  redirectOnSuccess,
+  successMessage,
+}: AuthFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -46,15 +53,16 @@ export function AuthForm({ action, fields, submitLabel, redirectOnSuccess, succe
           toast.error(message);
           return;
         }
-        const msg = result.message ?? successMessage ?? "Sikeres művelet";
-        toast.success(msg);
-        const target = result.redirectTo ?? redirectOnSuccess;
-        if (target) {
-          router.push(target);
-        } else {
-          router.push("/");
-          router.refresh();
+
+        const msg = result.message ?? successMessage;
+        if (msg) {
+          toast.success(msg);
         }
+
+        ensureAppInteractive();
+
+        const target = result.redirectTo ?? redirectOnSuccess ?? "/";
+        router.replace(target);
       } catch (err) {
         const message = formatAuthError(err);
         setError(message);

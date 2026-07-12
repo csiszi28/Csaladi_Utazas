@@ -91,7 +91,13 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
   }, [crossfadeMs]);
 
   useLayoutEffect(() => {
-    if (phase === "hidden") return;
+    if (phase === "hidden") {
+      if (document.body) {
+        document.body.style.overflow = "";
+        document.body.style.backgroundColor = "";
+      }
+      return;
+    }
 
     const html = document.documentElement;
     const body = document.body;

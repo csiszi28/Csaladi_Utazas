@@ -374,6 +374,16 @@ html.app-splash-exiting body {
   opacity: 1;
 }
 
+[data-sonner-toaster][data-x-position="center"] {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+}
+
+.app-toast {
+  max-width: min(24rem, calc(100vw - 2rem));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .splash-progress-shimmer,
   .splash-connecting-pulse {

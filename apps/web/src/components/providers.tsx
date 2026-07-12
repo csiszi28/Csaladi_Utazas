@@ -1,18 +1,22 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
 import { useCallback, useLayoutEffect, useState, type CSSProperties } from "react";
-import { Toaster } from "sonner";
 import {
+  ensureAppInteractive,
   getSplashContentFadeMs,
   getSplashCrossfadeMs,
+  shouldShowSplash,
   syncSplashDocumentState,
 } from "@/lib/app-splash";
+import { AppToaster } from "@/components/ui/app-toaster";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
 import { AppSplash } from "@/components/pwa/app-splash";
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -35,6 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleSplashFinished = useCallback(() => {
+    ensureAppInteractive();
     setContentVisible(true);
     setSplashActive(false);
   }, []);
@@ -44,9 +49,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setSplashActive(showSplash);
 
     if (!showSplash) {
+      ensureAppInteractive();
       setContentVisible(true);
     }
   }, []);
+
+  useLayoutEffect(() => {
+    if (shouldShowSplash()) return;
+
+    ensureAppInteractive();
+    setSplashActive(false);
+    setContentVisible(true);
+  }, [pathname]);
 
   const showAppShell = !splashActive || contentVisible;
   const contentFadeMs = getSplashContentFadeMs();
@@ -80,7 +94,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <div id="app-chrome" suppressHydrationWarning>
         <PwaRegister />
         <PwaInstallPrompt />
-        <Toaster richColors position="top-right" />
+        <AppToaster />
       </div>
     </QueryClientProvider>
   );
