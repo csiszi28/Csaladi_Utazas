@@ -46,8 +46,8 @@ const SPLASH_CRITICAL_CSS = [
   "html.splash-gate:not(.app-ready):not(.app-splash-exiting) body>*:not(#app-splash-blocker){visibility:hidden!important;pointer-events:none!important}",
   "html.splash-gate:not(.app-ready) #app-splash-blocker{display:block!important}",
   "}",
-  "#app-splash-blocker{display:none;position:fixed;inset:0;z-index:100000;background:#1a365d;color:#fff;width:100vw;height:100dvh;min-height:-webkit-fill-available;box-sizing:border-box}",
-  ".app-splash-stage{position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;height:100%;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}",
+  "#app-splash-blocker{display:none;position:fixed;inset:0;z-index:100000;background:#1a365d;color:#fff;width:100%;height:100svh;box-sizing:border-box}",
+  ".app-splash-brand{position:fixed;left:50%;top:50svh;z-index:100001;display:flex;flex-direction:column;align-items:center;text-align:center;contain:layout style;width:max-content;max-width:calc(100vw - 2rem);padding:0 1rem;box-sizing:border-box;transform:translate(-50%,-50%)}",
   "html.app-splash-active,html.app-splash-active body{background-color:#1a365d!important;overflow:hidden!important}",
   "html.app-splash-exiting,html.app-splash-exiting body{background-color:#1a365d!important}",
   "html.app-ready #app-splash-blocker{display:none!important;visibility:hidden!important;pointer-events:none!important}",
@@ -57,10 +57,9 @@ const SPLASH_CRITICAL_CSS = [
   "html.app-splash-exiting #app-splash-blocker{opacity:0;transition:opacity 1.4s cubic-bezier(.4,0,.2,1);pointer-events:none}",
   "html.app-splash-active #app-splash-blocker .app-splash-footer{animation:splash-footer-enter 1s cubic-bezier(.22,1,.36,1) forwards;opacity:0}",
   "@keyframes splash-footer-enter{to{opacity:1}}",
-  ".app-splash-brand{display:flex;flex-direction:column;align-items:center;text-align:center;contain:layout style}",
   ".app-splash-title{margin:0;font-size:3rem;font-weight:700;letter-spacing:.35em;padding-left:.35em;line-height:1.1;color:#fff;min-height:1.1em;font-family:ui-sans-serif,system-ui,sans-serif}",
   ".app-splash-subtitle{margin:1.5rem 0 0;font-size:.875rem;font-weight:600;letter-spacing:.28em;padding-left:.28em;line-height:1.4;color:rgba(214,227,255,.9);min-height:1.4em;font-family:ui-sans-serif,system-ui,sans-serif}",
-  ".app-splash-footer{position:absolute;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:center;gap:.75rem;padding:0 1rem max(1.5rem,env(safe-area-inset-bottom)) 1rem;box-sizing:border-box}",
+  ".app-splash-footer{position:fixed;right:0;bottom:max(1.5rem,env(safe-area-inset-bottom));left:0;z-index:100001;display:flex;flex-direction:column;align-items:center;gap:.75rem;padding:0 1rem;box-sizing:border-box}",
   ".app-splash-connecting{font-size:.875rem;font-weight:600;letter-spacing:.05em;color:#adc7f7}",
   ".app-splash-progress-track{position:relative;width:12rem;height:2px;overflow:hidden;border-radius:9999px;background:rgba(255,255,255,.25)}",
   ".app-splash-progress-shimmer-bar{position:absolute;inset-block:0;width:33.333%;border-radius:9999px;background:#ffb866}",
@@ -78,16 +77,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <div id="app-splash-blocker" aria-hidden="true">
-          <div className="app-splash-stage">
-            <div className="app-splash-brand">
-              <h1 className="app-splash-title">F.A.M.</h1>
-              <p className="app-splash-subtitle">FAMILY ADVENTURE MANAGER</p>
-            </div>
-            <div className="app-splash-footer" aria-hidden="true">
-              <span className="app-splash-connecting splash-connecting-pulse">Connecting...</span>
-              <div className="app-splash-progress-track">
-                <div className="app-splash-progress-shimmer-bar splash-progress-shimmer" />
-              </div>
+          <div className="app-splash-brand">
+            <h1 className="app-splash-title">F.A.M.</h1>
+            <p className="app-splash-subtitle">FAMILY ADVENTURE MANAGER</p>
+          </div>
+          <div className="app-splash-footer" aria-hidden="true">
+            <span className="app-splash-connecting splash-connecting-pulse">Connecting...</span>
+            <div className="app-splash-progress-track">
+              <div className="app-splash-progress-shimmer-bar splash-progress-shimmer" />
             </div>
           </div>
         </div>
