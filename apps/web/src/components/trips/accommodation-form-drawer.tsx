@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import {
   formatDate,
+  formatAmountInput,
+  parseAmountInput,
   type CostCategory,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
@@ -20,9 +22,13 @@ import {
 import { useCreateAccommodation, useUpdateAccommodation } from "@/hooks/use-accommodations";
 import { useCreateCost } from "@/hooks/use-costs";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
-import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
+import {
+  CostFieldsBlock,
+  createEmptyCostFields,
+  type CostFieldsValue,
+} from "@/components/trips/cost-fields-block";
 
 export interface AccommodationIdeaOption {
   id: string;
@@ -82,7 +88,9 @@ export function AccommodationFormDrawer({
   const [note, setNote] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
   const [selectedIdeaId, setSelectedIdeaId] = useState("");
-  const [createCostFromIdea, setCreateCostFromIdea] = useState(true);
+  const [costFields, setCostFields] = useState<CostFieldsValue>(() =>
+    createEmptyCostFields("ACCOMMODATION")
+  );
 
   const isConvertMode = !accommodation && Boolean(defaultIdeaId);
 
@@ -96,7 +104,7 @@ export function AccommodationFormDrawer({
       setNote(accommodation.note ?? "");
       setParticipantIds(accommodation.participants.map((p) => p.familyMember.id));
       setSelectedIdeaId("");
-      setCreateCostFromIdea(false);
+      setCostFields(createEmptyCostFields("ACCOMMODATION"));
     } else if (!accommodation && open) {
       setTitle("");
       setCheckIn(tripStartDate);
@@ -106,7 +114,7 @@ export function AccommodationFormDrawer({
       setNote("");
       setParticipantIds(participantOptions.map((p) => p.id));
       setSelectedIdeaId("");
-      setCreateCostFromIdea(true);
+      setCostFields(createEmptyCostFields("ACCOMMODATION"));
 
       if (defaultIdeaId) {
         applyIdea(defaultIdeaId);
@@ -134,7 +142,17 @@ export function AccommodationFormDrawer({
       setParticipantIds(participantOptions.map((p) => p.id));
     }
 
-    setCreateCostFromIdea(idea.amount != null && idea.amount > 0);
+    if (idea.amount != null && idea.amount > 0) {
+      setCostFields({
+        amount: formatAmountInput(String(Math.round(idea.amount))),
+        currency: idea.currency,
+        amountScope: idea.amountScope,
+        category: "ACCOMMODATION",
+        paidByFamilyMemberId: "",
+      });
+    } else {
+      setCostFields(createEmptyCostFields("ACCOMMODATION"));
+    }
   }
 
   function toggleParticipant(id: string) {
@@ -166,26 +184,25 @@ export function AccommodationFormDrawer({
       const result = await updateMutation.mutateAsync({ id: accommodation.id, ...data });
       if (!result.success) return;
     } else {
+      const parsedAmount = parseAmountInput(costFields.amount);
+      if (parsedAmount <= 0) return;
+
       const result = await createMutation.mutateAsync({
         ...data,
         ideaId: selectedIdeaId || defaultIdeaId || null,
       });
       if (!result.success) return;
 
-      if (
-        createCostFromIdea &&
-        selectedIdea?.amount != null &&
-        selectedIdea.amount > 0 &&
-        result.data?.id
-      ) {
+      if (result.data?.id) {
         await createCostMutation.mutateAsync({
           tripId,
           accommodationId: result.data.id,
-          title: selectedIdea.title,
-          amount: selectedIdea.amount,
-          currency: selectedIdea.currency,
-          amountScope: selectedIdea.amountScope,
-          category: "ACCOMMODATION" as CostCategory,
+          title,
+          amount: parsedAmount,
+          currency: costFields.currency,
+          amountScope: costFields.amountScope,
+          category: costFields.category as CostCategory,
+          paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
         });
       }
     }
@@ -193,6 +210,8 @@ export function AccommodationFormDrawer({
     onOpenChange(false);
     onSaved?.();
   }
+
+  const isCreateCostValid = accommodation || parseAmountInput(costFields.amount) > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -290,26 +309,13 @@ export function AccommodationFormDrawer({
             </div>
           </div>
 
-          {!accommodation && selectedIdea?.amount != null && selectedIdea.amount > 0 && (
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm">
-              <input
-                type="checkbox"
-                checked={createCostFromIdea}
-                onChange={(e) => setCreateCostFromIdea(e.target.checked)}
-                className="h-4 w-4 rounded border-input"
-              />
-              <span className="inline-flex flex-wrap items-center gap-x-1">
-                Becsült költség rögzítése is (
-                <CostAmountDisplay
-                  amount={selectedIdea.amount}
-                  currency={selectedIdea.currency}
-                  amountScope={selectedIdea.amountScope}
-                  participantCount={selectedIdea.interests.length}
-                  className="inline-flex"
-                />
-                )
-              </span>
-            </label>
+          {!accommodation && (
+            <CostFieldsBlock
+              value={costFields}
+              onChange={(patch) => setCostFields((prev) => ({ ...prev, ...patch }))}
+              participantOptions={participantOptions}
+              heading="Szállás költsége"
+            />
           )}
         </DialogBody>
         <DialogFooter className="grid grid-cols-2 gap-2">
@@ -326,7 +332,14 @@ export function AccommodationFormDrawer({
             size="sm"
             className="w-full min-h-[var(--touch-target)] sm:min-h-9"
             onClick={handleSubmit}
-            disabled={!participantIds.length || !title || !checkIn || !checkOut || isPending}
+            disabled={
+              !participantIds.length ||
+              !title ||
+              !checkIn ||
+              !checkOut ||
+              !isCreateCostValid ||
+              isPending
+            }
           >
             {isPending ? "Mentés…" : isConvertMode ? "Szállás rögzítése" : "Mentés"}
           </Button>

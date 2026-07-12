@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
-import { ExternalLink, Plus, Pencil, Trash2 } from "lucide-react";
+import { ExternalLink, Plus, Pencil, Trash2, BedDouble } from "lucide-react";
 import { toast } from "sonner";
 import type { CalendarTripRow } from "@/lib/queries/trips";
 import type { FamilyMemberRow } from "@/lib/queries/family";
@@ -28,6 +28,11 @@ import { CostFormDrawer } from "@/components/trips/cost-form-drawer";
 import { TripFormDrawer } from "@/components/trips/trip-form-drawer";
 
 type CalendarProgram = CalendarTripRow["programs"][number] & {
+  tripId: string;
+  tripTitle: string;
+};
+
+type CalendarAccommodation = NonNullable<CalendarTripRow["accommodations"]>[number] & {
   tripId: string;
   tripTitle: string;
 };
@@ -113,7 +118,6 @@ export function CalendarDayDrawer({
   const [tripDrawerOpen, setTripDrawerOpen] = useState(false);
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
   const [editingTrip, setEditingTrip] = useState<CalendarTripRow | null>(null);
-  const [defaultProgramId, setDefaultProgramId] = useState<string | undefined>();
   const [editingProgram, setEditingProgram] = useState<CalendarProgram | null>(null);
   const [editingCost, setEditingCost] = useState<CalendarDayCost | null>(null);
 
@@ -125,6 +129,12 @@ export function CalendarDayDrawer({
     t.programs
       .filter((p) => isSameDay(new Date(p.date), date))
       .map((p) => ({ ...p, tripId: t.id, tripTitle: t.title }))
+  );
+
+  const dayAccommodations: CalendarAccommodation[] = dayTrips.flatMap((t) =>
+    (t.accommodations ?? [])
+      .filter((a) => isAccommodationNight(date, a.checkIn, a.checkOut))
+      .map((a) => ({ ...a, tripId: t.id, tripTitle: t.title }))
   );
 
   const dayCosts: CalendarDayCost[] = dayTrips.flatMap((t) => {
@@ -217,17 +227,15 @@ export function CalendarDayDrawer({
     setProgramDrawerOpen(true);
   }
 
-  function openNewCost(tripId: string, programId?: string) {
+  function openNewCost(tripId: string) {
     setActiveTripId(tripId);
     setEditingCost(null);
-    setDefaultProgramId(programId);
     setCostDrawerOpen(true);
   }
 
   function openEditCost(cost: CalendarDayCost) {
     setActiveTripId(cost.tripId);
     setEditingCost(cost);
-    setDefaultProgramId(undefined);
     setCostDrawerOpen(true);
   }
 
@@ -277,14 +285,17 @@ export function CalendarDayDrawer({
           <DialogHeader>
             <DialogTitle>{selectedDateStr}</DialogTitle>
             <p className="text-sm font-normal text-muted-foreground">
-              Utazások, programok és költségek
+              Utazások, programok, szállások és költségek
             </p>
           </DialogHeader>
 
           <DialogBody className="space-y-4">
-            {dayTrips.length === 0 && dayPrograms.length === 0 && dayCosts.length === 0 ? (
+            {dayTrips.length === 0 &&
+            dayPrograms.length === 0 &&
+            dayAccommodations.length === 0 &&
+            dayCosts.length === 0 ? (
               <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                Ezen a napon nincs utazás, program vagy költség.
+                Ezen a napon nincs utazás, program, szállás vagy költség.
               </p>
             ) : (
               <>
@@ -418,16 +429,74 @@ export function CalendarDayDrawer({
                   >
                     <div className="space-y-3">
                       <MonogramGroup names={program.participants.map((p) => p.familyMember.name)} />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => openNewCost(program.tripId, program.id)}
-                        disabled={isPending}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Költség ehhez a programhoz
-                      </Button>
+                    </div>
+                  </CollapsiblePanel>
+                ))}
+
+                {dayAccommodations.map((accommodation) => (
+                  <CollapsiblePanel
+                    key={accommodation.id}
+                    defaultOpen={false}
+                    title={accommodation.title}
+                    subtitle={
+                      <span className="space-y-0.5">
+                        <span>
+                          {accommodation.tripTitle}
+                          {` · ${formatDate(accommodation.checkIn)} – ${formatDate(accommodation.checkOut)}`}
+                        </span>
+                        {accommodation.location && (
+                          <span className="block">{accommodation.location}</span>
+                        )}
+                        {accommodation.url && (
+                          <a
+                            href={accommodation.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block truncate text-xs text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {accommodation.url}
+                          </a>
+                        )}
+                      </span>
+                    }
+                    actions={
+                      accommodation.url ? (
+                        <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
+                          <a href={accommodation.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      ) : undefined
+                    }
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <BedDouble className="h-3.5 w-3.5 shrink-0" />
+                        <span>Éjszakai szállás ezen a napon</span>
+                      </div>
+                      <MonogramGroup
+                        names={accommodation.participants.map((p) => p.familyMember.name)}
+                      />
+                      {accommodation.costs.length > 0 && (
+                        <div className="space-y-1.5">
+                          {accommodation.costs.map((cost) => (
+                            <div
+                              key={cost.id}
+                              className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2"
+                            >
+                              <span className="text-sm">{cost.title}</span>
+                              <CostAmountDisplay
+                                amount={cost.amount}
+                                currency={cost.currency}
+                                amountScope={cost.amountScope ?? "TOTAL"}
+                                participantCount={accommodation.participants.length}
+                                className="text-sm"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </CollapsiblePanel>
                 ))}
@@ -442,8 +511,12 @@ export function CalendarDayDrawer({
                       {dayCosts.map((cost) => {
                         const trip = dayTrips.find((t) => t.id === cost.tripId);
                         const participantCount = cost.programId
-                          ? (trip?.programs.find((p) => p.id === cost.programId)?.participants.length ?? 0)
-                          : (trip?.participants.length ?? 0);
+                          ? (trip?.programs.find((p) => p.id === cost.programId)?.participants
+                              .length ?? 0)
+                          : cost.accommodationId
+                            ? (trip?.accommodations?.find((a) => a.id === cost.accommodationId)
+                                ?.participants.length ?? 0)
+                            : (trip?.participants.length ?? 0);
 
                         return (
                         <div
@@ -537,10 +610,30 @@ export function CalendarDayDrawer({
             open={costDrawerOpen}
             onOpenChange={(next) => handleNestedFormOpenChange(setCostDrawerOpen, next)}
             tripId={activeTrip.id}
-            programs={activeTrip.programs}
             participantOptions={activeTrip.participants.map((p) => p.familyMember)}
-            cost={editingCost ?? undefined}
-            defaultProgramId={editingCost ? undefined : defaultProgramId}
+            cost={
+              editingCost
+                ? {
+                    ...editingCost,
+                    amountScope: editingCost.amountScope ?? "TOTAL",
+                    program: editingCost.programId
+                      ? {
+                          title:
+                            activeTrip.programs.find((p) => p.id === editingCost.programId)
+                              ?.title ?? "",
+                        }
+                      : null,
+                    accommodation: editingCost.accommodationId
+                      ? {
+                          title:
+                            activeTrip.accommodations?.find(
+                              (a) => a.id === editingCost.accommodationId
+                            )?.title ?? "",
+                        }
+                      : null,
+                  }
+                : undefined
+            }
             onSaved={refresh}
           />
         </>

@@ -9,6 +9,7 @@ import { formatDate } from "@csaladi-utazas/shared";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { registerDatePickerOpenChange } from "@/lib/dialog-outside-guard";
 import "react-day-picker/style.css";
 
 interface DatePickerProps {
@@ -60,6 +61,7 @@ function useDatePickerOpen(pickerId: string) {
       } else if (activeDatePickerId === pickerId) {
         activeDatePickerId = null;
       }
+      registerDatePickerOpenChange(next);
       setOpen(next);
     },
     [pickerId]
@@ -74,6 +76,7 @@ function useDatePickerOpen(pickerId: string) {
       } else if (activeDatePickerId === pickerId) {
         activeDatePickerId = null;
       }
+      registerDatePickerOpenChange(next);
       return next;
     });
   }, [pickerId]);

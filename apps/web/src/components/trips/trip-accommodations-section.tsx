@@ -9,7 +9,6 @@ import {
   BedDouble,
   Lightbulb,
   MapPin,
-  Receipt,
 } from "lucide-react";
 import { formatDate } from "@csaladi-utazas/shared";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
@@ -47,7 +46,6 @@ interface TripAccommodationsSectionProps {
   currentUserName: string;
   onRefresh: () => void;
   onConvertToAccommodation: (ideaId: string) => void;
-  onAddCostForAccommodation: (accommodationId: string) => void;
   convertedIdeaIds: Set<string>;
   ideaOpenSignal?: number;
   accommodationOpenSignal?: number;
@@ -77,7 +75,6 @@ export function TripAccommodationsSection({
   currentUserName,
   onRefresh,
   onConvertToAccommodation,
-  onAddCostForAccommodation,
   convertedIdeaIds,
   ideaOpenSignal = 0,
   accommodationOpenSignal = 0,
@@ -395,15 +392,6 @@ export function TripAccommodationsSection({
                         }}
                       >
                         <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        title="Költség hozzáadása"
-                        onClick={() => onAddCostForAccommodation(accommodation.id)}
-                      >
-                        <Receipt className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"

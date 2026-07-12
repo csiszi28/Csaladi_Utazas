@@ -185,10 +185,18 @@ export async function fetchCalendarTrips() {
   return getCachedCalendarTrips(userId);
 }
 
-export async function fetchTripDetail(id: string) {
-  const userId = await requireAuthUserId();
-  return prisma.trip.findFirst({
-    where: { id, ...tripAccessFilter(userId) },
-    include: tripDetailInclude,
-  });
+const getCachedTripDetail = (userId: string, id: string) =>
+  unstable_cache(
+    async () =>
+      prisma.trip.findFirst({
+        where: { id, ...tripAccessFilter(userId) },
+        include: tripDetailInclude,
+      }),
+    [`trip-detail-${userId}-${id}`],
+    { revalidate: 30, tags: [userDataTag(userId), `trip-${id}`] }
+  )();
+
+export async function fetchTripDetail(id: string, userId?: string) {
+  const uid = userId ?? (await requireAuthUserId());
+  return getCachedTripDetail(uid, id);
 }

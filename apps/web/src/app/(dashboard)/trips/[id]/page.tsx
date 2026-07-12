@@ -4,7 +4,6 @@ import { TripDetailPage } from "@/components/trips/trip-detail-page";
 import { fetchFamilyMembers } from "@/lib/queries/family";
 import { fetchTripDetail } from "@/lib/queries/trips";
 import { getAuthSession, requireAuthUserId } from "@/lib/auth";
-import { PageSkeleton } from "@/components/layout/page-skeleton";
 
 export default async function TripDetailRoute({
   params,
@@ -12,10 +11,11 @@ export default async function TripDetailRoute({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const userIdPromise = requireAuthUserId();
   const [authUser, userId, trip, members] = await Promise.all([
     getAuthSession(),
-    requireAuthUserId(),
-    fetchTripDetail(id),
+    userIdPromise,
+    userIdPromise.then((uid) => fetchTripDetail(id, uid)),
     fetchFamilyMembers(),
   ]);
 
@@ -27,13 +27,11 @@ export default async function TripDetailRoute({
     "";
 
   return (
-    <Suspense fallback={<PageSkeleton titleWidth="w-64" />}>
-      <TripDetailPage
-        trip={trip}
-        members={members}
-        currentUserId={userId}
-        currentUserName={currentUserName}
-      />
-    </Suspense>
+    <TripDetailPage
+      trip={trip}
+      members={members}
+      currentUserId={userId}
+      currentUserName={currentUserName}
+    />
   );
 }

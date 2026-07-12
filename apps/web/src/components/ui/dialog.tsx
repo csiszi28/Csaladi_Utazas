@@ -4,6 +4,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { guardDialogOutsideEvent, initDialogOutsideGuard } from "@/lib/dialog-outside-guard";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -25,7 +26,12 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onPointerDownOutside, onInteractOutside, onFocusOutside, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onInteractOutside, onFocusOutside, ...props }, ref) => {
+  React.useEffect(() => {
+    initDialogOutsideGuard();
+  }, []);
+
+  return (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -36,36 +42,15 @@ const DialogContent = React.forwardRef<
         className
       )}
       onPointerDownOutside={(event) => {
-        const target = event.target as HTMLElement;
-        const path = event.detail?.originalEvent?.composedPath?.() ?? [];
-        const insidePanel =
-          target.closest("[data-date-picker-panel]") != null ||
-          path.some(
-            (node) => node instanceof Element && node.closest("[data-date-picker-panel]") != null
-          );
-        if (insidePanel) {
-          event.preventDefault();
-        }
+        guardDialogOutsideEvent(event);
         onPointerDownOutside?.(event);
       }}
       onInteractOutside={(event) => {
-        const target = event.target as HTMLElement;
-        const path = event.detail?.originalEvent?.composedPath?.() ?? [];
-        const insidePanel =
-          target.closest("[data-date-picker-panel]") != null ||
-          path.some(
-            (node) => node instanceof Element && node.closest("[data-date-picker-panel]") != null
-          );
-        if (insidePanel) {
-          event.preventDefault();
-        }
+        guardDialogOutsideEvent(event);
         onInteractOutside?.(event);
       }}
       onFocusOutside={(event) => {
-        const target = event.target as HTMLElement;
-        if (target.closest("[data-date-picker-panel]")) {
-          event.preventDefault();
-        }
+        guardDialogOutsideEvent(event);
         onFocusOutside?.(event);
       }}
       {...props}
@@ -77,7 +62,8 @@ const DialogContent = React.forwardRef<
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>
-));
+  );
+});
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

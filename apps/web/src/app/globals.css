@@ -148,3 +148,72 @@
   --dialog-max-width: min(36rem, calc(100vw - 2 * var(--app-content-padding)));
   --dialog-max-height: min(88dvh, 42rem);
 }
+
+@keyframes splash-reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes splash-progress-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.splash-reveal-up {
+  animation: splash-reveal-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.splash-progress-shimmer {
+  animation: splash-progress-shimmer 2s infinite linear;
+}
+
+.app-splash-bg {
+  top: calc(0px - env(safe-area-inset-top, 0px));
+  left: calc(0px - env(safe-area-inset-left, 0px));
+  right: calc(0px - env(safe-area-inset-right, 0px));
+  bottom: calc(0px - env(safe-area-inset-bottom, 0px));
+  width: auto;
+  min-width: 100vw;
+  min-height: calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
+  min-height: -webkit-fill-available;
+  height: auto;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: max(5rem, env(safe-area-inset-bottom, 0px));
+  padding-left: env(safe-area-inset-left, 0px);
+  background: linear-gradient(145deg, #001b3c 0%, #1a365d 42%, #2d476f 100%);
+  background-color: #001b3c;
+}
+
+.app-splash-bg::before,
+.app-splash-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.app-splash-bg::before {
+  background: radial-gradient(ellipse 80% 55% at 50% 0%, rgba(214, 227, 255, 0.22) 0%, transparent 70%);
+}
+
+.app-splash-bg::after {
+  background: radial-gradient(ellipse 60% 40% at 50% 100%, rgba(173, 199, 247, 0.12) 0%, transparent 65%);
+}
+
+.app-splash-bg > * {
+  position: relative;
+  z-index: 1;
+}

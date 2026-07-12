@@ -9,7 +9,6 @@ import {
   CalendarDays,
   Lightbulb,
   MapPin,
-  Receipt,
   CalendarPlus,
   FileText,
 } from "lucide-react";
@@ -51,7 +50,6 @@ interface TripProgramsSectionProps {
   currentUserName: string;
   onRefresh: () => void;
   onDeleteProgram: (id: string) => void;
-  onAddCostForProgram: (programId: string) => void;
   onConvertToProgram: (ideaId: string) => void;
   convertedIdeaIds: Set<string>;
   isPending?: boolean;
@@ -76,7 +74,6 @@ export function TripProgramsSection({
   currentUserName,
   onRefresh,
   onDeleteProgram,
-  onAddCostForProgram,
   onConvertToProgram,
   convertedIdeaIds,
   isPending = false,
@@ -391,15 +388,6 @@ export function TripProgramsSection({
                         }}
                       >
                         <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        title="Költség hozzáadása"
-                        onClick={() => onAddCostForProgram(program.id)}
-                      >
-                        <Receipt className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"

@@ -5,6 +5,8 @@ import {
   formatDate,
   formatTimeWhileTyping,
   normalizeTimeValue,
+  formatAmountInput,
+  parseAmountInput,
   type CostCategory,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
@@ -29,8 +31,12 @@ import {
 import { useCreateProgram, useUpdateProgram } from "@/hooks/use-programs";
 import { useCreateCost } from "@/hooks/use-costs";
 import { cn } from "@/lib/utils";
-import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Sparkles } from "lucide-react";
+import {
+  CostFieldsBlock,
+  createEmptyCostFields,
+  type CostFieldsValue,
+} from "@/components/trips/cost-fields-block";
 
 export interface ProgramIdeaOption {
   id: string;
@@ -91,7 +97,9 @@ export function ProgramFormDrawer({
   const [url, setUrl] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
   const [selectedIdeaId, setSelectedIdeaId] = useState<string>("");
-  const [createCostFromIdea, setCreateCostFromIdea] = useState(true);
+  const [costFields, setCostFields] = useState<CostFieldsValue>(() =>
+    createEmptyCostFields("TICKET")
+  );
 
   const isConvertMode = !program && Boolean(defaultIdeaId);
 
@@ -105,7 +113,7 @@ export function ProgramFormDrawer({
       setUrl(program.url ?? "");
       setParticipantIds(program.participants.map((p) => p.familyMember.id));
       setSelectedIdeaId("");
-      setCreateCostFromIdea(false);
+      setCostFields(createEmptyCostFields("TICKET"));
     } else if (!program && open) {
       setTitle("");
       setDate(defaultDate ?? tripStartDate);
@@ -115,7 +123,7 @@ export function ProgramFormDrawer({
       setUrl("");
       setParticipantIds(participantOptions.map((p) => p.id));
       setSelectedIdeaId("");
-      setCreateCostFromIdea(true);
+      setCostFields(createEmptyCostFields("TICKET"));
 
       if (defaultIdeaId) {
         applyIdea(defaultIdeaId);
@@ -141,7 +149,17 @@ export function ProgramFormDrawer({
       setParticipantIds(participantOptions.map((p) => p.id));
     }
 
-    setCreateCostFromIdea(idea.amount != null && idea.amount > 0);
+    if (idea.amount != null && idea.amount > 0) {
+      setCostFields({
+        amount: formatAmountInput(String(Math.round(idea.amount))),
+        currency: idea.currency,
+        amountScope: idea.amountScope,
+        category: (idea.category ?? "TICKET") as CostCategory,
+        paidByFamilyMemberId: "",
+      });
+    } else {
+      setCostFields(createEmptyCostFields("TICKET"));
+    }
   }
 
   function toggleParticipant(id: string) {
@@ -184,26 +202,25 @@ export function ProgramFormDrawer({
       const result = await updateMutation.mutateAsync({ id: program.id, ...data });
       if (!result.success) return;
     } else {
+      const parsedAmount = parseAmountInput(costFields.amount);
+      if (parsedAmount <= 0) return;
+
       const result = await createMutation.mutateAsync({
         ...data,
         ideaId: selectedIdeaId || null,
       });
       if (!result.success) return;
 
-      if (
-        createCostFromIdea &&
-        selectedIdea?.amount != null &&
-        selectedIdea.amount > 0 &&
-        result.data?.id
-      ) {
+      if (result.data?.id) {
         await createCostMutation.mutateAsync({
           tripId,
           programId: result.data.id,
-          title: selectedIdea.title,
-          amount: selectedIdea.amount,
-          currency: selectedIdea.currency,
-          amountScope: selectedIdea.amountScope,
-          category: (selectedIdea.category ?? "OTHER") as CostCategory,
+          title,
+          amount: parsedAmount,
+          currency: costFields.currency,
+          amountScope: costFields.amountScope,
+          category: costFields.category as CostCategory,
+          paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
         });
       }
     }
@@ -211,6 +228,8 @@ export function ProgramFormDrawer({
     onOpenChange(false);
     onSaved?.();
   }
+
+  const isCreateCostValid = program || parseAmountInput(costFields.amount) > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -249,18 +268,6 @@ export function ProgramFormDrawer({
                   ))}
                 </SelectContent>
               </Select>
-              {selectedIdea?.amount != null && (
-                <p className="text-xs text-muted-foreground">
-                  Becsült költség:{" "}
-                  <CostAmountDisplay
-                    amount={selectedIdea.amount}
-                    currency={selectedIdea.currency}
-                    amountScope={selectedIdea.amountScope}
-                    participantCount={selectedIdea.interests.length}
-                    className="inline-flex"
-                  />
-                </p>
-              )}
             </div>
           )}
 
@@ -340,26 +347,13 @@ export function ProgramFormDrawer({
             </div>
           </div>
 
-          {!program && selectedIdea?.amount != null && selectedIdea.amount > 0 && (
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm">
-              <input
-                type="checkbox"
-                checked={createCostFromIdea}
-                onChange={(e) => setCreateCostFromIdea(e.target.checked)}
-                className="h-4 w-4 rounded border-input"
-              />
-              <span className="inline-flex flex-wrap items-center gap-x-1">
-                Becsült költség rögzítése is (
-                <CostAmountDisplay
-                  amount={selectedIdea.amount}
-                  currency={selectedIdea.currency}
-                  amountScope={selectedIdea.amountScope}
-                  participantCount={selectedIdea.interests.length}
-                  className="inline-flex"
-                />
-                )
-              </span>
-            </label>
+          {!program && (
+            <CostFieldsBlock
+              value={costFields}
+              onChange={(patch) => setCostFields((prev) => ({ ...prev, ...patch }))}
+              participantOptions={participantOptions}
+              heading="Program költsége"
+            />
           )}
         </DialogBody>
         <DialogFooter className="grid grid-cols-2 gap-2">
@@ -376,7 +370,7 @@ export function ProgramFormDrawer({
             size="sm"
             className="w-full min-h-[var(--touch-target)] sm:min-h-9"
             onClick={handleSubmit}
-            disabled={!participantIds.length || !title || !date || isPending}
+            disabled={!participantIds.length || !title || !date || !isCreateCostValid || isPending}
           >
             {isPending
               ? "Mentés…"

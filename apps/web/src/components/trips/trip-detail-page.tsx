@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useMemo } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Pencil, Trash2, Download, Copy, MapPin, Calendar } from "lucide-react";
@@ -13,19 +14,58 @@ import { deleteProgram } from "@/actions/programs";
 import { deleteCost } from "@/actions/costs";
 import type { FamilyMemberRow } from "@/lib/queries/family";
 import type { TripDetailRow } from "@/lib/queries/trips";
-import { TripFormDrawer } from "./trip-form-drawer";
-import { CostFormDrawer } from "./cost-form-drawer";
-import { DocumentUpload, type DocumentItem } from "@/components/documents/document-upload";
-import { TripInvitePanel } from "@/components/trips/trip-invite-panel";
-import { TripProgramsSection } from "@/components/trips/trip-programs-section";
-import { TripAccommodationsSection } from "@/components/trips/trip-accommodations-section";
-import { TripFinancesSection } from "@/components/trips/trip-finances-section";
 import { TripDetailTabs, TripSectionHeading, type TripDetailTab } from "@/components/trips/trip-detail-tabs";
-import { TripBudgetPanel } from "@/components/trips/trip-budget-panel";
-import { DuplicateTripDialog } from "@/components/trips/duplicate-trip-dialog";
-import { TripClaimProfilePanel } from "@/components/trips/trip-claim-profile-panel";
-import { DocumentChecklistPanel } from "@/components/documents/document-checklist-panel";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
+import type { DocumentItem } from "@/components/documents/document-upload";
+
+function TabSectionSkeleton() {
+  return <div className="h-64 animate-pulse rounded-xl border bg-muted/30" />;
+}
+
+const TripFormDrawer = dynamic(
+  () => import("./trip-form-drawer").then((m) => m.TripFormDrawer),
+  { ssr: false }
+);
+const CostFormDrawer = dynamic(
+  () => import("./cost-form-drawer").then((m) => m.CostFormDrawer),
+  { ssr: false }
+);
+const TripInvitePanel = dynamic(
+  () => import("@/components/trips/trip-invite-panel").then((m) => m.TripInvitePanel),
+  { ssr: false, loading: () => <TabSectionSkeleton /> }
+);
+const TripProgramsSection = dynamic(
+  () => import("@/components/trips/trip-programs-section").then((m) => m.TripProgramsSection),
+  { loading: () => <TabSectionSkeleton /> }
+);
+const TripAccommodationsSection = dynamic(
+  () => import("@/components/trips/trip-accommodations-section").then((m) => m.TripAccommodationsSection),
+  { loading: () => <TabSectionSkeleton /> }
+);
+const TripFinancesSection = dynamic(
+  () => import("@/components/trips/trip-finances-section").then((m) => m.TripFinancesSection),
+  { loading: () => <TabSectionSkeleton /> }
+);
+const TripBudgetPanel = dynamic(
+  () => import("@/components/trips/trip-budget-panel").then((m) => m.TripBudgetPanel),
+  { loading: () => <div className="h-28 animate-pulse rounded-xl bg-muted/30" /> }
+);
+const DuplicateTripDialog = dynamic(
+  () => import("@/components/trips/duplicate-trip-dialog").then((m) => m.DuplicateTripDialog),
+  { ssr: false }
+);
+const TripClaimProfilePanel = dynamic(
+  () => import("@/components/trips/trip-claim-profile-panel").then((m) => m.TripClaimProfilePanel),
+  { loading: () => null }
+);
+const DocumentChecklistPanel = dynamic(
+  () => import("@/components/documents/document-checklist-panel").then((m) => m.DocumentChecklistPanel),
+  { loading: () => <TabSectionSkeleton /> }
+);
+const DocumentUpload = dynamic(
+  () => import("@/components/documents/document-upload").then((m) => m.DocumentUpload),
+  { loading: () => <TabSectionSkeleton /> }
+);
 
 export function TripDetailPage({
   trip,
@@ -50,11 +90,7 @@ export function TripDetailPage({
   const [accommodationOpenSignal, setAccommodationOpenSignal] = useState(0);
   const [convertAccommodationIdeaId, setConvertAccommodationIdeaId] = useState<string | undefined>();
   const [convertProgramIdeaId, setConvertProgramIdeaId] = useState<string | undefined>();
-  const [defaultCostAccommodationId, setDefaultCostAccommodationId] = useState<
-    string | undefined
-  >();
   const [editingCost, setEditingCost] = useState<TripDetailRow["costs"][0] | null>(null);
-  const [defaultCostProgramId, setDefaultCostProgramId] = useState<string | undefined>();
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TripDetailTab>("planning");
   const [localCosts, setLocalCosts] = useState(trip.costs);
@@ -161,33 +197,9 @@ export function TripDetailPage({
     setActiveTab("accommodations");
   }
 
-  function handleAddCostForAccommodation(accommodationId: string) {
-    setEditingCost(null);
-    setDefaultCostAccommodationId(accommodationId);
-    setDefaultCostProgramId(undefined);
-    setActiveTab("finances");
-    setCostDrawerOpen(true);
-  }
-
   function handleConvertIdeaToProgram(ideaId: string) {
     setConvertProgramIdeaId(ideaId);
     setActiveTab("planning");
-  }
-
-  function handleAddCostForProgram(programId: string) {
-    setEditingCost(null);
-    setDefaultCostProgramId(programId);
-    setDefaultCostAccommodationId(undefined);
-    setActiveTab("finances");
-    setCostDrawerOpen(true);
-  }
-
-  function handleCostDrawerChange(open: boolean) {
-    setCostDrawerOpen(open);
-    if (!open) {
-      setDefaultCostProgramId(undefined);
-      setDefaultCostAccommodationId(undefined);
-    }
   }
 
   function handleCostSaved(cost: {
@@ -412,7 +424,6 @@ export function TripDetailPage({
               currentUserName={currentUserName}
               onRefresh={refresh}
               onDeleteProgram={handleDeleteProgram}
-              onAddCostForProgram={handleAddCostForProgram}
               onConvertToProgram={handleConvertIdeaToProgram}
               convertedIdeaIds={convertedIdeaIds}
               isPending={isPending}
@@ -440,7 +451,6 @@ export function TripDetailPage({
             currentUserName={currentUserName}
             onRefresh={refresh}
             onConvertToAccommodation={handleConvertIdeaToAccommodation}
-            onAddCostForAccommodation={handleAddCostForAccommodation}
             convertedIdeaIds={convertedIdeaIds}
             ideaOpenSignal={accommodationIdeaOpenSignal}
             accommodationOpenSignal={accommodationOpenSignal}
@@ -510,22 +520,22 @@ export function TripDetailPage({
       />
       <CostFormDrawer
         open={costDrawerOpen}
-        onOpenChange={handleCostDrawerChange}
+        onOpenChange={setCostDrawerOpen}
         tripId={trip.id}
-        programs={trip.programs}
-        accommodations={trip.accommodations}
-        defaultProgramId={defaultCostProgramId}
-        defaultAccommodationId={defaultCostAccommodationId}
         participantOptions={trip.participants.map((p) => p.familyMember)}
-        ideaOptions={trip.ideas.map((idea) => ({
-          id: idea.id,
-          title: idea.title,
-          amount: idea.amount,
-          currency: idea.currency,
-          amountScope: idea.amountScope,
-          category: idea.category ?? "OTHER",
-        }))}
-        cost={editingCost ?? undefined}
+        cost={
+          editingCost
+            ? {
+                ...editingCost,
+                program: editingCost.programId
+                  ? { title: programTitleById.get(editingCost.programId) ?? "" }
+                  : null,
+                accommodation: editingCost.accommodationId
+                  ? { title: accommodationTitleById.get(editingCost.accommodationId) ?? "" }
+                  : null,
+              }
+            : undefined
+        }
         onSaved={handleCostSaved}
       />
     </div>
