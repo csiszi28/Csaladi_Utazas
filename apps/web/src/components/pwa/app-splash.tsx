@@ -1,65 +1,86 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import {
   SPLASH_BG,
-  SPLASH_DISPLAY_MS,
-  SPLASH_FADE_MS,
+  beginSplashExit,
   cleanupSplashPrep,
+  getSplashDisplayMs,
+  getSplashFadeMs,
   markSplashSeen,
   shouldShowSplash,
 } from "@/lib/app-splash";
 
 interface AppSplashProps {
+  onFadeStart?: () => void;
   onFinished?: () => void;
 }
 
-function getInitialPhase(): "hidden" | "visible" | "fading" {
-  if (typeof window === "undefined") return "hidden";
-  return shouldShowSplash() ? "visible" : "hidden";
-}
-
-export function AppSplash({ onFinished }: AppSplashProps) {
-  const [phase, setPhase] = useState<"hidden" | "visible" | "fading">(getInitialPhase);
+export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
+  const [phase, setPhase] = useState<"hidden" | "visible" | "fading">("hidden");
+  const onFadeStartRef = useRef(onFadeStart);
   const onFinishedRef = useRef(onFinished);
+  const splashReadyRef = useRef(false);
+  const timersStartedRef = useRef(false);
+  const fadeMs = getSplashFadeMs();
 
   useEffect(() => {
+    onFadeStartRef.current = onFadeStart;
     onFinishedRef.current = onFinished;
-  }, [onFinished]);
+  }, [onFadeStart, onFinished]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldShowSplash()) {
       cleanupSplashPrep();
       onFinishedRef.current?.();
       return;
     }
 
-    document.getElementById("app-splash-blocker")?.remove();
     setPhase("visible");
+  }, []);
 
-    const fadeTimer = window.setTimeout(() => setPhase("fading"), SPLASH_DISPLAY_MS);
+  useEffect(() => {
+    if (!shouldShowSplash() || timersStartedRef.current) return;
+
+    timersStartedRef.current = true;
+    const displayMs = getSplashDisplayMs();
+
+    const fadeTimer = window.setTimeout(() => {
+      beginSplashExit();
+      onFadeStartRef.current?.();
+      setPhase("fading");
+    }, displayMs);
+
     const hideTimer = window.setTimeout(() => {
       markSplashSeen();
       setPhase("hidden");
       cleanupSplashPrep();
       onFinishedRef.current?.();
-    }, SPLASH_DISPLAY_MS + SPLASH_FADE_MS);
+    }, displayMs + fadeMs);
 
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(hideTimer);
+      timersStartedRef.current = false;
     };
-  }, []);
+  }, [fadeMs]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (phase === "hidden") return;
 
     const html = document.documentElement;
     const body = document.body;
 
-    html.classList.add("app-splash-active");
+    if (phase === "fading") {
+      html.classList.remove("app-splash-active");
+      html.classList.add("app-splash-exiting");
+    } else {
+      html.classList.add("app-splash-active");
+      html.classList.remove("app-splash-exiting");
+    }
+
     html.style.backgroundColor = SPLASH_BG;
     body.style.backgroundColor = SPLASH_BG;
     body.style.overflow = "hidden";
@@ -81,21 +102,33 @@ export function AppSplash({ onFinished }: AppSplashProps) {
     };
   }, [phase]);
 
+  useLayoutEffect(() => {
+    if (phase !== "visible" || splashReadyRef.current) return;
+
+    splashReadyRef.current = true;
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById("app-splash-blocker")?.remove();
+      });
+    });
+  }, [phase]);
+
   if (phase === "hidden" || typeof document === "undefined") return null;
 
   const splash = (
     <div className="app-splash-root" role="presentation" aria-hidden={phase === "fading"}>
       <div
         className={cn(
-          "app-splash-content flex h-full w-full flex-col text-white transition-opacity duration-700 ease-out",
-          phase === "fading" ? "pointer-events-none opacity-0" : "opacity-100"
+          "app-splash-content flex h-full w-full flex-col text-white transition-[opacity,transform] ease-[cubic-bezier(0.4,0,0.2,1)]",
+          phase === "fading"
+            ? "pointer-events-none scale-[1.015] opacity-0"
+            : "scale-100 opacity-100"
         )}
+        style={{ transitionDuration: `${fadeMs}ms` }}
       >
         <main className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4">
-          <div
-            className="splash-reveal-up flex flex-col items-center space-y-6 text-center"
-            style={{ animationDelay: "0s" }}
-          >
+          <div className="flex flex-col items-center space-y-6 text-center">
             <h1 className="text-4xl font-bold tracking-[0.35em] text-white drop-shadow-sm sm:text-5xl">
               F.A.M.
             </h1>

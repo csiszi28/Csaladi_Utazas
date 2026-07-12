@@ -1,9 +1,9 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useState, type CSSProperties } from "react";
 import { Toaster } from "sonner";
-import { shouldShowSplash } from "@/lib/app-splash";
+import { getSplashContentFadeMs, shouldShowSplash } from "@/lib/app-splash";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
 import { AppSplash } from "@/components/pwa/app-splash";
@@ -21,19 +21,54 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
-  const [contentReady, setContentReady] = useState(false);
-  const handleSplashFinished = useCallback(() => setContentReady(true), []);
+  const [contentMounted, setContentMounted] = useState(false);
+  const [contentVisible, setContentVisible] = useState(false);
+  const [useEnterTransition, setUseEnterTransition] = useState(false);
 
-  useEffect(() => {
+  const handleSplashFadeStart = useCallback(() => {
+    setContentMounted(true);
+    setUseEnterTransition(true);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => setContentVisible(true));
+    });
+  }, []);
+
+  const handleSplashFinished = useCallback(() => {
+    setContentVisible(true);
+  }, []);
+
+  useLayoutEffect(() => {
     if (!shouldShowSplash()) {
-      setContentReady(true);
+      setContentMounted(true);
+      setContentVisible(true);
     }
   }, []);
 
+  const showAppShell = contentMounted && contentVisible;
+
+  const contentFadeMs = getSplashContentFadeMs();
+
   return (
     <QueryClientProvider client={queryClient}>
-      <AppSplash onFinished={handleSplashFinished} />
-      {contentReady ? children : null}
+      <AppSplash onFadeStart={handleSplashFadeStart} onFinished={handleSplashFinished} />
+      {contentMounted ? (
+        <div
+          className={
+            useEnterTransition
+              ? showAppShell
+                ? "app-content-enter app-content-enter--visible"
+                : "app-content-enter"
+              : undefined
+          }
+          style={
+            useEnterTransition
+              ? ({ "--app-content-fade-ms": `${contentFadeMs}ms` } as CSSProperties)
+              : undefined
+          }
+        >
+          {children}
+        </div>
+      ) : null}
       <PwaRegister />
       <PwaInstallPrompt />
       <Toaster richColors position="top-right" />
