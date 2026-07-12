@@ -59,8 +59,8 @@ const SPLASH_CRITICAL_CSS = [
   "@keyframes splash-footer-enter{to{opacity:1}}",
   ".app-splash-title{margin:0;font-size:3rem;font-weight:700;letter-spacing:.35em;padding-left:.35em;line-height:1.1;color:#fff;min-height:1.1em;font-family:ui-sans-serif,system-ui,sans-serif}",
   ".app-splash-subtitle{margin:1.5rem 0 0;font-size:.875rem;font-weight:600;letter-spacing:.28em;padding-left:.28em;line-height:1.4;color:rgba(214,227,255,.9);min-height:1.4em;font-family:ui-sans-serif,system-ui,sans-serif}",
-  ".app-splash-footer{position:fixed;right:0;bottom:max(1.5rem,env(safe-area-inset-bottom));left:0;z-index:100001;display:flex;flex-direction:column;align-items:center;gap:.75rem;padding:0 1rem;box-sizing:border-box}",
-  ".app-splash-connecting{font-size:.875rem;font-weight:600;letter-spacing:.05em;color:#adc7f7}",
+  ".app-splash-footer{position:fixed;top:calc(100svh - max(1.5rem,env(safe-area-inset-bottom,0px)));left:50%;z-index:100001;display:flex;flex-direction:column;align-items:center;gap:.75rem;width:max-content;max-width:calc(100vw - 2rem);padding:0 1rem;box-sizing:border-box;contain:layout style;transform:translate(-50%,-100%)}",
+  ".app-splash-connecting{font-size:.875rem;font-weight:600;letter-spacing:.05em;line-height:1.25;min-height:1.25em;color:#adc7f7}",
   ".app-splash-progress-track{position:relative;width:12rem;height:2px;overflow:hidden;border-radius:9999px;background:rgba(255,255,255,.25)}",
   ".app-splash-progress-shimmer-bar{position:absolute;inset-block:0;width:33.333%;border-radius:9999px;background:#ffb866}",
 ].join("");
