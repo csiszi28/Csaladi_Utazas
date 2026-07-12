@@ -179,6 +179,7 @@
   line-height: 1.1;
   color: #fff;
   min-height: 1.1em;
+  font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
 .app-splash-subtitle {
@@ -190,6 +191,7 @@
   line-height: 1.4;
   color: rgb(214 227 255 / 0.9);
   min-height: 1.4em;
+  font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
 .app-splash-footer {
@@ -261,7 +263,7 @@ html.app-splash-active body {
     overflow: hidden !important;
   }
 
-  html.splash-gate:not(.app-ready):not(.app-splash-exiting) body > *:not(#app-splash-blocker):not(.app-splash-root) {
+  html.splash-gate:not(.app-ready):not(.app-splash-exiting) body > *:not(#app-splash-blocker) {
     visibility: hidden !important;
     pointer-events: none !important;
   }
@@ -271,7 +273,7 @@ html.app-splash-active body {
   }
 }
 
-html.app-splash-active body > *:not(.app-splash-root):not(#app-splash-blocker) {
+html.app-splash-active body > *:not(#app-splash-blocker) {
   visibility: hidden !important;
   pointer-events: none !important;
 }
@@ -281,7 +283,7 @@ html.app-splash-active body > *:not(.app-splash-root):not(#app-splash-blocker) {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 99999;
+  z-index: 100000;
   width: 100vw;
   height: 100vh;
   height: 100dvh;
@@ -297,15 +299,31 @@ html.app-splash-active #app-splash-blocker {
   display: block;
 }
 
-html.app-splash-entered #app-splash-blocker {
-  visibility: hidden !important;
-  pointer-events: none !important;
+html.app-splash-active #app-splash-blocker .app-splash-brand {
+  opacity: 1;
+}
+
+html.app-splash-active #app-splash-blocker .app-splash-footer {
+  animation: splash-footer-enter var(--splash-enter-ms, 1000ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+
+@keyframes splash-footer-enter {
+  to {
+    opacity: 1;
+  }
 }
 
 html.app-ready #app-splash-blocker {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
+}
+
+html.app-splash-exiting #app-splash-blocker {
+  opacity: 0;
+  transition: opacity var(--splash-fade-ms, 1400ms) cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
 .app-splash-stage {
@@ -322,46 +340,17 @@ html.app-ready #app-splash-blocker {
   padding-left: env(safe-area-inset-left, 0px);
 }
 
-.app-splash-root {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 100000;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  height: 100svh;
-  min-height: -webkit-fill-available;
-  overflow: hidden;
-  overscroll-behavior: none;
-  background-color: #1a365d;
-}
-
-.app-splash-root--enter {
-  opacity: 0;
-  transition: opacity var(--splash-enter-ms, 1000ms) cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.app-splash-root--enter-visible {
-  opacity: 1;
-}
-
-.app-splash-root--exit {
-  opacity: 0;
-  transition: opacity var(--splash-fade-ms, 1400ms) cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 html.app-splash-exiting,
 html.app-splash-exiting body {
   background-color: #1a365d !important;
 }
 
-html.splash-gate.app-splash-exiting body > *:not(.app-splash-root) {
+html.splash-gate.app-splash-exiting body > *:not(#app-splash-blocker) {
   visibility: visible !important;
   pointer-events: auto !important;
 }
 
-html.app-splash-exiting body > *:not(.app-splash-root) {
+html.app-splash-exiting body > *:not(#app-splash-blocker) {
   visibility: visible !important;
   pointer-events: auto !important;
 }
@@ -400,8 +389,11 @@ html.app-splash-exiting body {
     transition-duration: 200ms !important;
   }
 
-  .app-splash-root--enter,
-  .app-splash-root--exit {
+  html.app-splash-active #app-splash-blocker .app-splash-footer {
+    animation-duration: 200ms !important;
+  }
+
+  html.app-splash-exiting #app-splash-blocker {
     transition-duration: 200ms !important;
   }
 }
