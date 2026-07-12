@@ -21,12 +21,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
-  const [contentMounted, setContentMounted] = useState(false);
   const [contentVisible, setContentVisible] = useState(false);
   const [useEnterTransition, setUseEnterTransition] = useState(false);
 
   const handleSplashFadeStart = useCallback(() => {
-    setContentMounted(true);
     setUseEnterTransition(true);
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => setContentVisible(true));
@@ -39,36 +37,33 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useLayoutEffect(() => {
     if (!shouldShowSplash()) {
-      setContentMounted(true);
       setContentVisible(true);
     }
   }, []);
 
-  const showAppShell = contentMounted && contentVisible;
-
+  const showAppShell = !useEnterTransition || contentVisible;
   const contentFadeMs = getSplashContentFadeMs();
 
   return (
     <QueryClientProvider client={queryClient}>
       <AppSplash onFadeStart={handleSplashFadeStart} onFinished={handleSplashFinished} />
-      {contentMounted ? (
-        <div
-          className={
-            useEnterTransition
-              ? showAppShell
-                ? "app-content-enter app-content-enter--visible"
-                : "app-content-enter"
-              : undefined
-          }
-          style={
-            useEnterTransition
-              ? ({ "--app-content-fade-ms": `${contentFadeMs}ms` } as CSSProperties)
-              : undefined
-          }
-        >
-          {children}
-        </div>
-      ) : null}
+      <div
+        id="app-root"
+        className={
+          useEnterTransition
+            ? showAppShell
+              ? "app-content-enter app-content-enter--visible"
+              : "app-content-enter"
+            : undefined
+        }
+        style={
+          useEnterTransition
+            ? ({ "--app-content-fade-ms": `${contentFadeMs}ms` } as CSSProperties)
+            : undefined
+        }
+      >
+        {children}
+      </div>
       <PwaRegister />
       <PwaInstallPrompt />
       <Toaster richColors position="top-right" />

@@ -23,7 +23,6 @@ export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
   const onFadeStartRef = useRef(onFadeStart);
   const onFinishedRef = useRef(onFinished);
   const splashReadyRef = useRef(false);
-  const timersStartedRef = useRef(false);
   const fadeMs = getSplashFadeMs();
 
   useEffect(() => {
@@ -42,10 +41,10 @@ export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
   }, []);
 
   useEffect(() => {
-    if (!shouldShowSplash() || timersStartedRef.current) return;
+    if (!shouldShowSplash()) return;
 
-    timersStartedRef.current = true;
     const displayMs = getSplashDisplayMs();
+    const fadeDurationMs = getSplashFadeMs();
 
     const fadeTimer = window.setTimeout(() => {
       beginSplashExit();
@@ -58,14 +57,13 @@ export function AppSplash({ onFadeStart, onFinished }: AppSplashProps) {
       setPhase("hidden");
       cleanupSplashPrep();
       onFinishedRef.current?.();
-    }, displayMs + fadeMs);
+    }, displayMs + fadeDurationMs);
 
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(hideTimer);
-      timersStartedRef.current = false;
     };
-  }, [fadeMs]);
+  }, []);
 
   useLayoutEffect(() => {
     if (phase === "hidden") return;

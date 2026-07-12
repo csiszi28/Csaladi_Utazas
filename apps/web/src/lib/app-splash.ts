@@ -58,6 +58,7 @@ export function cleanupSplashPrep(): void {
   if (typeof document === "undefined") return;
 
   document.documentElement.classList.remove("app-splash-active", "app-splash-exiting");
+  document.documentElement.classList.add("app-ready");
   document.documentElement.style.backgroundColor = "";
   if (document.body) {
     document.body.style.backgroundColor = "";
