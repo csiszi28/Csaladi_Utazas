@@ -41,32 +41,46 @@ export function CollapsiblePanel({
 
   return (
     <section className={cn("rounded-xl border bg-card shadow-sm", className)}>
-      <div className={cn("flex items-start gap-2 p-3 sm:p-4", headerClassName)}>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex min-w-0 flex-1 items-start gap-2 text-left"
-        >
-          <ChevronDown
-            className={cn(
-              "mt-0.5 h-5 w-5 shrink-0 text-muted-foreground transition-transform",
-              open && "rotate-180"
-            )}
-          />
-          <div className="min-w-0 flex-1">
+      <div className={cn("p-3 sm:p-4", headerClassName)}>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60"
+          >
+            <ChevronDown
+              className={cn("h-5 w-5 transition-transform", open && "rotate-180")}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="min-w-0 flex-1 text-left"
+          >
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold leading-tight">{title}</span>
+              <span className="font-semibold leading-snug">{title}</span>
               {badge}
             </div>
-            {subtitle && (
-              <div className="mt-0.5 text-sm text-muted-foreground">{subtitle}</div>
-            )}
-          </div>
-        </button>
-        {actions && (
-          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            {actions}
-          </div>
+          </button>
+          {actions && (
+            <div
+              className="flex shrink-0 items-center"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              {actions}
+            </div>
+          )}
+        </div>
+        {subtitle && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="mt-0.5 block w-full pl-11 text-left text-sm text-muted-foreground sm:pl-12"
+          >
+            {subtitle}
+          </button>
         )}
       </div>
       {alwaysVisible && (
