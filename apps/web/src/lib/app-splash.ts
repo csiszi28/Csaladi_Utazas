@@ -56,6 +56,23 @@ export function getSplashCrossfadeMs(): number {
   return Math.max(getSplashFadeMs(), getSplashContentFadeMs());
 }
 
+/** Szinkronban visszaállítja a dokumentum splash állapotát (hidratálás után azonnal). */
+export function syncSplashDocumentState(): boolean {
+  if (typeof document === "undefined") return false;
+
+  const html = document.documentElement;
+
+  if (!shouldShowSplash()) {
+    cleanupSplashPrep();
+    return false;
+  }
+
+  html.classList.remove("app-ready");
+  html.classList.add("app-splash-active");
+  html.classList.remove("app-splash-exiting");
+  return true;
+}
+
 export function beginSplashExit(): void {
   if (typeof document === "undefined") return;
 

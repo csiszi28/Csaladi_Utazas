@@ -12,6 +12,7 @@ import {
   getSplashFadeMs,
   markSplashSeen,
   shouldShowSplash,
+  syncSplashDocumentState,
 } from "@/lib/app-splash";
 
 interface AppSplashProps {
@@ -36,11 +37,11 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
 
   useLayoutEffect(() => {
     if (!shouldShowSplash()) {
-      cleanupSplashPrep();
       onFinishedRef.current?.();
       return;
     }
 
+    syncSplashDocumentState();
     setPhase("visible");
   }, []);
 

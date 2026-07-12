@@ -248,6 +248,26 @@ html.app-splash-active body {
   background-color: #1a365d !important;
 }
 
+@media (max-width: 767px), (display-mode: standalone) {
+  html.splash-gate:not(.app-ready),
+  html.splash-gate:not(.app-ready) body {
+    background-color: #1a365d !important;
+  }
+
+  html.splash-gate:not(.app-ready) body {
+    overflow: hidden !important;
+  }
+
+  html.splash-gate:not(.app-ready):not(.app-splash-exiting) body > *:not(#app-splash-blocker):not(.app-splash-root) {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  html.splash-gate:not(.app-ready) #app-splash-blocker {
+    display: flex !important;
+  }
+}
+
 html.app-splash-active body > *:not(.app-splash-root):not(#app-splash-blocker) {
   visibility: hidden !important;
   pointer-events: none !important;
@@ -350,6 +370,11 @@ html.app-splash-active #app-splash-blocker {
 html.app-splash-exiting,
 html.app-splash-exiting body {
   background-color: #1a365d !important;
+}
+
+html.splash-gate.app-splash-exiting body > *:not(.app-splash-root) {
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 html.app-splash-exiting body > *:not(.app-splash-root) {

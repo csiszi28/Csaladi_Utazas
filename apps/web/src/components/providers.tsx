@@ -6,7 +6,7 @@ import { Toaster } from "sonner";
 import {
   getSplashContentFadeMs,
   getSplashCrossfadeMs,
-  shouldShowSplash,
+  syncSplashDocumentState,
 } from "@/lib/app-splash";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
@@ -25,11 +25,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
+  const [splashActive, setSplashActive] = useState(false);
   const [contentVisible, setContentVisible] = useState(false);
-  const [useEnterTransition, setUseEnterTransition] = useState(false);
 
   const handleSplashFadeStart = useCallback(() => {
-    setUseEnterTransition(true);
     window.requestAnimationFrame(() => {
       setContentVisible(true);
     });
@@ -37,19 +36,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const handleSplashFinished = useCallback(() => {
     setContentVisible(true);
-    setUseEnterTransition(false);
+    setSplashActive(false);
   }, []);
 
   useLayoutEffect(() => {
-    if (!shouldShowSplash()) {
-      setContentVisible(true);
-      return;
-    }
+    const showSplash = syncSplashDocumentState();
+    setSplashActive(showSplash);
 
-    setUseEnterTransition(true);
+    if (!showSplash) {
+      setContentVisible(true);
+    }
   }, []);
 
-  const showAppShell = !useEnterTransition || contentVisible;
+  const showAppShell = !splashActive || contentVisible;
   const contentFadeMs = getSplashContentFadeMs();
   const crossfadeMs = getSplashCrossfadeMs();
 
@@ -62,24 +61,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
       />
       <div
         id="app-root"
+        suppressHydrationWarning
         className={
-          useEnterTransition
+          splashActive
             ? showAppShell
               ? "app-content-enter app-content-enter--visible"
               : "app-content-enter"
             : undefined
         }
         style={
-          useEnterTransition
+          splashActive
             ? ({ "--app-content-fade-ms": `${contentFadeMs}ms` } as CSSProperties)
             : undefined
         }
       >
         {children}
       </div>
-      <PwaRegister />
-      <PwaInstallPrompt />
-      <Toaster richColors position="top-right" />
+      <div id="app-chrome" suppressHydrationWarning>
+        <PwaRegister />
+        <PwaInstallPrompt />
+        <Toaster richColors position="top-right" />
+      </div>
     </QueryClientProvider>
   );
 }
