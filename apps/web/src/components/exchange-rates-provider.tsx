@@ -17,7 +17,7 @@ function ratesAreFresh(): boolean {
 
 async function fetchRatesFromApi(): Promise<HufRates | null> {
   try {
-    const response = await fetch("/api/exchange-rates", { cache: "no-store" });
+    const response = await fetch("/api/exchange-rates");
     if (!response.ok) return null;
     return (await response.json()) as HufRates;
   } catch {

@@ -163,7 +163,7 @@ export function TripProgramsSection({
                   setIdeaDrawerOpen(true);
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 Új ötlet
               </Button>
             }
@@ -210,6 +210,7 @@ export function TripProgramsSection({
                           currency={idea.currency}
                           amountScope={idea.amountScope}
                           participantCount={idea.interests.length}
+                          chip
                         />
                       )}
                       <span>
@@ -288,7 +289,7 @@ export function TripProgramsSection({
                         className="w-full sm:w-auto"
                         onClick={() => onConvertToProgram(idea.id)}
                       >
-                        <CalendarPlus className="mr-2 h-4 w-4" />
+                        <CalendarPlus className="h-4 w-4" />
                         Programmá alakítás
                       </Button>
                     )}
@@ -319,7 +320,7 @@ export function TripProgramsSection({
                   setProgramDrawerOpen(true);
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 Új program
               </Button>
             }

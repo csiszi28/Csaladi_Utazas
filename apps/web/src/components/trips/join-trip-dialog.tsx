@@ -50,7 +50,7 @@ export function JoinTripDialog({
         className={cn("h-10 min-h-10 px-3", className)}
         onClick={() => setOpen(true)}
       >
-        <UserPlus className="mr-1.5 h-4 w-4 shrink-0" />
+        <UserPlus className="h-4 w-4 shrink-0" />
         Csatlakozás kóddal
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>

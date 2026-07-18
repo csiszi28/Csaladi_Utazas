@@ -40,9 +40,9 @@ export function CollapsiblePanel({
   }, [openSignal]);
 
   return (
-    <section className={cn("rounded-xl border bg-card shadow-sm", className)}>
-      <div className={cn("p-3 sm:p-4", headerClassName)}>
-        <div className="flex items-center gap-2">
+    <section className={cn("min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm", className)}>
+      <div className={cn("min-w-0 p-3 sm:p-4", headerClassName)}>
+        <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -58,8 +58,10 @@ export function CollapsiblePanel({
             onClick={() => setOpen((v) => !v)}
             className="min-w-0 flex-1 text-left"
           >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-base font-semibold leading-snug sm:text-lg">{title}</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="min-w-0 break-words text-base font-semibold leading-snug sm:text-lg">
+                {title}
+              </span>
               {badge}
             </div>
           </button>
@@ -77,7 +79,7 @@ export function CollapsiblePanel({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="mt-1 block w-full pl-11 text-left text-sm text-muted-foreground sm:pl-12 sm:text-base"
+            className="mt-1 block w-full min-w-0 max-w-full overflow-hidden pl-11 text-left text-sm text-muted-foreground sm:pl-12 sm:text-base"
           >
             {subtitle}
           </button>

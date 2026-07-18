@@ -96,7 +96,7 @@ export function TripFinancesSection({
           description="Utazás, program és szállás szintű kiadások"
           action={
             <Button className={TRIP_SECTION_BTN_CLASS} onClick={onAddCost}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="h-4 w-4" />
               Új költség
             </Button>
           }
@@ -133,6 +133,7 @@ export function TripFinancesSection({
                       currency={cost.currency}
                       amountScope={cost.amountScope}
                       participantCount={participantCount}
+                      chip
                     />
                     <span className="text-xs text-muted-foreground">
                       {costLevelLabel(cost, programTitleById, accommodationTitleById)}

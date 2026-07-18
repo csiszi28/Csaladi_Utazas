@@ -330,7 +330,7 @@ export function DatePicker({
           className
         )}
       >
-        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+        <CalendarIcon className="h-4 w-4 shrink-0" />
         <span className="truncate">{value || placeholder}</span>
       </Button>
 

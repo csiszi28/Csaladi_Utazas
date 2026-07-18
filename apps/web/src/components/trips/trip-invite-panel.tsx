@@ -72,7 +72,7 @@ export function TripInvitePanel({
             onClick={handleCopy}
             disabled={!code || isPending}
           >
-            <Copy className="mr-1.5 h-3.5 w-3.5" />
+            <Copy className="h-3.5 w-3.5" />
             Másolás
           </Button>
           <Button
@@ -83,7 +83,7 @@ export function TripInvitePanel({
             onClick={handleRegenerate}
             disabled={isPending}
           >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            <RefreshCw className="h-3.5 w-3.5" />
             Új kód
           </Button>
         </div>

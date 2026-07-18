@@ -74,7 +74,7 @@ function IncomingLinkRequestCard({
           disabled={disabled}
           onClick={() => onAccept(request.id)}
         >
-          <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+          <UserCheck className="h-3.5 w-3.5" />
           Elfogadom
         </Button>
         <Button

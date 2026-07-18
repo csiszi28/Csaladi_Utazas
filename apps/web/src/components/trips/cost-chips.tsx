@@ -25,21 +25,18 @@ export function CostChips({
   const hiddenCount = costs.length - visible.length;
 
   return (
-    <span className="flex flex-wrap items-center gap-1.5">
+    <span className="flex w-full min-w-0 max-w-full flex-col gap-1.5">
       {visible.map((cost) => (
-        <span
+        <CostAmountDisplay
           key={cost.id}
-          className="inline-flex max-w-full items-center rounded-lg border bg-muted/40 px-2.5 py-1 text-sm sm:text-base"
-        >
-          <span className="truncate">{cost.title}:</span>
-          <CostAmountDisplay
-            amount={cost.amount}
-            currency={cost.currency}
-            amountScope={cost.amountScope}
-            participantCount={participantCount}
-            className="ml-1 shrink-0 font-medium"
-          />
-        </span>
+          amount={cost.amount}
+          currency={cost.currency}
+          amountScope={cost.amountScope}
+          participantCount={participantCount}
+          chip
+          chipLabel={cost.title}
+          className="font-medium"
+        />
       ))}
       {hiddenCount > 0 && (
         <span className="text-sm text-muted-foreground sm:text-base">+{hiddenCount} költség</span>

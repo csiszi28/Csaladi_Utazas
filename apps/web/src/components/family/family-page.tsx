@@ -176,7 +176,7 @@ function FamilyMemberCard({
               onClick={() => onProposeLink(member.id)}
               disabled={isPending}
             >
-              <Link2 className="mr-2 h-4 w-4" />
+              <Link2 className="h-4 w-4" />
               Összekapcsolás javaslata
             </Button>
           )}
@@ -199,7 +199,7 @@ function FamilyMemberCard({
               onClick={() => onLink(member.id)}
               disabled={isPending}
             >
-              <Link2 className="mr-2 h-4 w-4" />
+              <Link2 className="h-4 w-4" />
               Összekapcsolás a fiókommal
             </Button>
           )}
@@ -211,7 +211,7 @@ function FamilyMemberCard({
               onClick={() => onUnlink(member.id)}
               disabled={isPending}
             >
-              <Unlink className="mr-2 h-4 w-4" />
+              <Unlink className="h-4 w-4" />
               Összekapcsolás megszüntetése
             </Button>
           )}
@@ -416,7 +416,7 @@ export function FamilyPage({
             onClick={openCreate}
             className="min-h-[var(--touch-target)] w-full sm:min-h-10 sm:w-auto"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4" />
             Új családtag
           </Button>
         </div>
@@ -448,7 +448,7 @@ export function FamilyPage({
             Adj hozzá legalább egy profilt, hogy résztvevőket választhass az utazásokhoz.
           </p>
           <Button onClick={openCreate} className="mt-6">
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4" />
             Első családtag hozzáadása
           </Button>
         </section>

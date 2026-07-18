@@ -201,7 +201,7 @@ export function TripsPage({
               className="h-10 min-h-10 min-w-0 flex-1 px-3 sm:flex-none"
               onClick={() => setDrawerOpen(true)}
             >
-              <Plus className="mr-1.5 h-4 w-4 shrink-0" />
+              <Plus className="h-4 w-4 shrink-0" />
               Új utazás
             </Button>
           </div>
@@ -235,7 +235,7 @@ export function TripsPage({
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <Button onClick={() => setDrawerOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="h-4 w-4" />
               Első utazás létrehozása
             </Button>
             <JoinTripDialog />

@@ -169,7 +169,7 @@ export function TripAccommodationsSection({
                   setIdeaDrawerOpen(true);
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 Új ötlet
               </Button>
             }
@@ -208,6 +208,7 @@ export function TripAccommodationsSection({
                           currency={idea.currency}
                           amountScope={idea.amountScope}
                           participantCount={idea.interests.length}
+                          chip
                         />
                       )}
                     </span>
@@ -287,7 +288,7 @@ export function TripAccommodationsSection({
                         className="w-full sm:w-auto"
                         onClick={() => onConvertToAccommodation(idea.id)}
                       >
-                        <BedDouble className="mr-2 h-4 w-4" />
+                        <BedDouble className="h-4 w-4" />
                         Szállásként rögzítés
                       </Button>
                     )}
@@ -318,7 +319,7 @@ export function TripAccommodationsSection({
                   setAccommodationDrawerOpen(true);
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 Új szállás
               </Button>
             }

@@ -311,7 +311,7 @@ export function DocumentUpload({
           className="w-full sm:w-auto"
           onClick={() => openViewer(readyDocs[0]?.id)}
         >
-          <Eye className="mr-2 h-4 w-4" />
+          <Eye className="h-4 w-4" />
           Összes megtekintése ({readyDocs.length})
         </Button>
       )}

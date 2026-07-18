@@ -479,21 +479,18 @@ export function CalendarDayDrawer({
                         names={accommodation.participants.map((p) => p.familyMember.name)}
                       />
                       {accommodation.costs.length > 0 && (
-                        <div className="space-y-1.5">
+                        <div className="min-w-0 space-y-1.5">
                           {accommodation.costs.map((cost) => (
-                            <div
+                            <CostAmountDisplay
                               key={cost.id}
-                              className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2"
-                            >
-                              <span className="text-sm">{cost.title}</span>
-                              <CostAmountDisplay
-                                amount={cost.amount}
-                                currency={cost.currency}
-                                amountScope={cost.amountScope ?? "TOTAL"}
-                                participantCount={accommodation.participants.length}
-                                className="text-sm"
-                              />
-                            </div>
+                              amount={cost.amount}
+                              currency={cost.currency}
+                              amountScope={cost.amountScope ?? "TOTAL"}
+                              participantCount={accommodation.participants.length}
+                              chip
+                              chipLabel={cost.title}
+                              className="text-sm"
+                            />
                           ))}
                         </div>
                       )}
@@ -521,19 +518,20 @@ export function CalendarDayDrawer({
                         return (
                         <div
                           key={cost.id}
-                          className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
+                          className="flex min-w-0 flex-col gap-2 rounded-lg border px-3 py-2 sm:flex-row sm:items-start sm:justify-between"
                         >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">{cost.title}</p>
+                          <div className="min-w-0 flex-1">
                             <CostAmountDisplay
                               amount={cost.amount}
                               currency={cost.currency}
                               amountScope={cost.amountScope}
                               participantCount={participantCount}
+                              chip
+                              chipLabel={cost.title}
                               className="text-sm"
                             />
                           </div>
-                          <div className="flex shrink-0 gap-0.5">
+                          <div className="flex shrink-0 gap-0.5 self-end sm:self-start">
                             <Button
                               variant="ghost"
                               size="icon"

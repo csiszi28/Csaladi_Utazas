@@ -222,15 +222,15 @@ export function TripOverviewSection({
         {/* Desktop: compact button row */}
         <div className="hidden flex-wrap gap-2 sm:flex">
           <Button className={TRIP_SECTION_BTN_CLASS} onClick={onAddProgram}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4" />
             Új program
           </Button>
           <Button variant="outline" className={TRIP_SECTION_BTN_CLASS} onClick={onAddIdea}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4" />
             Új ötlet
           </Button>
           <Button variant="outline" className={TRIP_SECTION_BTN_CLASS} onClick={onAddCost}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4" />
             Új költség
           </Button>
           <Button
@@ -238,7 +238,7 @@ export function TripOverviewSection({
             className={TRIP_SECTION_BTN_CLASS}
             onClick={() => onNavigate("documents")}
           >
-            <FileText className="mr-2 h-4 w-4" />
+            <FileText className="h-4 w-4" />
             Dokumentumok
           </Button>
           <Button
@@ -246,7 +246,7 @@ export function TripOverviewSection({
             className={TRIP_SECTION_BTN_CLASS}
             onClick={() => onNavigate("people")}
           >
-            <Users className="mr-2 h-4 w-4" />
+            <Users className="h-4 w-4" />
             Résztvevők
           </Button>
         </div>

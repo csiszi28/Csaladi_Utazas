@@ -21,6 +21,7 @@ import {
   type TripDetailTab,
 } from "@/components/trips/trip-detail-tabs";
 import type { DocumentItem } from "@/components/documents/document-upload";
+import { cn } from "@/lib/utils";
 
 function TabSectionSkeleton() {
   return <div className="h-64 animate-pulse rounded-xl border bg-muted/30" />;
@@ -108,10 +109,17 @@ export function TripDetailPage({
   });
   const [localCosts, setLocalCosts] = useState(trip.costs);
   const [localDocuments, setLocalDocuments] = useState(trip.documents);
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set<TripDetailTab>([activeTab]));
 
   const setActiveTab = useCallback(
     (tab: TripDetailTab) => {
       setActiveTabState(tab);
+      setVisitedTabs((prev) => {
+        if (prev.has(tab)) return prev;
+        const next = new Set(prev);
+        next.add(tab);
+        return next;
+      });
       const params = new URLSearchParams(searchParams.toString());
       params.delete("new");
       if (tab === "overview") {
@@ -124,6 +132,39 @@ export function TripDetailPage({
     },
     [pathname, router, searchParams]
   );
+
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
+
+  useEffect(() => {
+    const prefetch = () => {
+      void import("@/components/trips/trip-programs-section");
+      void import("@/components/trips/trip-accommodations-section");
+      void import("@/components/trips/trip-finances-section");
+      void import("@/components/trips/trip-people-section");
+      void import("@/components/documents/document-upload");
+      void import("@/components/documents/document-checklist-panel");
+    };
+
+    const idle = window as Window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    if (typeof idle.requestIdleCallback === "function") {
+      const id = idle.requestIdleCallback(prefetch);
+      return () => idle.cancelIdleCallback?.(id);
+    }
+
+    const timeout = setTimeout(prefetch, 1200);
+    return () => clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     setLocalDocuments(trip.documents);
@@ -360,7 +401,7 @@ export function TripDetailPage({
               asChild
               className="-ml-2 h-9 w-fit shrink-0 text-muted-foreground"
             >
-              <Link href="/trips" className="gap-2">
+              <Link href="/trips" className="gap-1">
                 <ArrowLeft className="h-4 w-4" />
                 <span className="hidden sm:inline">Vissza az utazásokhoz</span>
                 <span className="sm:hidden">Vissza</span>
@@ -426,7 +467,7 @@ export function TripDetailPage({
                 asChild
               >
                 <a href={`/api/trips/${trip.id}/calendar`} download>
-                  <Download className="mr-2 h-4 w-4" />
+                  <Download className="h-4 w-4" />
                   Naptár
                 </a>
               </Button>
@@ -436,7 +477,7 @@ export function TripDetailPage({
                 className="h-9 min-h-[var(--touch-target)] sm:min-h-9"
                 onClick={() => setDuplicateOpen(true)}
               >
-                <Copy className="mr-2 h-4 w-4" />
+                <Copy className="h-4 w-4" />
                 Másolás
               </Button>
             </div>
@@ -456,8 +497,14 @@ export function TripDetailPage({
 
       <TripDetailTabs active={activeTab} onChange={setActiveTab} counts={tabCounts} />
 
-      {activeTab === "overview" && (
-        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+      {visitedTabs.has("overview") && (
+        <section
+          className={cn(
+            "rounded-2xl border bg-card p-4 shadow-sm sm:p-5",
+            activeTab !== "overview" && "hidden"
+          )}
+          hidden={activeTab !== "overview"}
+        >
           <TripOverviewSection
             trip={trip}
             costsCount={localCosts.length}
@@ -482,8 +529,14 @@ export function TripDetailPage({
         </section>
       )}
 
-      {activeTab === "planning" && (
-        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+      {visitedTabs.has("planning") && (
+        <section
+          className={cn(
+            "rounded-2xl border bg-card p-4 shadow-sm sm:p-5",
+            activeTab !== "planning" && "hidden"
+          )}
+          hidden={activeTab !== "planning"}
+        >
           <TripProgramsSection
             tripId={trip.id}
             tripStartDate={formatDate(trip.startDate)}
@@ -510,8 +563,14 @@ export function TripDetailPage({
         </section>
       )}
 
-      {activeTab === "accommodations" && (
-        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+      {visitedTabs.has("accommodations") && (
+        <section
+          className={cn(
+            "rounded-2xl border bg-card p-4 shadow-sm sm:p-5",
+            activeTab !== "accommodations" && "hidden"
+          )}
+          hidden={activeTab !== "accommodations"}
+        >
           <TripAccommodationsSection
             tripId={trip.id}
             tripStartDate={formatDate(trip.startDate)}
@@ -533,28 +592,36 @@ export function TripDetailPage({
         </section>
       )}
 
-      {activeTab === "finances" && (
-        <TripFinancesSection
-          trip={trip}
-          costs={localCosts}
-          programTitleById={programTitleById}
-          accommodationTitleById={accommodationTitleById}
-          participantNameById={participantNameById}
-          isPending={isPending}
-          onAddCost={() => {
-            setEditingCost(null);
-            setCostDrawerOpen(true);
-          }}
-          onEditCost={(cost) => {
-            setEditingCost(cost);
-            setCostDrawerOpen(true);
-          }}
-          onDeleteCost={handleDeleteCost}
-        />
+      {visitedTabs.has("finances") && (
+        <div className={cn(activeTab !== "finances" && "hidden")} hidden={activeTab !== "finances"}>
+          <TripFinancesSection
+            trip={trip}
+            costs={localCosts}
+            programTitleById={programTitleById}
+            accommodationTitleById={accommodationTitleById}
+            participantNameById={participantNameById}
+            isPending={isPending}
+            onAddCost={() => {
+              setEditingCost(null);
+              setCostDrawerOpen(true);
+            }}
+            onEditCost={(cost) => {
+              setEditingCost(cost);
+              setCostDrawerOpen(true);
+            }}
+            onDeleteCost={handleDeleteCost}
+          />
+        </div>
       )}
 
-      {activeTab === "documents" && (
-        <section className="min-w-0 space-y-6 overflow-hidden rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+      {visitedTabs.has("documents") && (
+        <section
+          className={cn(
+            "min-w-0 space-y-6 overflow-hidden rounded-2xl border bg-card p-4 shadow-sm sm:p-5",
+            activeTab !== "documents" && "hidden"
+          )}
+          hidden={activeTab !== "documents"}
+        >
           <TripSectionHeading
             title="Dokumentumok"
             description="Utazás és program szintű iratok kategóriával és családtag szerint"
@@ -571,8 +638,14 @@ export function TripDetailPage({
         </section>
       )}
 
-      {activeTab === "people" && (
-        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+      {visitedTabs.has("people") && (
+        <section
+          className={cn(
+            "rounded-2xl border bg-card p-4 shadow-sm sm:p-5",
+            activeTab !== "people" && "hidden"
+          )}
+          hidden={activeTab !== "people"}
+        >
           <TripPeopleSection
             tripId={trip.id}
             isOwner={isOwner}

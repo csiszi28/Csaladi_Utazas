@@ -103,6 +103,7 @@ export function TripIdeasSection({
                       currency={idea.currency}
                       amountScope={idea.amountScope}
                       participantCount={idea.interests.length}
+                      chip
                     />
                   )}
                   <span>
@@ -181,7 +182,7 @@ export function TripIdeasSection({
                     className="w-full sm:w-auto"
                     onClick={() => onConvertToProgram(idea.id)}
                   >
-                    <CalendarPlus className="mr-2 h-4 w-4" />
+                    <CalendarPlus className="h-4 w-4" />
                     Programmá alakítás
                   </Button>
                 )}
@@ -212,7 +213,7 @@ export function TripIdeasSection({
               </p>
             </div>
             <Button className={TRIP_SECTION_BTN_CLASS} onClick={openNewIdea}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="h-4 w-4" />
               Új ötlet
             </Button>
           </div>

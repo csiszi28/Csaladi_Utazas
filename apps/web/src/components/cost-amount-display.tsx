@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   IDEA_AMOUNT_SCOPE_LABELS,
   computeScopedAmounts,
@@ -28,9 +29,32 @@ function AmountWithScope({
   className?: string;
 }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap", className)}>
-      <MoneyDisplay amount={amount} currency={currency} />
+    <span className={cn("inline-flex max-w-full min-w-0 flex-wrap items-center gap-1.5", className)}>
+      <MoneyDisplay amount={amount} currency={currency} className="min-w-0 break-words" />
       <ScopeBadge label={scopeLabel} />
+    </span>
+  );
+}
+
+/** Unified chip shell for registered / idea cost amounts. */
+export function CostAmountChip({
+  children,
+  label,
+  className,
+}: {
+  children: ReactNode;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "flex w-full min-w-0 max-w-full flex-col gap-1 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-sm sm:text-base",
+        className
+      )}
+    >
+      {label ? <span className="truncate font-medium text-foreground">{label}</span> : null}
+      {children}
     </span>
   );
 }
@@ -41,12 +65,17 @@ export function CostAmountDisplay({
   amountScope,
   participantCount,
   className,
+  chip,
+  chipLabel,
 }: {
   amount: number;
   currency: string;
   amountScope?: string | null;
   participantCount?: number;
   className?: string;
+  /** Wrap in the shared muted chip used on program/accommodation cards. */
+  chip?: boolean;
+  chipLabel?: string;
 }) {
   const scope = amountScope ?? "TOTAL";
   const scopeLabel = IDEA_AMOUNT_SCOPE_LABELS[scope as IdeaAmountScope] ?? scope;
@@ -55,22 +84,33 @@ export function CostAmountDisplay({
       ? computeScopedAmounts(amount, scope, participantCount)
       : null;
 
-  if (!split) {
-    return (
-      <AmountWithScope
-        amount={amount}
-        currency={currency}
-        scopeLabel={scopeLabel}
-        className={className}
-      />
-    );
-  }
-
-  return (
-    <span className={cn("inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5", className)}>
+  const body = !split ? (
+    <AmountWithScope
+      amount={amount}
+      currency={currency}
+      scopeLabel={scopeLabel}
+      className={chip ? undefined : className}
+    />
+  ) : (
+    <span
+      className={cn(
+        "flex min-w-0 max-w-full flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-1.5",
+        !chip && className
+      )}
+    >
       <AmountWithScope amount={split.perPerson} currency={currency} scopeLabel="1 főre" />
-      <span className="text-muted-foreground">·</span>
+      <span className="hidden text-muted-foreground sm:inline" aria-hidden>
+        ·
+      </span>
       <AmountWithScope amount={split.total} currency={currency} scopeLabel="Összesen" />
     </span>
+  );
+
+  if (!chip) return body;
+
+  return (
+    <CostAmountChip label={chipLabel} className={className}>
+      {body}
+    </CostAmountChip>
   );
 }

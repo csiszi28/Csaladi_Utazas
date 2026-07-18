@@ -429,7 +429,7 @@ export function DocumentViewerTrigger({
         className={className}
         onClick={() => setOpen(true)}
       >
-        <Eye className="mr-2 h-4 w-4" />
+        <Eye className="h-4 w-4" />
         Megtekintés ({documents.length})
       </Button>
       <DocumentViewer documents={documents} open={open} onOpenChange={setOpen} />

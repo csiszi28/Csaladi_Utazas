@@ -90,7 +90,7 @@ export function PwaInstallPrompt() {
         <div className="flex shrink-0 gap-2">
           {!isIosHint && deferredPrompt && (
             <Button size="sm" className="min-h-[var(--touch-target)] flex-1 sm:min-h-9" onClick={handleInstall}>
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="h-4 w-4" />
               Telepítés
             </Button>
           )}

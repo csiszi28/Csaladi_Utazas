@@ -132,7 +132,7 @@ export function DuplicateTripDialog({
             Mégse
           </Button>
           <Button size="sm" className="w-full" onClick={handleSubmit} disabled={isPending || !title.trim()}>
-            <Copy className="mr-2 h-4 w-4" />
+            <Copy className="h-4 w-4" />
             Másolás
           </Button>
         </DialogFooter>
