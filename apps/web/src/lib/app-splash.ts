@@ -1,7 +1,7 @@
 export const SPLASH_KEY = "app-splash-seen-v2";
 export const SPLASH_BG = "#1a365d";
 
-export const SPLASH_DISPLAY_MS = 8000;
+export const SPLASH_DISPLAY_MS = 5000;
 export const SPLASH_ENTER_MS = 1000;
 export const SPLASH_FADE_MS = 1400;
 export const SPLASH_CONTENT_FADE_MS = 1400;

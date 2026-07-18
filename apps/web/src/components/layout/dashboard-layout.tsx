@@ -41,7 +41,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-50 flex h-[100dvh] flex-col border-r bg-card shadow-xl transition-transform duration-200 md:hidden",
+              "fixed top-0 left-0 z-50 flex h-[100svh] max-h-[100dvh] flex-col overflow-hidden border-r bg-card shadow-xl transition-transform duration-200 md:hidden",
+              "pt-[env(safe-area-inset-top)]",
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}
             style={{ width: "min(var(--app-sidebar-width), 88vw)" }}
