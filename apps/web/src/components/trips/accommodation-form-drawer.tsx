@@ -19,8 +19,9 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
+import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateAccommodation, useUpdateAccommodation } from "@/hooks/use-accommodations";
-import { useCreateCost } from "@/hooks/use-costs";
+import { useCreateCost, useUpdateCost } from "@/hooks/use-costs";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
@@ -42,6 +43,16 @@ export interface AccommodationIdeaOption {
   interests: { familyMember: { id: string } }[];
 }
 
+interface AccommodationLinkedCost {
+  id: string;
+  title: string;
+  amount: number;
+  currency: string;
+  amountScope: string;
+  category: string;
+  paidByFamilyMemberId: string | null;
+}
+
 interface AccommodationFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -61,6 +72,24 @@ interface AccommodationFormDrawerProps {
     url: string | null;
     note: string | null;
     participants: { familyMember: { id: string } }[];
+    costs?: AccommodationLinkedCost[];
+  };
+}
+
+function pickPrimaryAccommodationCost(
+  costs: AccommodationLinkedCost[] | undefined
+): AccommodationLinkedCost | null {
+  if (!costs?.length) return null;
+  return costs.find((c) => c.category === "ACCOMMODATION") ?? costs[0] ?? null;
+}
+
+function costFieldsFromLinked(cost: AccommodationLinkedCost): CostFieldsValue {
+  return {
+    amount: formatAmountInput(String(Math.round(cost.amount))),
+    currency: cost.currency,
+    amountScope: cost.amountScope,
+    category: cost.category,
+    paidByFamilyMemberId: cost.paidByFamilyMemberId ?? "",
   };
 }
 
@@ -79,6 +108,7 @@ export function AccommodationFormDrawer({
   const createMutation = useCreateAccommodation();
   const updateMutation = useUpdateAccommodation();
   const createCostMutation = useCreateCost();
+  const updateCostMutation = useUpdateCost();
 
   const [title, setTitle] = useState("");
   const [checkIn, setCheckIn] = useState("");
@@ -88,6 +118,7 @@ export function AccommodationFormDrawer({
   const [note, setNote] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
   const [selectedIdeaId, setSelectedIdeaId] = useState("");
+  const [linkedCostId, setLinkedCostId] = useState<string | null>(null);
   const [costFields, setCostFields] = useState<CostFieldsValue>(() =>
     createEmptyCostFields("ACCOMMODATION")
   );
@@ -104,7 +135,9 @@ export function AccommodationFormDrawer({
       setNote(accommodation.note ?? "");
       setParticipantIds(accommodation.participants.map((p) => p.familyMember.id));
       setSelectedIdeaId("");
-      setCostFields(createEmptyCostFields("ACCOMMODATION"));
+      const linked = pickPrimaryAccommodationCost(accommodation.costs);
+      setLinkedCostId(linked?.id ?? null);
+      setCostFields(linked ? costFieldsFromLinked(linked) : createEmptyCostFields("ACCOMMODATION"));
     } else if (!accommodation && open) {
       setTitle("");
       setCheckIn(tripStartDate);
@@ -114,6 +147,7 @@ export function AccommodationFormDrawer({
       setNote("");
       setParticipantIds(participantOptions.map((p) => p.id));
       setSelectedIdeaId("");
+      setLinkedCostId(null);
       setCostFields(createEmptyCostFields("ACCOMMODATION"));
 
       if (defaultIdeaId) {
@@ -166,7 +200,27 @@ export function AccommodationFormDrawer({
   const isPending =
     createMutation.isPending ||
     updateMutation.isPending ||
-    createCostMutation.isPending;
+    createCostMutation.isPending ||
+    updateCostMutation.isPending;
+
+  async function saveCostForAccommodation(accommodationId: string, parsedAmount: number) {
+    const payload = {
+      tripId,
+      accommodationId,
+      title,
+      amount: parsedAmount,
+      currency: costFields.currency,
+      amountScope: costFields.amountScope,
+      category: costFields.category as CostCategory,
+      paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
+    };
+
+    if (linkedCostId) {
+      return updateCostMutation.mutateAsync({ id: linkedCostId, ...payload });
+    }
+
+    return createCostMutation.mutateAsync(payload);
+  }
 
   async function handleSubmit() {
     const data = {
@@ -180,11 +234,18 @@ export function AccommodationFormDrawer({
       participantIds,
     };
 
+    const parsedAmount = parseAmountInput(costFields.amount);
+
     if (accommodation) {
       const result = await updateMutation.mutateAsync({ id: accommodation.id, ...data });
       if (!result.success) return;
+
+      if (linkedCostId || parsedAmount > 0) {
+        if (parsedAmount <= 0) return;
+        const costResult = await saveCostForAccommodation(accommodation.id, parsedAmount);
+        if (!costResult.success) return;
+      }
     } else {
-      const parsedAmount = parseAmountInput(costFields.amount);
       if (parsedAmount <= 0) return;
 
       const result = await createMutation.mutateAsync({
@@ -194,16 +255,8 @@ export function AccommodationFormDrawer({
       if (!result.success) return;
 
       if (result.data?.id) {
-        await createCostMutation.mutateAsync({
-          tripId,
-          accommodationId: result.data.id,
-          title,
-          amount: parsedAmount,
-          currency: costFields.currency,
-          amountScope: costFields.amountScope,
-          category: costFields.category as CostCategory,
-          paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
-        });
+        const costResult = await saveCostForAccommodation(result.data.id, parsedAmount);
+        if (!costResult.success) return;
       }
     }
 
@@ -211,7 +264,10 @@ export function AccommodationFormDrawer({
     onSaved?.();
   }
 
-  const isCreateCostValid = accommodation || parseAmountInput(costFields.amount) > 0;
+  const isCostValid =
+    !accommodation
+      ? parseAmountInput(costFields.amount) > 0
+      : !linkedCostId || parseAmountInput(costFields.amount) > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -236,13 +292,13 @@ export function AccommodationFormDrawer({
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Megnevezés</Label>
+            <Label>Megnevezés</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Bejelentkezés</Label>
+              <Label>Bejelentkezés</Label>
               <DatePicker
                 value={checkIn}
                 onChange={setCheckIn}
@@ -252,7 +308,7 @@ export function AccommodationFormDrawer({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Kijelentkezés</Label>
+              <Label>Kijelentkezés</Label>
               <DatePicker
                 value={checkOut}
                 onChange={setCheckOut}
@@ -264,12 +320,12 @@ export function AccommodationFormDrawer({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Helyszín (opcionális)</Label>
+            <Label>Helyszín (opcionális)</Label>
             <Input value={location} onChange={(e) => setLocation(e.target.value)} />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">URL (opcionális)</Label>
+            <Label>URL (opcionális)</Label>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -279,7 +335,7 @@ export function AccommodationFormDrawer({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Megjegyzés (opcionális)</Label>
+            <Label>Megjegyzés (opcionális)</Label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -289,7 +345,7 @@ export function AccommodationFormDrawer({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Kik szállnak meg?</Label>
+            <Label>Kik szállnak meg?</Label>
             <div className="flex flex-wrap gap-1.5">
               {participantOptions.map((m) => (
                 <button
@@ -309,35 +365,30 @@ export function AccommodationFormDrawer({
             </div>
           </div>
 
-          {!accommodation && (
-            <CostFieldsBlock
-              value={costFields}
-              onChange={(patch) => setCostFields((prev) => ({ ...prev, ...patch }))}
-              participantOptions={participantOptions}
-              heading="Szállás költsége"
-            />
-          )}
+          <CostFieldsBlock
+            value={costFields}
+            onChange={(patch) => setCostFields((prev) => ({ ...prev, ...patch }))}
+            participantOptions={participantOptions}
+            heading="Szállás költsége"
+          />
         </DialogBody>
         <DialogFooter className="grid grid-cols-2 gap-2">
           <Button
-            variant="outline"
-            size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:min-h-9"
+            variant="outline" className={TRIP_DIALOG_BTN_CLASS}
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
             Mégse
           </Button>
           <Button
-            size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:min-h-9"
+            className={TRIP_DIALOG_BTN_CLASS}
             onClick={handleSubmit}
             disabled={
               !participantIds.length ||
               !title ||
               !checkIn ||
               !checkOut ||
-              !isCreateCostValid ||
+              !isCostValid ||
               isPending
             }
           >

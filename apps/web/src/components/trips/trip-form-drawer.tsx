@@ -15,6 +15,7 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
+import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { createTrip, updateTrip } from "@/actions/trips";
 import type { FamilyMemberRow } from "@/lib/queries/family";
 import { cn } from "@/lib/utils";
@@ -127,25 +128,25 @@ export function TripFormDrawer({
         </DialogHeader>
         <DialogBody className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Megnevezés</Label>
+            <Label>Megnevezés</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="pl. Horvátországi nyaralás" disabled={isPending} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Desztináció</Label>
+            <Label>Desztináció</Label>
             <Input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="pl. Dubrovnik" disabled={isPending} />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Kezdő dátum</Label>
+              <Label>Kezdő dátum</Label>
               <DatePicker value={startDate} onChange={handleStartDateChange} inDialog />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Záró dátum</Label>
+              <Label>Záró dátum</Label>
               <DatePicker value={endDate} onChange={setEndDate} minDate={startDate || undefined} inDialog />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Költségvetési limit (opcionális)</Label>
+            <Label>Költségvetési limit (opcionális)</Label>
             <div className="grid grid-cols-2 gap-3">
               <Input
                 value={budgetAmount}
@@ -172,7 +173,7 @@ export function TripFormDrawer({
             </p>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Résztvevők</Label>
+            <Label>Résztvevők</Label>
             {members.length === 0 ? (
               <p className="text-xs text-muted-foreground">Előbb adj hozzá családtagot a Család fülön.</p>
             ) : (
@@ -198,8 +199,8 @@ export function TripFormDrawer({
           </div>
         </DialogBody>
         <DialogFooter className="grid grid-cols-2 gap-2">
-          <Button variant="outline" size="sm" className="w-full" onClick={() => onOpenChange(false)} disabled={isPending}>Mégse</Button>
-          <Button size="sm" className="w-full" onClick={handleSubmit} disabled={!participantIds.length || isPending}>Mentés</Button>
+          <Button variant="outline" className={TRIP_DIALOG_BTN_CLASS} onClick={() => onOpenChange(false)} disabled={isPending}>Mégse</Button>
+          <Button className={TRIP_DIALOG_BTN_CLASS} onClick={handleSubmit} disabled={!participantIds.length || isPending}>Mentés</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

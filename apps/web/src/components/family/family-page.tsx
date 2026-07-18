@@ -493,7 +493,7 @@ export function FamilyPage({
           </DialogHeader>
           <DialogBody>
             <div className="space-y-1.5">
-              <Label htmlFor="member-name" className="text-xs">
+              <Label htmlFor="member-name">
                 Név
               </Label>
               <Input
@@ -508,7 +508,7 @@ export function FamilyPage({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="member-email" className="text-xs">
+              <Label htmlFor="member-email">
                 E-mail (opcionális)
               </Label>
               <Input

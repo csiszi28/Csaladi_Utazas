@@ -204,6 +204,13 @@ const tripIdeaBaseSchema = z.object({
   currency: z.enum(CURRENCIES).default("HUF"),
   amountScope: z.enum(IDEA_AMOUNT_SCOPES).default("TOTAL"),
   category: z.enum(COST_CATEGORIES).default("OTHER"),
+  date: z
+    .string()
+    .regex(/^\d{4}\.\d{2}\.\d{2}$/, "Érvénytelen dátum formátum (YYYY.MM.DD)")
+    .optional()
+    .nullable(),
+  startTime: z.string().regex(timeRegex, "Érvénytelen időformátum (HH:MM)").optional().nullable(),
+  endTime: z.string().regex(timeRegex, "Érvénytelen időformátum (HH:MM)").optional().nullable(),
   checkInDate: z
     .string()
     .regex(/^\d{4}\.\d{2}\.\d{2}$/, "Érvénytelen dátum formátum (YYYY.MM.DD)")

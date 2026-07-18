@@ -16,6 +16,7 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
+import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateCost, useUpdateCost } from "@/hooks/use-costs";
 import {
   CostFieldsBlock,
@@ -146,7 +147,7 @@ export function CostFormDrawer({
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Megnevezés</Label>
+            <Label>Megnevezés</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
 
@@ -159,17 +160,14 @@ export function CostFormDrawer({
         </DialogBody>
         <DialogFooter className="grid grid-cols-2 gap-2">
           <Button
-            variant="outline"
-            size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:min-h-9"
+            variant="outline" className={TRIP_DIALOG_BTN_CLASS}
             onClick={() => onOpenChange(false)}
             disabled={createMutation.isPending || updateMutation.isPending}
           >
             Mégse
           </Button>
           <Button
-            size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:min-h-9"
+            className={TRIP_DIALOG_BTN_CLASS}
             onClick={handleSubmit}
             disabled={
               !title ||

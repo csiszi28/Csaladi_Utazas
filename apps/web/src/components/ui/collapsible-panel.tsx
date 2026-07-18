@@ -59,7 +59,7 @@ export function CollapsiblePanel({
             className="min-w-0 flex-1 text-left"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold leading-snug">{title}</span>
+              <span className="text-base font-semibold leading-snug sm:text-lg">{title}</span>
               {badge}
             </div>
           </button>
@@ -77,7 +77,7 @@ export function CollapsiblePanel({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="mt-0.5 block w-full pl-11 text-left text-sm text-muted-foreground sm:pl-12"
+            className="mt-1 block w-full pl-11 text-left text-sm text-muted-foreground sm:pl-12 sm:text-base"
           >
             {subtitle}
           </button>

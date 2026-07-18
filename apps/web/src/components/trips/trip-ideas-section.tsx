@@ -21,6 +21,8 @@ type TripIdeaRow = TripDetailRow["ideas"][number];
 
 interface TripIdeasSectionProps {
   tripId: string;
+  tripStartDate?: string;
+  tripEndDate?: string;
   ideas: TripIdeaRow[];
   participants: { id: string; name: string }[];
   currentUserId: string;
@@ -34,6 +36,8 @@ interface TripIdeasSectionProps {
 
 export function TripIdeasSection({
   tripId,
+  tripStartDate = "",
+  tripEndDate = "",
   ideas,
   participants,
   currentUserId,
@@ -130,6 +134,9 @@ export function TripIdeasSection({
                         currency: idea.currency,
                         amountScope: idea.amountScope,
                         category: idea.category ?? "OTHER",
+                        date: idea.date,
+                        startTime: idea.startTime,
+                        endTime: idea.endTime,
                         interestedParticipantIds: idea.interests.map(
                           (i) => i.familyMember.id
                         ),
@@ -204,7 +211,7 @@ export function TripIdeasSection({
                 Programjavaslatok – a résztvevők jelölhetik, mi érdekli őket.
               </p>
             </div>
-            <Button size="sm" className={TRIP_SECTION_BTN_CLASS} onClick={openNewIdea}>
+            <Button className={TRIP_SECTION_BTN_CLASS} onClick={openNewIdea}>
               <Plus className="mr-2 h-4 w-4" />
               Új ötlet
             </Button>
@@ -217,6 +224,8 @@ export function TripIdeasSection({
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         tripId={tripId}
+        tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
         participants={participants}
         idea={editingIdea ?? undefined}
         onSaved={onRefresh}

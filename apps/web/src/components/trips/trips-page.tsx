@@ -7,7 +7,6 @@ import {
   Plus,
   MapPin,
   Calendar,
-  Copy,
   ArrowRight,
   Plane,
   Sparkles,
@@ -17,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
 import { JoinTripDialog } from "@/components/trips/join-trip-dialog";
 import { TripFormDrawer } from "@/components/trips/trip-form-drawer";
-import { DuplicateTripDialog } from "@/components/trips/duplicate-trip-dialog";
 import type { TripListRow } from "@/lib/queries/trips";
 import type { FamilyMemberRow } from "@/lib/queries/family";
 import { cn } from "@/lib/utils";
@@ -56,13 +54,7 @@ const STATUS_STYLES = {
   past: "bg-muted text-muted-foreground",
 } as const;
 
-function TripCard({
-  trip,
-  onDuplicate,
-}: {
-  trip: TripListRow;
-  onDuplicate: (trip: TripListRow) => void;
-}) {
+function TripCard({ trip }: { trip: TripListRow }) {
   const status = tripStatus(trip);
   const start = tripDateParts(trip.startDate);
   const end = tripDateParts(trip.endDate);
@@ -125,40 +117,16 @@ function TripCard({
         </div>
       </div>
 
-      <div className="relative z-10 flex flex-wrap gap-2 border-t bg-muted/20 px-4 py-3 sm:px-5">
-        <Button asChild size="sm" className="relative z-20 min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none">
+      <div className="relative z-10 border-t bg-muted/20 px-4 py-3 sm:px-5">
+        <Button
+          asChild
+          size="sm"
+          className="relative z-20 h-11 min-h-11 w-full text-base font-semibold"
+        >
           <Link href={`/trips/${trip.id}`}>
             Részletek
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
-        </Button>
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          className="relative z-20 min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none"
-        >
-          <Link href={`/trips/${trip.id}?new=program`}>+ Program</Link>
-        </Button>
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          className="relative z-20 min-h-[var(--touch-target)] flex-1 sm:min-h-9 sm:flex-none"
-        >
-          <Link href={`/trips/${trip.id}?new=cost`}>+ Költség</Link>
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="min-h-[var(--touch-target)] sm:min-h-9"
-          onClick={(e) => {
-            e.preventDefault();
-            onDuplicate(trip);
-          }}
-        >
-          <Copy className="mr-2 h-4 w-4" />
-          Másolás
         </Button>
       </div>
     </article>
@@ -174,7 +142,6 @@ export function TripsPage({
 }) {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [duplicateTrip, setDuplicateTrip] = useState<TripListRow | null>(null);
 
   const grouped = useMemo(() => {
     const active: TripListRow[] = [];
@@ -207,7 +174,7 @@ export function TripsPage({
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           {items.map((trip) => (
-            <TripCard key={trip.id} trip={trip} onDuplicate={setDuplicateTrip} />
+            <TripCard key={trip.id} trip={trip} />
           ))}
         </div>
       </section>
@@ -228,13 +195,13 @@ export function TripsPage({
               Tervezz programokat, kövesd a költségeket és tartsd egy helyen a dokumentumokat.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <JoinTripDialog />
+          <div className="flex w-full items-stretch gap-2 sm:w-auto">
+            <JoinTripDialog className="min-w-0 flex-1 sm:flex-none" />
             <Button
+              className="h-10 min-h-10 min-w-0 flex-1 px-3 sm:flex-none"
               onClick={() => setDrawerOpen(true)}
-              className="min-h-[var(--touch-target)] sm:min-h-10"
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4 shrink-0" />
               Új utazás
             </Button>
           </div>
@@ -292,14 +259,6 @@ export function TripsPage({
         members={members}
         onSaved={handleSaved}
       />
-
-      {duplicateTrip && (
-        <DuplicateTripDialog
-          open={Boolean(duplicateTrip)}
-          onOpenChange={(open) => !open && setDuplicateTrip(null)}
-          sourceTrip={duplicateTrip}
-        />
-      )}
     </div>
   );
 }

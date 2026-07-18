@@ -56,7 +56,7 @@ export function TripInvitePanel({
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="flex-1 space-y-1">
-          <Label className="text-xs">Kód</Label>
+          <Label>Kód</Label>
           <Input
             readOnly
             value={code ?? "Betöltés…"}

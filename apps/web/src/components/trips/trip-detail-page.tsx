@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition, useEffect, useMemo } from "react";
+import { useState, useTransition, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ArrowLeft, Pencil, Trash2, Download, Copy, MapPin, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@csaladi-utazas/shared";
@@ -14,8 +14,12 @@ import { deleteProgram } from "@/actions/programs";
 import { deleteCost } from "@/actions/costs";
 import type { FamilyMemberRow } from "@/lib/queries/family";
 import type { TripDetailRow } from "@/lib/queries/trips";
-import { TripDetailTabs, TripSectionHeading, type TripDetailTab } from "@/components/trips/trip-detail-tabs";
-import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
+import {
+  TripDetailTabs,
+  TripSectionHeading,
+  TRIP_DETAIL_TAB_IDS,
+  type TripDetailTab,
+} from "@/components/trips/trip-detail-tabs";
 import type { DocumentItem } from "@/components/documents/document-upload";
 
 function TabSectionSkeleton() {
@@ -30,25 +34,26 @@ const CostFormDrawer = dynamic(
   () => import("./cost-form-drawer").then((m) => m.CostFormDrawer),
   { ssr: false }
 );
-const TripInvitePanel = dynamic(
-  () => import("@/components/trips/trip-invite-panel").then((m) => m.TripInvitePanel),
-  { ssr: false, loading: () => <TabSectionSkeleton /> }
+const TripOverviewSection = dynamic(
+  () => import("@/components/trips/trip-overview-section").then((m) => m.TripOverviewSection),
+  { loading: () => <TabSectionSkeleton /> }
+);
+const TripPeopleSection = dynamic(
+  () => import("@/components/trips/trip-people-section").then((m) => m.TripPeopleSection),
+  { loading: () => <TabSectionSkeleton /> }
 );
 const TripProgramsSection = dynamic(
   () => import("@/components/trips/trip-programs-section").then((m) => m.TripProgramsSection),
   { loading: () => <TabSectionSkeleton /> }
 );
 const TripAccommodationsSection = dynamic(
-  () => import("@/components/trips/trip-accommodations-section").then((m) => m.TripAccommodationsSection),
+  () =>
+    import("@/components/trips/trip-accommodations-section").then((m) => m.TripAccommodationsSection),
   { loading: () => <TabSectionSkeleton /> }
 );
 const TripFinancesSection = dynamic(
   () => import("@/components/trips/trip-finances-section").then((m) => m.TripFinancesSection),
   { loading: () => <TabSectionSkeleton /> }
-);
-const TripBudgetPanel = dynamic(
-  () => import("@/components/trips/trip-budget-panel").then((m) => m.TripBudgetPanel),
-  { loading: () => <div className="h-28 animate-pulse rounded-xl bg-muted/30" /> }
 );
 const DuplicateTripDialog = dynamic(
   () => import("@/components/trips/duplicate-trip-dialog").then((m) => m.DuplicateTripDialog),
@@ -67,6 +72,10 @@ const DocumentUpload = dynamic(
   { loading: () => <TabSectionSkeleton /> }
 );
 
+function isTripDetailTab(value: string | null): value is TripDetailTab {
+  return value != null && (TRIP_DETAIL_TAB_IDS as string[]).includes(value);
+}
+
 export function TripDetailPage({
   trip,
   members,
@@ -79,6 +88,7 @@ export function TripDetailPage({
   currentUserName: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
@@ -92,9 +102,28 @@ export function TripDetailPage({
   const [convertProgramIdeaId, setConvertProgramIdeaId] = useState<string | undefined>();
   const [editingCost, setEditingCost] = useState<TripDetailRow["costs"][0] | null>(null);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TripDetailTab>("planning");
+  const [activeTab, setActiveTabState] = useState<TripDetailTab>(() => {
+    const fromUrl = searchParams.get("tab");
+    return isTripDetailTab(fromUrl) ? fromUrl : "overview";
+  });
   const [localCosts, setLocalCosts] = useState(trip.costs);
   const [localDocuments, setLocalDocuments] = useState(trip.documents);
+
+  const setActiveTab = useCallback(
+    (tab: TripDetailTab) => {
+      setActiveTabState(tab);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("new");
+      if (tab === "overview") {
+        params.delete("tab");
+      } else {
+        params.set("tab", tab);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   useEffect(() => {
     setLocalDocuments(trip.documents);
@@ -143,15 +172,34 @@ export function TripDetailPage({
 
   useEffect(() => {
     const action = searchParams.get("new");
-    if (action === "program") {
-      setActiveTab("planning");
-      setProgramOpenSignal((n) => n + 1);
-    } else if (action === "cost") {
-      setEditingCost(null);
-      setActiveTab("finances");
-      setCostDrawerOpen(true);
+    const tab = searchParams.get("tab");
+
+    if (action === "program" || action === "cost") {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("new");
+
+      if (action === "program") {
+        setActiveTabState("planning");
+        setProgramOpenSignal((n) => n + 1);
+        params.set("tab", "planning");
+      } else {
+        setEditingCost(null);
+        setActiveTabState("finances");
+        setCostDrawerOpen(true);
+        params.set("tab", "finances");
+      }
+
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      return;
     }
-  }, [searchParams]);
+
+    if (isTripDetailTab(tab)) {
+      setActiveTabState(tab);
+    } else if (!searchParams.has("tab")) {
+      setActiveTabState("overview");
+    }
+  }, [searchParams, pathname, router]);
 
   const programTitleById = useMemo(
     () => new Map(trip.programs.map((program) => [program.id, program.title])),
@@ -291,11 +339,12 @@ export function TripDetailPage({
     });
   }
 
-  const tabCounts: Record<TripDetailTab, number> = {
+  const tabCounts: Partial<Record<TripDetailTab, number>> = {
     planning: generalIdeas.length + trip.programs.length,
     accommodations: accommodationIdeas.length + trip.accommodations.length,
     finances: localCosts.length,
     documents: localDocuments.length,
+    people: trip.participants.length,
   };
 
   const tripParticipants = trip.participants.map((p) => p.familyMember);
@@ -305,7 +354,12 @@ export function TripDetailPage({
       <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/8 via-card to-card shadow-sm">
         <div className="p-4 sm:p-6">
           <div className="mb-3 flex items-start justify-between gap-2">
-            <Button variant="ghost" size="sm" asChild className="-ml-2 h-9 w-fit shrink-0 text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="-ml-2 h-9 w-fit shrink-0 text-muted-foreground"
+            >
               <Link href="/trips" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 <span className="hidden sm:inline">Vissza az utazásokhoz</span>
@@ -340,8 +394,8 @@ export function TripDetailPage({
             )}
           </div>
 
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0 space-y-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0 space-y-2">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
                   <MapPin className="h-3.5 w-3.5" />
@@ -349,15 +403,28 @@ export function TripDetailPage({
                 </p>
                 <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{trip.title}</h1>
               </div>
-              <p className="flex items-center gap-1.5 text-sm text-muted-foreground sm:text-base">
+              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4 shrink-0" />
                 {formatDate(trip.startDate)} – {formatDate(trip.endDate)}
               </p>
-              <MonogramGroup names={trip.participants.map((p) => p.familyMember.name)} />
+              <button
+                type="button"
+                onClick={() => setActiveTab("people")}
+                className="inline-flex rounded-lg transition-opacity hover:opacity-80"
+                title="Résztvevők"
+                aria-label="Résztvevők megtekintése"
+              >
+                <MonogramGroup names={trip.participants.map((p) => p.familyMember.name)} />
+              </button>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="h-9 min-h-[var(--touch-target)] sm:min-h-9" asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 min-h-[var(--touch-target)] sm:min-h-9"
+                asChild
+              >
                 <a href={`/api/trips/${trip.id}/calendar`} download>
                   <Download className="mr-2 h-4 w-4" />
                   Naptár
@@ -387,50 +454,56 @@ export function TripDetailPage({
         }))}
       />
 
-      <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
-        <TripSectionHeading
-          title="Költségvetés"
-          description="Terv vs. tény összehasonlítás az aktuális árfolyamon"
-        />
-        <div className="mt-4">
-          <TripBudgetPanel trip={trip} />
-        </div>
-      </section>
-
-      {isOwner && (
-        <CollapsiblePanel
-          title="Meghívó"
-          subtitle="Hívd meg a családtagokat az utazásba"
-          defaultOpen={false}
-        >
-          <TripInvitePanel tripId={trip.id} isOwner={isOwner} />
-        </CollapsiblePanel>
-      )}
-
       <TripDetailTabs active={activeTab} onChange={setActiveTab} counts={tabCounts} />
+
+      {activeTab === "overview" && (
+        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+          <TripOverviewSection
+            trip={trip}
+            costsCount={localCosts.length}
+            documentsCount={localDocuments.length}
+            programIdeasCount={generalIdeas.length}
+            accommodationIdeasCount={accommodationIdeas.length}
+            onNavigate={setActiveTab}
+            onAddProgram={() => {
+              setActiveTab("planning");
+              setProgramOpenSignal((n) => n + 1);
+            }}
+            onAddIdea={() => {
+              setActiveTab("planning");
+              setIdeaOpenSignal((n) => n + 1);
+            }}
+            onAddCost={() => {
+              setEditingCost(null);
+              setActiveTab("finances");
+              setCostDrawerOpen(true);
+            }}
+          />
+        </section>
+      )}
 
       {activeTab === "planning" && (
         <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
           <TripProgramsSection
-              tripId={trip.id}
-              tripStartDate={formatDate(trip.startDate)}
-              tripEndDate={formatDate(trip.endDate)}
-              ideas={generalIdeas}
-              programs={trip.programs}
-              costs={localCosts}
-              documents={localDocuments}
-              participants={trip.participants.map((p) => p.familyMember)}
-              currentUserId={currentUserId}
-              currentUserName={currentUserName}
-              onRefresh={refresh}
-              onDeleteProgram={handleDeleteProgram}
-              onConvertToProgram={handleConvertIdeaToProgram}
-              convertedIdeaIds={convertedIdeaIds}
-              isPending={isPending}
-              ideaOpenSignal={ideaOpenSignal}
-              programOpenSignal={programOpenSignal}
-              convertIdeaId={convertProgramIdeaId}
-              onConvertIdeaHandled={() => setConvertProgramIdeaId(undefined)}
+            tripId={trip.id}
+            tripStartDate={formatDate(trip.startDate)}
+            tripEndDate={formatDate(trip.endDate)}
+            ideas={generalIdeas}
+            programs={trip.programs}
+            costs={localCosts}
+            documents={localDocuments}
+            participants={trip.participants.map((p) => p.familyMember)}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            onRefresh={refresh}
+            onDeleteProgram={handleDeleteProgram}
+            onConvertToProgram={handleConvertIdeaToProgram}
+            convertedIdeaIds={convertedIdeaIds}
+            isPending={isPending}
+            ideaOpenSignal={ideaOpenSignal}
+            programOpenSignal={programOpenSignal}
+            convertIdeaId={convertProgramIdeaId}
+            onConvertIdeaHandled={() => setConvertProgramIdeaId(undefined)}
             onDocumentUploaded={handleDocumentUploaded}
             onDocumentDeleted={handleDocumentDeleted}
           />
@@ -462,11 +535,7 @@ export function TripDetailPage({
 
       {activeTab === "finances" && (
         <TripFinancesSection
-          trip={{
-            participants: trip.participants,
-            programs: trip.programs,
-            accommodations: trip.accommodations,
-          }}
+          trip={trip}
           costs={localCosts}
           programTitleById={programTitleById}
           accommodationTitleById={accommodationTitleById}
@@ -490,10 +559,7 @@ export function TripDetailPage({
             title="Dokumentumok"
             description="Utazás és program szintű iratok kategóriával és családtag szerint"
           />
-          <DocumentChecklistPanel
-            documents={localDocuments}
-            participants={tripParticipants}
-          />
+          <DocumentChecklistPanel documents={localDocuments} participants={tripParticipants} />
           <DocumentUpload
             tripId={trip.id}
             documents={localDocuments}
@@ -505,11 +571,17 @@ export function TripDetailPage({
         </section>
       )}
 
-      <DuplicateTripDialog
-        open={duplicateOpen}
-        onOpenChange={setDuplicateOpen}
-        sourceTrip={trip}
-      />
+      {activeTab === "people" && (
+        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+          <TripPeopleSection
+            tripId={trip.id}
+            isOwner={isOwner}
+            participants={trip.participants}
+          />
+        </section>
+      )}
+
+      <DuplicateTripDialog open={duplicateOpen} onOpenChange={setDuplicateOpen} sourceTrip={trip} />
 
       <TripFormDrawer
         open={tripDrawerOpen}

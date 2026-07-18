@@ -136,6 +136,9 @@ model TripIdea {
   currency       String             @default("HUF")
   amountScope    String             @default("TOTAL")
   category       String             @default("OTHER")
+  date           DateTime?
+  startTime      String?
+  endTime        String?
   checkInDate    DateTime?
   checkOutDate   DateTime?
   note           String?

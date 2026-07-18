@@ -11,6 +11,46 @@ interface UrlPreviewCardProps {
   compact?: boolean;
 }
 
+/** Session-level cache so tab remounts don't refetch the same URL previews. */
+const previewCache = new Map<string, UrlPreviewData>();
+const inflightRequests = new Map<string, Promise<UrlPreviewData>>();
+
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
+
+async function loadUrlPreview(url: string): Promise<UrlPreviewData> {
+  const cached = previewCache.get(url);
+  if (cached) return cached;
+
+  const existing = inflightRequests.get(url);
+  if (existing) return existing;
+
+  const request = (async () => {
+    try {
+      const res = await fetch("/api/url-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const body = (await res.json()) as { success: boolean; data?: UrlPreviewData };
+      const data =
+        body.success && body.data ? body.data : buildMinimalUrlPreview(url) ?? { url, title: url };
+      previewCache.set(url, data);
+      return data;
+    } catch {
+      const fallback = buildMinimalUrlPreview(url) ?? { url, title: url };
+      previewCache.set(url, fallback);
+      return fallback;
+    } finally {
+      inflightRequests.delete(url);
+    }
+  })();
+
+  inflightRequests.set(url, request);
+  return request;
+}
+
 function truncateUrl(raw: string, max = 72): string {
   if (raw.length <= max) return raw;
   return `${raw.slice(0, max - 1)}…`;
@@ -64,37 +104,32 @@ function UrlPreviewCardContent({
 }
 
 export function UrlPreviewCard({ url, className, compact = false }: UrlPreviewCardProps) {
-  const [preview, setPreview] = useState<UrlPreviewData | null>(null);
-  const [loading, setLoading] = useState(false);
-
   const trimmed = url.trim();
+  const cached = trimmed && isHttpUrl(trimmed) ? (previewCache.get(trimmed) ?? null) : null;
   const localFallback = trimmed ? buildMinimalUrlPreview(trimmed) : null;
 
+  const [preview, setPreview] = useState<UrlPreviewData | null>(cached);
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
-    if (!trimmed || !/^https?:\/\//i.test(trimmed)) {
+    if (!trimmed || !isHttpUrl(trimmed)) {
       setPreview(null);
+      setLoading(false);
       return;
     }
 
-    const timer = setTimeout(async () => {
+    const hit = previewCache.get(trimmed);
+    if (hit) {
+      setPreview(hit);
+      setLoading(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
       setLoading(true);
-      try {
-        const res = await fetch("/api/url-preview", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: trimmed }),
-        });
-        const body = (await res.json()) as { success: boolean; data?: UrlPreviewData };
-        if (body.success && body.data) {
-          setPreview(body.data);
-        } else {
-          setPreview(buildMinimalUrlPreview(trimmed));
-        }
-      } catch {
-        setPreview(buildMinimalUrlPreview(trimmed));
-      } finally {
-        setLoading(false);
-      }
+      void loadUrlPreview(trimmed)
+        .then((data) => setPreview(data))
+        .finally(() => setLoading(false));
     }, 500);
 
     return () => clearTimeout(timer);
@@ -116,7 +151,7 @@ export function UrlPreviewCard({ url, className, compact = false }: UrlPreviewCa
     );
   }
 
-  const display = preview ?? localFallback;
+  const display = preview ?? cached ?? localFallback;
   if (!display) return null;
 
   return <UrlPreviewCardContent preview={display} compact={compact} className={className} />;

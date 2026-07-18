@@ -27,7 +27,8 @@ interface DatePickerProps {
 
 const MOBILE_QUERY = "(max-width: 767px)";
 const PANEL_Z_INDEX = 200;
-const PANEL_ESTIMATED_HEIGHT = 320;
+const PANEL_ESTIMATED_HEIGHT = 380;
+const DEFAULT_DESKTOP_DROPDOWN_WIDTH = 380;
 
 let activeDatePickerId: string | null = null;
 const datePickerCloseHandlers = new Map<string, () => void>();
@@ -135,8 +136,9 @@ function isEventInsideDatePicker(event: Event, anchor: HTMLElement | null, panel
 const calendarClassName = {
   base: "date-picker-calendar w-full min-w-0",
   mobile:
-    "[&_.rdp-nav]:mb-2 [&_.rdp-caption_label]:text-base [&_.rdp-weekday]:text-xs [&_.rdp-weekday]:font-medium touch-manipulation",
-  desktop: "[&_.rdp-weekday]:text-xs [&_.rdp-weekday]:font-medium",
+    "[&_.rdp-nav]:mb-2 [&_.rdp-caption_label]:text-base [&_.rdp-weekday]:text-sm [&_.rdp-weekday]:font-medium touch-manipulation",
+  desktop:
+    "[&_.rdp-nav]:mb-3 [&_.rdp-caption_label]:text-lg [&_.rdp-caption_label]:font-semibold [&_.rdp-weekday]:text-sm [&_.rdp-weekday]:font-semibold",
 };
 
 function MonthWeekRow({ week, children, ...trProps }: WeekProps) {
@@ -214,7 +216,12 @@ export function DatePicker({
   const [mounted, setMounted] = React.useState(false);
   const [month, setMonth] = React.useState<Date>(() => resolveDisplayMonth(value, minDate, maxDate));
   const selected = value ? parseDisplayDate(value) : undefined;
-  const position = usePanelPosition(open, anchorRef, isMobile, dropdownWidth);
+  const position = usePanelPosition(
+    open,
+    anchorRef,
+    isMobile,
+    dropdownWidth ?? DEFAULT_DESKTOP_DROPDOWN_WIDTH
+  );
 
   React.useEffect(() => {
     setMounted(true);
@@ -282,7 +289,7 @@ export function DatePicker({
         className="pointer-events-auto rounded-lg border bg-popover text-popover-foreground shadow-lg"
         style={position}
       >
-        <div className="p-2">
+        <div className="p-3 sm:p-4">
           <DayPicker
             mode="single"
             showOutsideDays
@@ -296,7 +303,7 @@ export function DatePicker({
             }}
             formatters={{
               formatWeekdayName: (date, _options, dateLib) =>
-                dateLib?.format(date, "EEEEE") ?? format(date, "EEEEE", { locale: hu }),
+                dateLib?.format(date, "EEE") ?? format(date, "EEE", { locale: hu }),
             }}
             disabled={[
               ...(minDate ? [{ before: parseDisplayDate(minDate) }] : []),
@@ -318,7 +325,7 @@ export function DatePicker({
         type="button"
         onClick={handleToggle}
         className={cn(
-          "min-h-[var(--touch-target)] w-full justify-start text-left font-normal md:min-h-9",
+          "min-h-[var(--touch-target)] w-full justify-start text-left text-base font-normal md:min-h-9",
           !value && "text-muted-foreground",
           className
         )}

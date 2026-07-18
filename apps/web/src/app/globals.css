@@ -74,10 +74,10 @@
 }
 
 .date-picker-calendar.rdp-root {
-  --rdp-day-height: 2rem;
+  --rdp-day-height: 2.5rem;
   --rdp-day-width: 100%;
-  --rdp-day_button-height: 1.75rem;
-  --rdp-day_button-width: 1.75rem;
+  --rdp-day_button-height: 2.25rem;
+  --rdp-day_button-width: 2.25rem;
   width: 100%;
   max-width: 100%;
 }
@@ -113,29 +113,46 @@
   width: min(100%, var(--rdp-day_button-width));
   height: var(--rdp-day_button-height);
   margin-inline: auto;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 500;
 }
 
 .date-picker-calendar .rdp-weekday {
-  font-size: 0.75rem;
-  font-weight: 500;
-  padding: 0.2rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.35rem 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+@media (min-width: 768px) {
+  .date-picker-calendar.rdp-root {
+    --rdp-day-height: 2.75rem;
+    --rdp-day_button-height: 2.5rem;
+    --rdp-day_button-width: 2.5rem;
+  }
+
+  .date-picker-calendar .rdp-day_button {
+    font-size: 1.0625rem;
+  }
+
+  .date-picker-calendar .rdp-weekday {
+    font-size: 0.9375rem;
+    padding: 0.45rem 0;
+  }
+}
+
 @media (max-width: 767px) {
   .date-picker-calendar.rdp-root {
-    --rdp-day-height: 2.25rem;
+    --rdp-day-height: 2.5rem;
     --rdp-day_button-height: 2.25rem;
     --rdp-day_button-width: 2.25rem;
   }
 
   .date-picker-calendar .rdp-weekday {
-    font-size: 0.75rem;
-    padding: 0.25rem 0;
+    font-size: 0.8125rem;
+    padding: 0.3rem 0;
   }
 }
 

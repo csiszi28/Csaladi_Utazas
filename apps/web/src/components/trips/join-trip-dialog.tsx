@@ -15,9 +15,14 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { joinTripWithInviteCode } from "@/actions/invites";
 
-export function JoinTripDialog() {
+export function JoinTripDialog({
+  className,
+}: {
+  className?: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
@@ -40,8 +45,12 @@ export function JoinTripDialog() {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        <UserPlus className="mr-2 h-4 w-4" />
+      <Button
+        variant="outline"
+        className={cn("h-10 min-h-10 px-3", className)}
+        onClick={() => setOpen(true)}
+      >
+        <UserPlus className="mr-1.5 h-4 w-4 shrink-0" />
         Csatlakozás kóddal
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -54,7 +63,7 @@ export function JoinTripDialog() {
               Add meg a tulajdonostól kapott 8 karakteres kódot. Regisztráció és bejelentkezés után az utazás adatai elérhetők lesznek.
             </p>
             <div className="space-y-1.5">
-              <Label className="text-xs">Meghívó kód</Label>
+              <Label>Meghívó kód</Label>
               <Input
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}

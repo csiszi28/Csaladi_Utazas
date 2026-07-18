@@ -28,6 +28,7 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
+import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateTripIdea, useUpdateTripIdea } from "@/hooks/use-ideas";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { cn } from "@/lib/utils";
@@ -144,13 +145,13 @@ export function AccommodationIdeaFormDrawer({
         </DialogHeader>
         <DialogBody className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Megnevezés</Label>
+            <Label>Megnevezés</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Bejelentkezés (tervezett)</Label>
+              <Label>Bejelentkezés (tervezett)</Label>
               <DatePicker
                 value={checkInDate}
                 onChange={setCheckInDate}
@@ -160,7 +161,7 @@ export function AccommodationIdeaFormDrawer({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Kijelentkezés (tervezett)</Label>
+              <Label>Kijelentkezés (tervezett)</Label>
               <DatePicker
                 value={checkOutDate}
                 onChange={setCheckOutDate}
@@ -172,7 +173,7 @@ export function AccommodationIdeaFormDrawer({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">URL (opcionális)</Label>
+            <Label>URL (opcionális)</Label>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -183,7 +184,7 @@ export function AccommodationIdeaFormDrawer({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Becsült összeg (opcionális)</Label>
+              <Label>Becsült összeg (opcionális)</Label>
               <Input
                 value={amountInput}
                 onChange={(e) => setAmountInput(formatAmountInput(e.target.value))}
@@ -193,7 +194,7 @@ export function AccommodationIdeaFormDrawer({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Pénznem</Label>
+              <Label>Pénznem</Label>
               <Select value={currency} onValueChange={setCurrency}>
                 <SelectTrigger>
                   <SelectValue />
@@ -208,7 +209,7 @@ export function AccommodationIdeaFormDrawer({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Összeg értelmezése</Label>
+              <Label>Összeg értelmezése</Label>
               <Select value={amountScope} onValueChange={setAmountScope}>
                 <SelectTrigger>
                   <SelectValue />
@@ -226,7 +227,7 @@ export function AccommodationIdeaFormDrawer({
 
           {participants.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Kinek tetszik?</Label>
+              <Label>Kinek tetszik?</Label>
               <div className="flex flex-wrap gap-1.5">
                 {participants.map((member) => (
                   <button
@@ -250,17 +251,14 @@ export function AccommodationIdeaFormDrawer({
         </DialogBody>
         <DialogFooter className="grid grid-cols-2 gap-2">
           <Button
-            variant="outline"
-            size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:min-h-9"
+            variant="outline" className={TRIP_DIALOG_BTN_CLASS}
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
             Mégse
           </Button>
           <Button
-            size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:min-h-9"
+            className={TRIP_DIALOG_BTN_CLASS}
             onClick={handleSubmit}
             disabled={!title.trim() || !checkInDate || !checkOutDate || isPending}
           >

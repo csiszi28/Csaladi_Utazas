@@ -29,7 +29,7 @@ export function CostChips({
       {visible.map((cost) => (
         <span
           key={cost.id}
-          className="inline-flex max-w-full items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-xs"
+          className="inline-flex max-w-full items-center rounded-lg border bg-muted/40 px-2.5 py-1 text-sm sm:text-base"
         >
           <span className="truncate">{cost.title}:</span>
           <CostAmountDisplay
@@ -42,7 +42,7 @@ export function CostChips({
         </span>
       ))}
       {hiddenCount > 0 && (
-        <span className="text-xs text-muted-foreground">+{hiddenCount} költség</span>
+        <span className="text-sm text-muted-foreground sm:text-base">+{hiddenCount} költség</span>
       )}
     </span>
   );

@@ -2,25 +2,17 @@
 
 import { useState, useEffect } from "react";
 import {
-  IDEA_AMOUNT_SCOPES,
-  IDEA_AMOUNT_SCOPE_LABELS,
-  COST_CATEGORIES,
-  COST_CATEGORY_LABELS,
-  CURRENCIES,
-  CURRENCY_LABELS,
   formatAmountInput,
   parseAmountInput,
+  formatDate,
+  formatTimeWhileTyping,
+  normalizeTimeValue,
+  type CostCategory,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -29,8 +21,14 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
+import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateTripIdea, useUpdateTripIdea } from "@/hooks/use-ideas";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
+import {
+  CostFieldsBlock,
+  createEmptyCostFields,
+  type CostFieldsValue,
+} from "@/components/trips/cost-fields-block";
 import { cn } from "@/lib/utils";
 
 export interface TripIdeaFormData {
@@ -41,6 +39,9 @@ export interface TripIdeaFormData {
   currency: string;
   amountScope: string;
   category: string;
+  date: Date | string | null;
+  startTime: string | null;
+  endTime: string | null;
   interestedParticipantIds: string[];
 }
 
@@ -48,6 +49,8 @@ interface IdeaFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tripId: string;
+  tripStartDate: string;
+  tripEndDate: string;
   participants: { id: string; name: string }[];
   onSaved?: () => void;
   idea?: TripIdeaFormData;
@@ -57,6 +60,8 @@ export function IdeaFormDrawer({
   open,
   onOpenChange,
   tripId,
+  tripStartDate,
+  tripEndDate,
   participants,
   onSaved,
   idea,
@@ -66,28 +71,36 @@ export function IdeaFormDrawer({
 
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
-  const [amountInput, setAmountInput] = useState("");
-  const [currency, setCurrency] = useState("HUF");
-  const [amountScope, setAmountScope] = useState<string>("TOTAL");
-  const [category, setCategory] = useState<string>("OTHER");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [costFields, setCostFields] = useState<CostFieldsValue>(() =>
+    createEmptyCostFields("OTHER")
+  );
   const [participantIds, setParticipantIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (idea && open) {
       setTitle(idea.title);
       setUrl(idea.url ?? "");
-      setAmountInput(idea.amount != null ? formatAmountInput(String(idea.amount)) : "");
-      setCurrency(idea.currency);
-      setAmountScope(idea.amountScope);
-      setCategory(idea.category);
+      setDate(idea.date ? formatDate(idea.date) : "");
+      setStartTime(idea.startTime ?? "");
+      setEndTime(idea.endTime ?? "");
+      setCostFields({
+        amount: idea.amount != null ? formatAmountInput(String(idea.amount)) : "",
+        currency: idea.currency,
+        amountScope: idea.amountScope,
+        category: idea.category,
+        paidByFamilyMemberId: "",
+      });
       setParticipantIds(idea.interestedParticipantIds);
     } else if (!idea && open) {
       setTitle("");
       setUrl("");
-      setAmountInput("");
-      setCurrency("HUF");
-      setAmountScope("TOTAL");
-      setCategory("OTHER");
+      setDate("");
+      setStartTime("");
+      setEndTime("");
+      setCostFields(createEmptyCostFields("OTHER"));
       setParticipantIds([]);
     }
   }, [idea, open]);
@@ -98,18 +111,29 @@ export function IdeaFormDrawer({
     );
   }
 
+  function handleTimeChange(setter: (value: string) => void, value: string) {
+    setter(formatTimeWhileTyping(value));
+  }
+
+  function handleTimeBlur(setter: (value: string) => void, value: string) {
+    if (value) setter(normalizeTimeValue(value));
+  }
+
   async function handleSubmit() {
-    const trimmedAmount = amountInput.trim();
+    const trimmedAmount = costFields.amount.trim();
     const amount = trimmedAmount ? parseAmountInput(trimmedAmount) : null;
 
     const data = {
       tripId,
       title,
       url: url.trim() || null,
+      date: date.trim() || null,
+      startTime: startTime ? normalizeTimeValue(startTime) : null,
+      endTime: endTime ? normalizeTimeValue(endTime) : null,
       amount,
-      currency,
-      amountScope,
-      category,
+      currency: costFields.currency,
+      amountScope: costFields.amountScope,
+      category: costFields.category as CostCategory,
       interestedParticipantIds: participantIds,
     };
 
@@ -135,11 +159,50 @@ export function IdeaFormDrawer({
         </DialogHeader>
         <DialogBody className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Program neve</Label>
+            <Label>Cím</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">URL (opcionális)</Label>
+            <Label>Dátum (opcionális)</Label>
+            <p className="text-sm text-muted-foreground">
+              Egy napot válassz az utazás ideje alatt ({tripStartDate} – {tripEndDate})
+            </p>
+            <DatePicker
+              value={date}
+              onChange={setDate}
+              minDate={tripStartDate}
+              maxDate={tripEndDate}
+              placeholder={tripStartDate}
+              dropdownWidth={380}
+              inDialog
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Kezdés</Label>
+              <Input
+                value={startTime}
+                onChange={(e) => handleTimeChange(setStartTime, e.target.value)}
+                onBlur={() => handleTimeBlur(setStartTime, startTime)}
+                placeholder="0900"
+                inputMode="numeric"
+                maxLength={5}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Befejezés</Label>
+              <Input
+                value={endTime}
+                onChange={(e) => handleTimeChange(setEndTime, e.target.value)}
+                onBlur={() => handleTimeBlur(setEndTime, endTime)}
+                placeholder="1200"
+                inputMode="numeric"
+                maxLength={5}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>URL (opcionális)</Label>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -147,66 +210,16 @@ export function IdeaFormDrawer({
             />
             <UrlPreviewCard url={url} />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Becsült összeg (opcionális)</Label>
-              <Input
-                value={amountInput}
-                onChange={(e) => setAmountInput(formatAmountInput(e.target.value))}
-                placeholder="0"
-                inputMode="numeric"
-                className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Pénznem</Label>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {CURRENCY_LABELS[c]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Összeg értelmezése</Label>
-              <Select value={amountScope} onValueChange={setAmountScope}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {IDEA_AMOUNT_SCOPES.map((scope) => (
-                    <SelectItem key={scope} value={scope}>
-                      {IDEA_AMOUNT_SCOPE_LABELS[scope]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Költség kategória</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {COST_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {COST_CATEGORY_LABELS[cat]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          <CostFieldsBlock
+            value={costFields}
+            onChange={(patch) => setCostFields((prev) => ({ ...prev, ...patch }))}
+            heading="Költség"
+          />
+
           {participants.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Kit érdekel?</Label>
+              <Label>Kit érdekel?</Label>
               <div className="flex flex-wrap gap-1.5">
                 {participants.map((member) => (
                   <button
@@ -214,7 +227,7 @@ export function IdeaFormDrawer({
                     type="button"
                     onClick={() => toggleParticipant(member.id)}
                     className={cn(
-                      "rounded-full border px-2.5 py-0.5 text-xs transition-colors min-h-[var(--touch-target)] sm:min-h-0",
+                      "rounded-full border px-2.5 py-0.5 text-sm transition-colors min-h-[var(--touch-target)] sm:min-h-0",
                       participantIds.includes(member.id)
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-input hover:bg-accent"
@@ -227,11 +240,11 @@ export function IdeaFormDrawer({
             </div>
           )}
         </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="grid grid-cols-2 gap-2">
+          <Button variant="outline" className={TRIP_DIALOG_BTN_CLASS} onClick={() => onOpenChange(false)}>
             Mégse
           </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!title.trim() || isPending}>
+          <Button className={TRIP_DIALOG_BTN_CLASS} onClick={handleSubmit} disabled={!title.trim() || isPending}>
             Mentés
           </Button>
         </DialogFooter>

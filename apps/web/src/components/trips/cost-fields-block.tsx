@@ -58,11 +58,11 @@ export function CostFieldsBlock({
 }: CostFieldsBlockProps) {
   return (
     <div className="space-y-3 rounded-lg border bg-muted/20 px-3 py-3">
-      <p className="text-sm font-medium">{heading}</p>
+      <p className="text-base font-medium">{heading}</p>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Összeg</Label>
+          <Label>Összeg</Label>
           <Input
             value={value.amount}
             onChange={(e) => onChange({ amount: formatAmountInput(e.target.value) })}
@@ -73,7 +73,7 @@ export function CostFieldsBlock({
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Pénznem</Label>
+          <Label>Pénznem</Label>
           <Select value={value.currency} onValueChange={(currency) => onChange({ currency })}>
             <SelectTrigger>
               <SelectValue />
@@ -90,7 +90,7 @@ export function CostFieldsBlock({
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs">Összeg értelmezése</Label>
+        <Label>Összeg értelmezése</Label>
         <Select
           value={value.amountScope}
           onValueChange={(amountScope) => onChange({ amountScope })}
@@ -109,7 +109,7 @@ export function CostFieldsBlock({
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs">Kategória</Label>
+        <Label>Kategória</Label>
         <Select
           value={value.category}
           onValueChange={(category) => onChange({ category })}
@@ -129,7 +129,7 @@ export function CostFieldsBlock({
 
       {participantOptions.length > 0 && (
         <div className="space-y-1.5">
-          <Label className="text-xs">Ki fizette? (elszámoláshoz)</Label>
+          <Label>Ki fizette? (elszámoláshoz)</Label>
           <Select
             value={value.paidByFamilyMemberId || "__none__"}
             onValueChange={(v) =>

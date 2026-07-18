@@ -172,7 +172,7 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
 
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="min-w-0 space-y-1.5">
-            <Label className="text-xs">Utazás</Label>
+            <Label>Utazás</Label>
             <Select
               value={tripFilter}
               onValueChange={(v) => {
@@ -195,7 +195,7 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
           </div>
 
           <div className="min-w-0 space-y-1.5">
-            <Label className="text-xs">Program</Label>
+            <Label>Program</Label>
             <Select
               value={programFilter}
               onValueChange={setProgramFilter}
@@ -217,7 +217,7 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
           </div>
 
           <div className="min-w-0 space-y-1.5">
-            <Label className="text-xs">Személy</Label>
+            <Label>Személy</Label>
             <Select value={memberFilter} onValueChange={setMemberFilter}>
               <SelectTrigger className="w-full min-w-0 max-w-full">
                 <SelectValue placeholder="Mindenki" />
@@ -234,7 +234,7 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
           </div>
 
           <div className="min-w-0 space-y-1.5">
-            <Label className="text-xs">Kategória</Label>
+            <Label>Kategória</Label>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-full min-w-0 max-w-full">
                 <SelectValue placeholder="Minden kategória" />

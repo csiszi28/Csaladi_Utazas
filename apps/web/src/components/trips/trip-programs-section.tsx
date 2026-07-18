@@ -6,10 +6,9 @@ import {
   Pencil,
   Trash2,
   ExternalLink,
-  CalendarDays,
-  Lightbulb,
   MapPin,
   CalendarPlus,
+  CalendarDays,
   FileText,
 } from "lucide-react";
 import { formatDate, COST_CATEGORY_LABELS, type CostCategory } from "@csaladi-utazas/shared";
@@ -25,13 +24,13 @@ import { ProgramFormDrawer } from "./program-form-drawer";
 import { IdeaChatPanel } from "./idea-chat-panel";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { CostChips } from "./cost-chips";
-import { TripSubviewNav } from "./trip-subview-nav";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
-import { TripSectionHeading } from "./trip-detail-tabs";
+import { TripFilterChips, TripSectionHeading } from "./trip-detail-tabs";
+import { cn } from "@/lib/utils";
 
 type TripIdeaRow = TripDetailRow["ideas"][number];
 type ProgramRow = TripDetailRow["programs"][number];
-type ProgramSubview = "ideas" | "programs" | "documents";
+type ProgramFilter = "ideas" | "programs" | "documents";
 
 function programDateLabel(date: Date | string) {
   return formatDate(date);
@@ -84,7 +83,7 @@ export function TripProgramsSection({
   onDocumentUploaded,
   onDocumentDeleted,
 }: TripProgramsSectionProps) {
-  const [subview, setSubview] = useState<ProgramSubview>("ideas");
+  const [filter, setFilter] = useState<ProgramFilter>("programs");
   const [ideaDrawerOpen, setIdeaDrawerOpen] = useState(false);
   const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<TripIdeaFormData | null>(null);
@@ -98,7 +97,7 @@ export function TripProgramsSection({
   useEffect(() => {
     if (ideaOpenSignal > 0) {
       setEditingIdea(null);
-      setSubview("ideas");
+      setFilter("ideas");
       setIdeaDrawerOpen(true);
     }
   }, [ideaOpenSignal]);
@@ -106,7 +105,7 @@ export function TripProgramsSection({
   useEffect(() => {
     if (programOpenSignal > 0) {
       setEditingProgram(null);
-      setSubview("programs");
+      setFilter("programs");
       setProgramDrawerOpen(true);
     }
   }, [programOpenSignal]);
@@ -114,7 +113,7 @@ export function TripProgramsSection({
   useEffect(() => {
     if (convertIdeaId) {
       setEditingProgram(null);
-      setSubview("programs");
+      setFilter("programs");
       setProgramDrawerOpen(true);
     }
   }, [convertIdeaId]);
@@ -132,47 +131,32 @@ export function TripProgramsSection({
     currency: idea.currency,
     amountScope: idea.amountScope,
     category: idea.category,
+    date: idea.date,
+    startTime: idea.startTime,
+    endTime: idea.endTime,
     interests: idea.interests,
   }));
 
   return (
     <div className="space-y-6">
-      <TripSubviewNav
-        ariaLabel="Programok alnézet"
-        active={subview}
-        onChange={(id) => setSubview(id as ProgramSubview)}
+      <TripFilterChips
+        ariaLabel="Program szűrő"
+        active={filter}
+        onChange={setFilter}
         items={[
-          {
-            id: "ideas",
-            label: "Ötletek",
-            count: ideas.length,
-            icon: <Lightbulb className="h-4 w-4 shrink-0" />,
-          },
-          {
-            id: "programs",
-            label: "Programok",
-            shortLabel: "Prog.",
-            count: programs.length,
-            icon: <CalendarDays className="h-4 w-4 shrink-0" />,
-          },
-          {
-            id: "documents",
-            label: "Dokumentumok",
-            shortLabel: "Dok.",
-            count: programDocuments.length,
-            icon: <FileText className="h-4 w-4 shrink-0" />,
-          },
+          { id: "programs", label: "Programok", count: programs.length },
+          { id: "ideas", label: "Ötletek", count: ideas.length },
+          { id: "documents", label: "Dokuk.", count: programDocuments.length },
         ]}
       />
 
-      {subview === "ideas" && (
+      {filter === "ideas" && (
         <section className="space-y-4">
           <TripSectionHeading
             title="Program ötletek"
             description="Gyűjts javaslatokat, jelöld meg kinek érdekes"
             action={
               <Button
-                size="sm"
                 className={TRIP_SECTION_BTN_CLASS}
                 onClick={() => {
                   setEditingIdea(null);
@@ -198,14 +182,28 @@ export function TripProgramsSection({
                     <span className="flex flex-wrap items-center gap-2">
                       {idea.title}
                       {isConverted && (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                        <span className="rounded-lg bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 sm:text-sm">
                           Programmá alakítva
                         </span>
                       )}
                     </span>
                   }
                   subtitle={
-                    <span className="flex flex-col gap-0.5">
+                    <span className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
+                      {idea.date && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                          {programDateLabel(idea.date)}
+                          {(idea.startTime || idea.endTime) && (
+                            <span>
+                              ·{" "}
+                              {idea.startTime && idea.endTime
+                                ? `${idea.startTime} – ${idea.endTime}`
+                                : idea.startTime ?? idea.endTime}
+                            </span>
+                          )}
+                        </span>
+                      )}
                       {idea.amount != null && (
                         <CostAmountDisplay
                           amount={idea.amount}
@@ -244,6 +242,9 @@ export function TripProgramsSection({
                             currency: idea.currency,
                             amountScope: idea.amountScope,
                             category: idea.category ?? "OTHER",
+                            date: idea.date,
+                            startTime: idea.startTime,
+                            endTime: idea.endTime,
                             interestedParticipantIds: idea.interests.map((i) => i.familyMember.id),
                           });
                           setIdeaDrawerOpen(true);
@@ -305,14 +306,13 @@ export function TripProgramsSection({
         </section>
       )}
 
-      {subview === "programs" && (
+      {filter === "programs" && (
         <section className="space-y-4">
           <TripSectionHeading
             title="Programok"
             description="Napi programok időponttal és résztvevőkkel"
             action={
               <Button
-                size="sm"
                 className={TRIP_SECTION_BTN_CLASS}
                 onClick={() => {
                   setEditingProgram(null);
@@ -328,6 +328,7 @@ export function TripProgramsSection({
           <div className="space-y-3">
             {programs.map((program) => {
               const programCosts = costs.filter((c) => c.programId === program.id);
+              const docsForProgram = documents.filter((d) => d.programId === program.id);
 
               return (
                 <CollapsiblePanel
@@ -335,21 +336,29 @@ export function TripProgramsSection({
                   defaultOpen={false}
                   title={
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex min-h-8 items-center justify-center rounded-lg bg-primary/10 px-2 text-[10px] font-bold text-primary sm:text-xs">
-                        {programDateLabel(program.date)}
-                      </span>
                       {program.title}
+                      {docsForProgram.length > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2 py-0.5 text-xs text-muted-foreground sm:text-sm">
+                          <FileText className="h-3.5 w-3.5" />
+                          {docsForProgram.length}
+                        </span>
+                      )}
                     </span>
                   }
                   subtitle={
-                    <span className="flex flex-col gap-1">
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span>
-                          {program.startTime && program.endTime
-                            ? `${program.startTime} – ${program.endTime}`
-                            : program.startTime
-                              ? program.startTime
-                              : "Egész napos"}
+                    <span className="flex flex-col gap-1.5 sm:gap-2">
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                          {programDateLabel(program.date)}
+                          <span>
+                            ·{" "}
+                            {program.startTime && program.endTime
+                              ? `${program.startTime} – ${program.endTime}`
+                              : program.startTime
+                                ? program.startTime
+                                : "Egész napos"}
+                          </span>
                         </span>
                         {program.location && (
                           <span className="inline-flex items-center gap-1">
@@ -415,7 +424,7 @@ export function TripProgramsSection({
         </section>
       )}
 
-      {subview === "documents" && (
+      {filter === "documents" && (
         <section className="space-y-4">
           <TripSectionHeading
             title="Program dokumentumok"
@@ -423,23 +432,66 @@ export function TripProgramsSection({
           />
 
           <div className="space-y-3">
-            {programs.map((program) => {
+            {programs.map((program, index) => {
               const docsForProgram = documents.filter((d) => d.programId === program.id);
+              const fileCount = docsForProgram.length;
+              const previewDocs = docsForProgram.slice(0, 3);
 
               return (
                 <CollapsiblePanel
                   key={program.id}
-                  defaultOpen={false}
+                  defaultOpen={index === 0 || fileCount === 0}
                   title={program.title}
                   subtitle={
-                    <span className="flex flex-col gap-0.5">
-                      <span>{programDateLabel(program.date)}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {docsForProgram.length} fájl
+                    <span className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
+                      <span className="inline-flex items-center gap-1.5 text-sm">
+                        <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                        {programDateLabel(program.date)}
+                        {program.startTime && (
+                          <span className="text-muted-foreground">· {program.startTime}</span>
+                        )}
+                      </span>
+                      {program.location && (
+                        <span className="inline-flex items-center gap-1 text-sm">
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          {program.location}
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          "inline-flex w-fit items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-medium",
+                          fileCount > 0
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        {fileCount === 0
+                          ? "Nincs dokumentum"
+                          : `${fileCount} dokumentum`}
                       </span>
                     </span>
                   }
-                  className="shadow-none"
+                  alwaysVisible={
+                    previewDocs.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {previewDocs.map((doc) => (
+                          <li
+                            key={doc.id}
+                            className="flex items-center gap-2 truncate text-sm text-muted-foreground"
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                            <span className="truncate">{doc.fileName}</span>
+                          </li>
+                        ))}
+                        {fileCount > previewDocs.length && (
+                          <li className="pl-5 text-xs text-muted-foreground">
+                            +{fileCount - previewDocs.length} további
+                          </li>
+                        )}
+                      </ul>
+                    ) : undefined
+                  }
                 >
                   <DocumentUpload
                     tripId={tripId}
@@ -468,6 +520,8 @@ export function TripProgramsSection({
         open={ideaDrawerOpen}
         onOpenChange={setIdeaDrawerOpen}
         tripId={tripId}
+        tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
         participants={participants}
         idea={editingIdea ?? undefined}
         onSaved={onRefresh}

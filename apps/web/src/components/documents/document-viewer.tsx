@@ -1,18 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  FileText,
-  Maximize2,
-  Minimize2,
-} from "lucide-react";
+import { Eye, FileText, Maximize2, Minimize2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -258,8 +252,9 @@ export function DocumentViewer({
           "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
           !immersive &&
             "sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100vw-1.5rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:border sm:pt-0 sm:pb-0 md:[body[data-dashboard-layout=true]_&]:w-[calc(100vw-18rem)] md:[body[data-dashboard-layout=true]_&]:max-w-[calc(100vw-18rem)]",
+          "[&>button]:hidden",
           immersive &&
-            "[&>button]:hidden !fixed !inset-0 !left-0 !top-0 !right-0 !bottom-0 !z-[70] !h-[100svh] !max-h-[100svh] !w-screen !max-w-none !translate-x-0 !translate-y-0 !rounded-none !border-0 bg-black md:[body[data-dashboard-layout=true]_&]:!left-0 md:[body[data-dashboard-layout=true]_&]:!w-screen md:[body[data-dashboard-layout=true]_&]:!max-w-none"
+            "!fixed !inset-0 !left-0 !top-0 !right-0 !bottom-0 !z-[70] !h-[100svh] !max-h-[100svh] !w-screen !max-w-none !translate-x-0 !translate-y-0 !rounded-none !border-0 bg-black md:[body[data-dashboard-layout=true]_&]:!left-0 md:[body[data-dashboard-layout=true]_&]:!w-screen md:[body[data-dashboard-layout=true]_&]:!max-w-none"
         )}
         onEscapeKeyDown={(event) => {
           if (immersive) {
@@ -303,40 +298,23 @@ export function DocumentViewer({
               loading={loading}
               error={error}
             />
-
-            {documents.length > 1 && (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  className="absolute left-2 top-1/2 z-20 h-12 w-12 -translate-y-1/2 shadow-md"
-                  disabled={!canGoPrev}
-                  onClick={goPrev}
-                  aria-label="Előző dokumentum"
-                >
-                  <ChevronLeft className="h-6 w-6" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  className="absolute right-2 top-1/2 z-20 h-12 w-12 -translate-y-1/2 shadow-md"
-                  disabled={!canGoNext}
-                  onClick={goNext}
-                  aria-label="Következő dokumentum"
-                >
-                  <ChevronRight className="h-6 w-6" />
-                </Button>
-              </>
-            )}
           </div>
         ) : (
           <>
             <DialogHeader className="shrink-0 px-3 py-3 sm:px-5 sm:py-4">
-              <DialogTitle className="text-base sm:text-lg">Dokumentum megtekintése</DialogTitle>
+              <div className="flex items-center justify-between gap-2">
+                <DialogTitle className="min-w-0 flex-1 text-base sm:text-lg">
+                  Dokumentum megtekintése
+                </DialogTitle>
+                <DialogClose
+                  className="-mr-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring sm:-mr-2"
+                  aria-label="Bezárás"
+                >
+                  <X className="h-5 w-5" />
+                </DialogClose>
+              </div>
               {selected && (
-                <p className="truncate pr-8 text-sm font-normal text-muted-foreground">
+                <p className="truncate pr-1 text-sm font-normal text-muted-foreground">
                   {selected.fileName}
                   {documents.length > 1 && (
                     <span className="ml-2 text-xs tabular-nums opacity-80">
@@ -420,33 +398,6 @@ export function DocumentViewer({
                     >
                       <Maximize2 className="h-5 w-5" />
                     </Button>
-                  )}
-
-                  {documents.length > 1 && (
-                    <>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="icon"
-                        className="absolute left-2 top-1/2 z-10 h-11 w-11 -translate-y-1/2 shadow-md lg:hidden"
-                        disabled={!canGoPrev}
-                        onClick={goPrev}
-                        aria-label="Előző dokumentum"
-                      >
-                        <ChevronLeft className="h-5 w-5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="icon"
-                        className="absolute right-2 top-1/2 z-10 h-11 w-11 -translate-y-1/2 shadow-md lg:hidden"
-                        disabled={!canGoNext}
-                        onClick={goNext}
-                        aria-label="Következő dokumentum"
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </Button>
-                    </>
                   )}
                 </div>
               </div>

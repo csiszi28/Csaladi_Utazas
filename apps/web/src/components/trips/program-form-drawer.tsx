@@ -28,6 +28,7 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
+import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateProgram, useUpdateProgram } from "@/hooks/use-programs";
 import { useCreateCost } from "@/hooks/use-costs";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,9 @@ export interface ProgramIdeaOption {
   currency: string;
   amountScope: string;
   category?: string;
+  date: Date | string | null;
+  startTime: string | null;
+  endTime: string | null;
   interests: { familyMember: { id: string } }[];
 }
 
@@ -141,6 +145,9 @@ export function ProgramFormDrawer({
 
     setTitle(idea.title);
     setUrl(idea.url ?? "");
+    setDate(idea.date ? formatDate(idea.date) : defaultDate ?? tripStartDate);
+    setStartTime(idea.startTime ?? "");
+    setEndTime(idea.endTime ?? "");
 
     const interestedIds = idea.interests.map((i) => i.familyMember.id);
     if (interestedIds.length > 0) {
@@ -251,7 +258,7 @@ export function ProgramFormDrawer({
 
           {!program && ideaOptions.length > 0 && !isConvertMode && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Ötletből (opcionális)</Label>
+              <Label>Ötletből (opcionális)</Label>
               <Select
                 value={selectedIdeaId || "__none__"}
                 onValueChange={(value) => applyIdea(value === "__none__" ? "" : value)}
@@ -272,11 +279,11 @@ export function ProgramFormDrawer({
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Cím</Label>
+            <Label>Cím</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Dátum</Label>
+            <Label>Dátum</Label>
             <p className="text-xs text-muted-foreground">
               Egy napot válassz az utazás ideje alatt ({tripStartDate} – {tripEndDate})
             </p>
@@ -286,13 +293,13 @@ export function ProgramFormDrawer({
               minDate={tripStartDate}
               maxDate={tripEndDate}
               placeholder={tripStartDate}
-              dropdownWidth={320}
+              dropdownWidth={380}
               inDialog
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Kezdés</Label>
+              <Label>Kezdés</Label>
               <Input
                 value={startTime}
                 onChange={(e) => handleTimeChange(setStartTime, e.target.value)}
@@ -303,7 +310,7 @@ export function ProgramFormDrawer({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Befejezés</Label>
+              <Label>Befejezés</Label>
               <Input
                 value={endTime}
                 onChange={(e) => handleTimeChange(setEndTime, e.target.value)}
@@ -315,11 +322,11 @@ export function ProgramFormDrawer({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Helyszín</Label>
+            <Label>Helyszín</Label>
             <Input value={location} onChange={(e) => setLocation(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">URL (opcionális)</Label>
+            <Label>URL (opcionális)</Label>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -327,7 +334,7 @@ export function ProgramFormDrawer({
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Résztvevők</Label>
+            <Label>Résztvevők</Label>
             <div className="flex flex-wrap gap-1.5">
               {participantOptions.map((m) => (
                 <button
@@ -358,17 +365,14 @@ export function ProgramFormDrawer({
         </DialogBody>
         <DialogFooter className="grid grid-cols-2 gap-2">
           <Button
-            variant="outline"
-            size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:min-h-9"
+            variant="outline" className={TRIP_DIALOG_BTN_CLASS}
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
             Mégse
           </Button>
           <Button
-            size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:min-h-9"
+            className={TRIP_DIALOG_BTN_CLASS}
             onClick={handleSubmit}
             disabled={!participantIds.length || !title || !date || !isCreateCostValid || isPending}
           >

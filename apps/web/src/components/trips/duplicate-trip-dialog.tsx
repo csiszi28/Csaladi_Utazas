@@ -91,17 +91,17 @@ export function DuplicateTripDialog({
           </p>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Új megnevezés</Label>
+            <Label>Új megnevezés</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} disabled={isPending} />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Kezdő dátum</Label>
+              <Label>Kezdő dátum</Label>
               <DatePicker value={startDate} onChange={handleStartChange} inDialog />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Záró dátum</Label>
+              <Label>Záró dátum</Label>
               <DatePicker value={endDate} onChange={setEndDate} minDate={startDate || undefined} inDialog />
             </div>
           </div>

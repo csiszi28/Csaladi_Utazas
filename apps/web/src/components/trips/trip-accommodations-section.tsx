@@ -7,8 +7,8 @@ import {
   Trash2,
   ExternalLink,
   BedDouble,
-  Lightbulb,
   MapPin,
+  CalendarDays,
 } from "lucide-react";
 import { formatDate } from "@csaladi-utazas/shared";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
@@ -25,14 +25,13 @@ import {
 import { AccommodationFormDrawer } from "./accommodation-form-drawer";
 import { IdeaChatPanel } from "./idea-chat-panel";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
-import { TripSubviewNav } from "./trip-subview-nav";
 import { CostChips } from "./cost-chips";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
-import { TripSectionHeading } from "./trip-detail-tabs";
+import { TripFilterChips, TripSectionHeading } from "./trip-detail-tabs";
 type TripIdeaRow = TripDetailRow["ideas"][number];
 type AccommodationRow = TripDetailRow["accommodations"][number];
 
-type AccommodationSubview = "ideas" | "bookings";
+type AccommodationFilter = "ideas" | "bookings";
 
 interface TripAccommodationsSectionProps {
   tripId: string;
@@ -81,7 +80,7 @@ export function TripAccommodationsSection({
   convertIdeaId,
   onConvertIdeaHandled,
 }: TripAccommodationsSectionProps) {
-  const [subview, setSubview] = useState<AccommodationSubview>("ideas");
+  const [filter, setFilter] = useState<AccommodationFilter>("bookings");
   const [ideaDrawerOpen, setIdeaDrawerOpen] = useState(false);
   const [accommodationDrawerOpen, setAccommodationDrawerOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<AccommodationIdeaFormData | null>(null);
@@ -98,7 +97,7 @@ export function TripAccommodationsSection({
   useEffect(() => {
     if (ideaOpenSignal > 0) {
       setEditingIdea(null);
-      setSubview("ideas");
+      setFilter("ideas");
       setIdeaDrawerOpen(true);
     }
   }, [ideaOpenSignal]);
@@ -106,7 +105,7 @@ export function TripAccommodationsSection({
   useEffect(() => {
     if (accommodationOpenSignal > 0) {
       setEditingAccommodation(null);
-      setSubview("bookings");
+      setFilter("bookings");
       setAccommodationDrawerOpen(true);
     }
   }, [accommodationOpenSignal]);
@@ -114,7 +113,7 @@ export function TripAccommodationsSection({
   useEffect(() => {
     if (convertIdeaId) {
       setEditingAccommodation(null);
-      setSubview("bookings");
+      setFilter("bookings");
       setAccommodationDrawerOpen(true);
     }
   }, [convertIdeaId]);
@@ -143,35 +142,27 @@ export function TripAccommodationsSection({
 
   return (
     <div className="space-y-6">
-      <TripSubviewNav
-        ariaLabel="Szállás alnézet"
-        active={subview}
-        onChange={(id) => setSubview(id as AccommodationSubview)}
+      <TripFilterChips
+        ariaLabel="Szállás szűrő"
+        active={filter}
+        onChange={setFilter}
         items={[
-          {
-            id: "ideas",
-            label: "Ötletek",
-            count: accommodationIdeas.length,
-            icon: <Lightbulb className="h-4 w-4 shrink-0" />,
-          },
           {
             id: "bookings",
             label: "Foglalások",
-            shortLabel: "Fogl.",
             count: accommodations.length,
-            icon: <BedDouble className="h-4 w-4 shrink-0" />,
           },
+          { id: "ideas", label: "Ötletek", count: accommodationIdeas.length },
         ]}
       />
 
-      {subview === "ideas" && (
+      {filter === "ideas" && (
         <section className="space-y-4">
           <TripSectionHeading
             title="Szállás ötletek"
             description="Gyűjts szálláslehetőségeket, jelöld meg kinek tetszik"
             action={
               <Button
-                size="sm"
                 className={TRIP_SECTION_BTN_CLASS}
                 onClick={() => {
                   setEditingIdea(null);
@@ -197,16 +188,19 @@ export function TripAccommodationsSection({
                     <span className="flex flex-wrap items-center gap-2">
                       {idea.title}
                       {isConverted && (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                        <span className="rounded-lg bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 sm:text-sm">
                           Szállásként rögzítve
                         </span>
                       )}
                     </span>
                   }
                   subtitle={
-                    <span className="flex flex-col gap-0.5">
+                    <span className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
                       {idea.checkInDate && idea.checkOutDate && (
-                        <span>{stayNightLabel(idea.checkInDate, idea.checkOutDate)}</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                          {stayNightLabel(idea.checkInDate, idea.checkOutDate)}
+                        </span>
                       )}
                       {idea.amount != null && (
                         <CostAmountDisplay
@@ -311,14 +305,13 @@ export function TripAccommodationsSection({
         </section>
       )}
 
-      {subview === "bookings" && (
+      {filter === "bookings" && (
         <section className="space-y-4">
           <TripSectionHeading
             title="Foglalások"
             description="Tényleges szállások be- és kijelentkezési dátummal"
             action={
               <Button
-                size="sm"
                 className={TRIP_SECTION_BTN_CLASS}
                 onClick={() => {
                   setEditingAccommodation(null);
@@ -341,23 +334,21 @@ export function TripAccommodationsSection({
                 <CollapsiblePanel
                   key={accommodation.id}
                   defaultOpen={false}
-                  title={
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-primary/10 px-2 text-xs font-bold text-primary">
-                        <BedDouble className="h-4 w-4" />
-                      </span>
-                      {accommodation.title}
-                    </span>
-                  }
+                  title={accommodation.title}
                   subtitle={
-                    <span className="flex flex-col gap-1">
-                      <span>{stayNightLabel(accommodation.checkIn, accommodation.checkOut)}</span>
-                      {accommodation.location && (
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="h-3.5 w-3.5" />
-                          {accommodation.location}
+                    <span className="flex flex-col gap-1.5 sm:gap-2">
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                          {stayNightLabel(accommodation.checkIn, accommodation.checkOut)}
                         </span>
-                      )}
+                        {accommodation.location && (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5" />
+                            {accommodation.location}
+                          </span>
+                        )}
+                      </span>
                       <CostChips
                         costs={accommodationCosts}
                         participantCount={accommodation.participants.length}

@@ -109,6 +109,9 @@ export async function createTripIdea(data: {
   currency?: string;
   amountScope?: string;
   category?: string;
+  date?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
   checkInDate?: string | null;
   checkOutDate?: string | null;
   interestedParticipantIds?: string[];
@@ -123,6 +126,17 @@ export async function createTripIdea(data: {
   const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
   if (!trip) {
     return { success: false, error: "Utazás nem található" };
+  }
+
+  const eventDate = parseOptionalIdeaDate(parsed.data.date);
+  if (eventDate) {
+    const fullTrip = await prisma.trip.findFirst({
+      where: { id: parsed.data.tripId },
+      select: { startDate: true, endDate: true },
+    });
+    if (fullTrip && !isDateInRange(eventDate, fullTrip.startDate, fullTrip.endDate)) {
+      return { success: false, error: "A dátum az utazás időtartamán belül kell legyen" };
+    }
   }
 
   const checkInDate = parseOptionalIdeaDate(parsed.data.checkInDate);
@@ -141,6 +155,9 @@ export async function createTripIdea(data: {
       currency: parsed.data.currency ?? "HUF",
       amountScope: parsed.data.amountScope ?? "TOTAL",
       category: parsed.data.category ?? "OTHER",
+      date: eventDate,
+      startTime: parsed.data.startTime ?? null,
+      endTime: parsed.data.endTime ?? null,
       checkInDate,
       checkOutDate,
     },
@@ -173,6 +190,9 @@ export async function updateTripIdea(data: {
   currency?: string;
   amountScope?: string;
   category?: string;
+  date?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
   checkInDate?: string | null;
   checkOutDate?: string | null;
   interestedParticipantIds?: string[];
@@ -187,6 +207,17 @@ export async function updateTripIdea(data: {
   const idea = await findAccessibleIdea(parsed.data.id, user.id);
   if (!idea || idea.tripId !== parsed.data.tripId) {
     return { success: false, error: "Ötlet nem található" };
+  }
+
+  const eventDate = parseOptionalIdeaDate(parsed.data.date);
+  if (eventDate) {
+    const fullTrip = await prisma.trip.findFirst({
+      where: { id: parsed.data.tripId },
+      select: { startDate: true, endDate: true },
+    });
+    if (fullTrip && !isDateInRange(eventDate, fullTrip.startDate, fullTrip.endDate)) {
+      return { success: false, error: "A dátum az utazás időtartamán belül kell legyen" };
+    }
   }
 
   const checkInDate = parseOptionalIdeaDate(parsed.data.checkInDate);
@@ -205,6 +236,9 @@ export async function updateTripIdea(data: {
       currency: parsed.data.currency ?? "HUF",
       amountScope: parsed.data.amountScope ?? "TOTAL",
       category: parsed.data.category ?? "OTHER",
+      date: eventDate,
+      startTime: parsed.data.startTime ?? null,
+      endTime: parsed.data.endTime ?? null,
       checkInDate,
       checkOutDate,
     },
