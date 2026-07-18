@@ -601,7 +601,19 @@ export function CalendarDayDrawer({
             tripStartDate={formatDate(activeTrip.startDate)}
             tripEndDate={formatDate(activeTrip.endDate)}
             participantOptions={activeTrip.participants.map((p) => p.familyMember)}
-            ideaOptions={activeTrip.ideas}
+            ideaOptions={activeTrip.ideas.map((idea) => ({
+              id: idea.id,
+              title: idea.title,
+              url: idea.url,
+              amount: idea.amount,
+              currency: idea.currency,
+              amountScope: idea.amountScope,
+              category: idea.category,
+              date: idea.date ?? null,
+              startTime: idea.startTime ?? null,
+              endTime: idea.endTime ?? null,
+              interests: idea.interests,
+            }))}
             program={editingProgram ?? undefined}
             defaultDate={editingProgram ? undefined : selectedDateStr}
             onSaved={refresh}

@@ -27,6 +27,15 @@ async function loadUrlPreview(url: string): Promise<UrlPreviewData> {
   if (existing) return existing;
 
   const request = (async () => {
+    const minimalFallback = (): UrlPreviewData =>
+      buildMinimalUrlPreview(url) ?? {
+        url,
+        title: url,
+        description: null,
+        image: null,
+        siteName: null,
+      };
+
     try {
       const res = await fetch("/api/url-preview", {
         method: "POST",
@@ -34,12 +43,11 @@ async function loadUrlPreview(url: string): Promise<UrlPreviewData> {
         body: JSON.stringify({ url }),
       });
       const body = (await res.json()) as { success: boolean; data?: UrlPreviewData };
-      const data =
-        body.success && body.data ? body.data : buildMinimalUrlPreview(url) ?? { url, title: url };
+      const data = body.success && body.data ? body.data : minimalFallback();
       previewCache.set(url, data);
       return data;
     } catch {
-      const fallback = buildMinimalUrlPreview(url) ?? { url, title: url };
+      const fallback = minimalFallback();
       previewCache.set(url, fallback);
       return fallback;
     } finally {

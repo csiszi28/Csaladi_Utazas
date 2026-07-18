@@ -101,6 +101,9 @@ const calendarSelect = {
       currency: true,
       amountScope: true,
       category: true,
+      date: true,
+      startTime: true,
+      endTime: true,
       checkInDate: true,
       checkOutDate: true,
       interests: {

@@ -47,9 +47,9 @@ export interface ProgramIdeaOption {
   currency: string;
   amountScope: string;
   category?: string;
-  date: Date | string | null;
-  startTime: string | null;
-  endTime: string | null;
+  date?: Date | string | null;
+  startTime?: string | null;
+  endTime?: string | null;
   interests: { familyMember: { id: string } }[];
 }
 
