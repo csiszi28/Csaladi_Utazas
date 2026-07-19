@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { formatDate, isDateInRange, isSameDay, buildDayCostBreakdown, type TripCostContext } from "@csaladi-utazas/shared";
+import { formatDate, isDateInRange, isSameDay, buildDayCostBreakdown, type TripCostContext, TRANSPORT_TYPE_LABELS, type TransportType } from "@csaladi-utazas/shared";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { useHufRates } from "@/components/exchange-rates-provider";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
-import { ExternalLink, Plus, Pencil, Trash2, BedDouble } from "lucide-react";
+import { ExternalLink, Plus, Pencil, Trash2, BedDouble, Plane, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import type { CalendarTripRow } from "@/lib/queries/trips";
 import type { FamilyMemberRow } from "@/lib/queries/family";
@@ -35,6 +35,13 @@ type CalendarProgram = CalendarTripRow["programs"][number] & {
 type CalendarAccommodation = NonNullable<CalendarTripRow["accommodations"]>[number] & {
   tripId: string;
   tripTitle: string;
+  stayLabel: string;
+};
+
+type CalendarIdea = CalendarTripRow["ideas"][number] & {
+  tripId: string;
+  tripTitle: string;
+  ideaLabel: string;
 };
 
 type CalendarDayCost = {
@@ -132,9 +139,83 @@ export function CalendarDayDrawer({
   );
 
   const dayAccommodations: CalendarAccommodation[] = dayTrips.flatMap((t) =>
-    (t.accommodations ?? [])
-      .filter((a) => isAccommodationNight(date, a.checkIn, a.checkOut))
-      .map((a) => ({ ...a, tripId: t.id, tripTitle: t.title }))
+    (t.accommodations ?? []).flatMap((a) => {
+      const items: CalendarAccommodation[] = [];
+      if (isSameDay(new Date(a.checkIn), date)) {
+        items.push({
+          ...a,
+          tripId: t.id,
+          tripTitle: t.title,
+          stayLabel: "Bejelentkezés",
+        });
+      }
+      if (isSameDay(new Date(a.checkOut), date)) {
+        items.push({
+          ...a,
+          tripId: t.id,
+          tripTitle: t.title,
+          stayLabel: "Kijelentkezés",
+        });
+      } else if (
+        isAccommodationNight(date, a.checkIn, a.checkOut) &&
+        !isSameDay(new Date(a.checkIn), date)
+      ) {
+        items.push({
+          ...a,
+          tripId: t.id,
+          tripTitle: t.title,
+          stayLabel: "Éjszakai szállás",
+        });
+      }
+      return items;
+    })
+  );
+
+  const dayTransports = dayTrips.flatMap((t) =>
+    (t.transports ?? [])
+      .filter(
+        (tr) =>
+          isSameDay(new Date(tr.departureDate), date) ||
+          (tr.arrivalDate != null && isSameDay(new Date(tr.arrivalDate), date))
+      )
+      .map((tr) => ({
+        ...tr,
+        tripId: t.id,
+        tripTitle: t.title,
+        isDeparture: isSameDay(new Date(tr.departureDate), date),
+        isArrival: tr.arrivalDate != null && isSameDay(new Date(tr.arrivalDate), date),
+      }))
+  );
+
+  const dayIdeas: CalendarIdea[] = dayTrips.flatMap((t) =>
+    (t.ideas ?? []).flatMap((idea) => {
+      const items: CalendarIdea[] = [];
+      if (idea.date && isSameDay(new Date(idea.date), date)) {
+        items.push({
+          ...idea,
+          tripId: t.id,
+          tripTitle: t.title,
+          ideaLabel: "Ötlet (program)",
+        });
+      }
+      if (idea.checkInDate && isSameDay(new Date(idea.checkInDate), date)) {
+        items.push({
+          ...idea,
+          tripId: t.id,
+          tripTitle: t.title,
+          ideaLabel: "Ötlet (szállás – bejelentkezés)",
+        });
+      }
+      if (idea.checkOutDate && isSameDay(new Date(idea.checkOutDate), date)) {
+        items.push({
+          ...idea,
+          tripId: t.id,
+          tripTitle: t.title,
+          ideaLabel: "Ötlet (szállás – kijelentkezés)",
+        });
+      }
+      return items;
+    })
   );
 
   const dayCosts: CalendarDayCost[] = dayTrips.flatMap((t) => {
@@ -160,14 +241,29 @@ export function CalendarDayDrawer({
           tripId: t.id,
         }))
       );
+    const transportCosts = (t.transports ?? [])
+      .filter(
+        (tr) =>
+          isSameDay(new Date(tr.departureDate), date) ||
+          (tr.arrivalDate != null && isSameDay(new Date(tr.arrivalDate), date))
+      )
+      .flatMap((tr) =>
+        tr.costs.map((c) => ({
+          ...c,
+          amountScope: c.amountScope ?? "TOTAL",
+          programId: null,
+          accommodationId: null,
+          tripId: t.id,
+        }))
+      );
     const tripCosts = t.costs
-      .filter((c) => !c.programId && !c.accommodationId)
+      .filter((c) => !c.programId && !c.accommodationId && !c.transportId)
       .map((c) => ({
         ...c,
         amountScope: c.amountScope ?? "TOTAL",
         tripId: t.id,
       }));
-    return [...tripCosts, ...programCosts, ...accommodationCosts];
+    return [...tripCosts, ...programCosts, ...accommodationCosts, ...transportCosts];
   });
 
   const totalCostHuf = dayTrips.reduce((sum, t) => {
@@ -285,7 +381,7 @@ export function CalendarDayDrawer({
           <DialogHeader>
             <DialogTitle>{selectedDateStr}</DialogTitle>
             <p className="text-sm font-normal text-muted-foreground">
-              Utazások, programok, szállások és költségek
+              Utazások, programok, közlekedés, szállások, ötletek és költségek
             </p>
           </DialogHeader>
 
@@ -293,9 +389,11 @@ export function CalendarDayDrawer({
             {dayTrips.length === 0 &&
             dayPrograms.length === 0 &&
             dayAccommodations.length === 0 &&
+            dayTransports.length === 0 &&
+            dayIdeas.length === 0 &&
             dayCosts.length === 0 ? (
               <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                Ezen a napon nincs utazás, program, szállás vagy költség.
+                Ezen a napon nincs rögzített utazás, program, közlekedés, szállás, ötlet vagy költség.
               </p>
             ) : (
               <>
@@ -435,7 +533,7 @@ export function CalendarDayDrawer({
 
                 {dayAccommodations.map((accommodation) => (
                   <CollapsiblePanel
-                    key={accommodation.id}
+                    key={`${accommodation.id}-${accommodation.stayLabel}`}
                     defaultOpen={false}
                     title={accommodation.title}
                     subtitle={
@@ -473,7 +571,7 @@ export function CalendarDayDrawer({
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <BedDouble className="h-3.5 w-3.5 shrink-0" />
-                        <span>Éjszakai szállás ezen a napon</span>
+                        <span>{accommodation.stayLabel} ezen a napon</span>
                       </div>
                       <MonogramGroup
                         names={accommodation.participants.map((p) => p.familyMember.name)}
@@ -493,6 +591,143 @@ export function CalendarDayDrawer({
                             />
                           ))}
                         </div>
+                      )}
+                    </div>
+                  </CollapsiblePanel>
+                ))}
+
+                {dayTransports.map((transport) => {
+                  const typeLabel =
+                    TRANSPORT_TYPE_LABELS[transport.type as TransportType] ?? transport.type;
+                  const eventBits = [
+                    transport.isDeparture ? "Indulás" : null,
+                    transport.isArrival ? "Érkezés" : null,
+                  ].filter(Boolean);
+                  return (
+                    <CollapsiblePanel
+                      key={`${transport.id}-${eventBits.join("-")}`}
+                      defaultOpen={false}
+                      title={transport.title}
+                      subtitle={
+                        <span className="space-y-0.5">
+                          <span>
+                            {transport.tripTitle}
+                            {` · ${typeLabel}`}
+                            {eventBits.length > 0 ? ` · ${eventBits.join(" / ")}` : ""}
+                            {transport.isDeparture && transport.departureTime
+                              ? ` · ${transport.departureTime}`
+                              : ""}
+                            {transport.isArrival && transport.arrivalTime
+                              ? ` · érk. ${transport.arrivalTime}`
+                              : ""}
+                          </span>
+                          {(transport.fromLocation || transport.toLocation) && (
+                            <span className="block">
+                              {[transport.fromLocation, transport.toLocation]
+                                .filter(Boolean)
+                                .join(" → ")}
+                            </span>
+                          )}
+                        </span>
+                      }
+                      actions={
+                        transport.url ? (
+                          <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
+                            <a href={transport.url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        ) : undefined
+                      }
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Plane className="h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            {formatDate(transport.departureDate)}
+                            {transport.departureTime ? ` ${transport.departureTime}` : ""}
+                            {transport.arrivalDate
+                              ? ` → ${formatDate(transport.arrivalDate)}${
+                                  transport.arrivalTime ? ` ${transport.arrivalTime}` : ""
+                                }`
+                              : ""}
+                          </span>
+                        </div>
+                        <MonogramGroup
+                          names={transport.participants.map((p) => p.familyMember.name)}
+                        />
+                        {transport.costs.length > 0 && (
+                          <div className="min-w-0 space-y-1.5">
+                            {transport.costs.map((cost) => (
+                              <CostAmountDisplay
+                                key={cost.id}
+                                amount={cost.amount}
+                                currency={cost.currency}
+                                amountScope={cost.amountScope ?? "TOTAL"}
+                                participantCount={transport.participants.length}
+                                chip
+                                chipLabel={cost.title}
+                                className="text-sm"
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </CollapsiblePanel>
+                  );
+                })}
+
+                {dayIdeas.map((idea) => (
+                  <CollapsiblePanel
+                    key={`${idea.id}-${idea.ideaLabel}`}
+                    defaultOpen={false}
+                    title={idea.title}
+                    subtitle={
+                      <span className="space-y-0.5">
+                        <span>
+                          {idea.tripTitle} · {idea.ideaLabel}
+                          {idea.startTime ? ` · ${idea.startTime}` : ""}
+                          {idea.endTime ? ` – ${idea.endTime}` : ""}
+                        </span>
+                        {idea.url && (
+                          <a
+                            href={idea.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block truncate text-xs text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {idea.url}
+                          </a>
+                        )}
+                      </span>
+                    }
+                    actions={
+                      idea.url ? (
+                        <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
+                          <a href={idea.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      ) : undefined
+                    }
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Lightbulb className="h-3.5 w-3.5 shrink-0" />
+                        <span>Még nem rögzített ötlet</span>
+                      </div>
+                      <MonogramGroup names={idea.interests.map((i) => i.familyMember.name)} />
+                      {idea.amount != null && (
+                        <CostAmountDisplay
+                          amount={idea.amount}
+                          currency={idea.currency ?? "HUF"}
+                          amountScope={idea.amountScope ?? "TOTAL"}
+                          participantCount={idea.interests.length || 1}
+                          chip
+                          chipLabel="Becsült költség"
+                          className="text-sm"
+                        />
                       )}
                     </div>
                   </CollapsiblePanel>

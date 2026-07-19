@@ -31,7 +31,7 @@ import {
 import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateProgram, useUpdateProgram } from "@/hooks/use-programs";
 import { useCreateCost } from "@/hooks/use-costs";
-import { cn } from "@/lib/utils";
+import { ParticipantPicker } from "@/components/trips/participant-picker";
 import { Sparkles } from "lucide-react";
 import {
   CostFieldsBlock,
@@ -335,23 +335,11 @@ export function ProgramFormDrawer({
           </div>
           <div className="space-y-1.5">
             <Label>Résztvevők</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {participantOptions.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => toggleParticipant(m.id)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-xs transition-colors min-h-[var(--touch-target)] sm:min-h-0",
-                    participantIds.includes(m.id)
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-input hover:bg-accent"
-                  )}
-                >
-                  {m.name}
-                </button>
-              ))}
-            </div>
+            <ParticipantPicker
+              members={participantOptions}
+              selectedIds={participantIds}
+              onToggle={toggleParticipant}
+            />
           </div>
 
           {!program && (

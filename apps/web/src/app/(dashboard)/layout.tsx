@@ -26,15 +26,12 @@ export default async function DashboardRouteLayout({
   let proposalOutcomes: Awaited<ReturnType<typeof fetchUnseenFamilyLinkProposalOutcomes>> = [];
 
   try {
-    incomingRequests = await fetchPendingFamilyLinkRequests();
+    [incomingRequests, proposalOutcomes] = await Promise.all([
+      fetchPendingFamilyLinkRequests(),
+      fetchUnseenFamilyLinkProposalOutcomes(),
+    ]);
   } catch (err) {
-    console.error("[FamilyLinkNotifications] pending requests fetch failed:", err);
-  }
-
-  try {
-    proposalOutcomes = await fetchUnseenFamilyLinkProposalOutcomes();
-  } catch (err) {
-    console.error("[FamilyLinkNotifications] proposal outcomes fetch failed:", err);
+    console.error("[FamilyLinkNotifications] fetch failed:", err);
   }
 
   return (

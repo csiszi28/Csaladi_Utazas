@@ -19,6 +19,19 @@ export interface IcalAccommodation {
   description?: string | null;
 }
 
+export interface IcalTransport {
+  id: string;
+  title: string;
+  departureDate: Date | string;
+  departureTime?: string | null;
+  arrivalDate?: Date | string | null;
+  arrivalTime?: string | null;
+  fromLocation?: string | null;
+  toLocation?: string | null;
+  url?: string | null;
+  description?: string | null;
+}
+
 export interface IcalTrip {
   id: string;
   title: string;
@@ -27,6 +40,7 @@ export interface IcalTrip {
   endDate: Date | string;
   programs: IcalProgram[];
   accommodations?: IcalAccommodation[];
+  transports?: IcalTransport[];
 }
 
 function escapeIcalText(value: string): string {
@@ -169,22 +183,102 @@ function buildAccommodationEventBlock(trip: IcalTrip, accommodation: IcalAccommo
   return lines.join("\r\n");
 }
 
+function buildTransportEventBlock(trip: IcalTrip, transport: IcalTransport, now: Date): string {
+  const base =
+    typeof transport.departureDate === "string"
+      ? new Date(transport.departureDate)
+      : new Date(transport.departureDate);
+
+  let start: Date;
+  let end: Date;
+  let allDay = false;
+
+  if (transport.departureTime) {
+    const [sh, sm] = transport.departureTime.split(":").map(Number);
+    start = new Date(base);
+    start.setHours(sh, sm, 0, 0);
+    end = new Date(start);
+    if (transport.arrivalDate && transport.arrivalTime) {
+      const arrivalBase =
+        typeof transport.arrivalDate === "string"
+          ? new Date(transport.arrivalDate)
+          : new Date(transport.arrivalDate);
+      const [eh, em] = transport.arrivalTime.split(":").map(Number);
+      end = new Date(arrivalBase);
+      end.setHours(eh, em, 0, 0);
+      if (end <= start) end = new Date(start.getTime() + 60 * 60 * 1000);
+    } else {
+      end.setHours(start.getHours() + 2);
+    }
+  } else {
+    start = new Date(base);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    allDay = true;
+  }
+
+  const location = [transport.fromLocation, transport.toLocation].filter(Boolean).join(" → ");
+
+  const lines: string[] = [
+    "BEGIN:VEVENT",
+    `UID:${buildEventUid(trip.id, transport.id, "transport")}`,
+    `DTSTAMP:${formatIcalDateTime(now)}`,
+  ];
+
+  if (allDay) {
+    lines.push(`DTSTART;VALUE=DATE:${formatIcalDate(start)}`);
+    lines.push(`DTEND;VALUE=DATE:${formatIcalDate(end)}`);
+  } else {
+    lines.push(`DTSTART:${formatIcalDateTime(start)}`);
+    lines.push(`DTEND:${formatIcalDateTime(end)}`);
+  }
+
+  lines.push(`SUMMARY:${escapeIcalText(`🚗 ${transport.title}`)}`);
+
+  const descriptionParts = [
+    `Utazás: ${trip.title}`,
+    `Desztináció: ${trip.destination}`,
+    transport.description,
+    transport.url ? `Link: ${transport.url}` : null,
+  ].filter(Boolean);
+
+  if (descriptionParts.length > 0) {
+    lines.push(`DESCRIPTION:${escapeIcalText(descriptionParts.join("\\n"))}`);
+  }
+
+  if (location) {
+    lines.push(`LOCATION:${escapeIcalText(location)}`);
+  }
+
+  if (transport.url) {
+    lines.push(`URL:${transport.url}`);
+  }
+
+  lines.push("END:VEVENT");
+  return lines.join("\r\n");
+}
+
 export function buildTripIcal(trip: IcalTrip): string {
   const now = new Date();
   const programEvents = trip.programs.map((program) => buildEventBlock(trip, program, now));
   const accommodationEvents = (trip.accommodations ?? []).map((accommodation) =>
     buildAccommodationEventBlock(trip, accommodation, now)
   );
+  const transportEvents = (trip.transports ?? []).map((transport) =>
+    buildTransportEventBlock(trip, transport, now)
+  );
 
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Csaladi Utazas//HU",
+    "PRODID:-//FAM Family Adventure Manager//HU",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeIcalText(trip.title)}`,
     ...programEvents,
     ...accommodationEvents,
+    ...transportEvents,
     "END:VCALENDAR",
   ].join("\r\n");
 }

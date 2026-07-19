@@ -2,16 +2,22 @@
 
 import { prisma } from "@csaladi-utazas/database";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
-import { costSchema, updateCostSchema, COST_CATEGORY_LABELS } from "@csaladi-utazas/shared";
+import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
+import {
+  costSchema,
+  updateCostSchema,
+  quickCostSchema,
+  COST_CATEGORY_LABELS,
+} from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
-
 import { findAccessibleTrip, tripAccessFilter } from "@/lib/trip-access";
+import { recordTripActivity } from "@/lib/trip-activity";
 
 export async function createCost(data: {
   tripId: string;
   programId?: string | null;
   accommodationId?: string | null;
+  transportId?: string | null;
   amount: number;
   currency?: string;
   amountScope?: string;
@@ -36,6 +42,7 @@ export async function createCost(data: {
       tripId: parsed.data.tripId,
       programId: parsed.data.programId ?? null,
       accommodationId: parsed.data.accommodationId ?? null,
+      transportId: parsed.data.transportId ?? null,
       amount: parsed.data.amount,
       currency: parsed.data.currency ?? "HUF",
       amountScope: parsed.data.amountScope ?? "TOTAL",
@@ -45,8 +52,41 @@ export async function createCost(data: {
     },
   });
 
+  await recordTripActivity({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    type: "COST_CREATED",
+    summary: `Új költség: ${parsed.data.title}`,
+    meta: { costId: cost.id },
+  });
+
   invalidateTripsAndReports(user.id, parsed.data.tripId);
   return { success: true, data: { id: cost.id } };
+}
+
+export async function createQuickCost(data: {
+  tripId: string;
+  amount: number;
+  currency?: string;
+  category?: string;
+  title?: string | null;
+  paidByFamilyMemberId?: string | null;
+}): Promise<ActionResult<{ id: string }>> {
+  const user = await requireUser();
+  const parsed = quickCostSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  return createCost({
+    tripId: parsed.data.tripId,
+    amount: parsed.data.amount,
+    currency: parsed.data.currency,
+    category: parsed.data.category,
+    title: (parsed.data.title?.trim() || "Költség") as string,
+    paidByFamilyMemberId: parsed.data.paidByFamilyMemberId,
+    amountScope: "TOTAL",
+  });
 }
 
 export async function updateCost(data: {
@@ -54,6 +94,7 @@ export async function updateCost(data: {
   tripId: string;
   programId?: string | null;
   accommodationId?: string | null;
+  transportId?: string | null;
   amount: number;
   currency?: string;
   amountScope?: string;
@@ -78,6 +119,7 @@ export async function updateCost(data: {
     data: {
       programId: parsed.data.programId ?? null,
       accommodationId: parsed.data.accommodationId ?? null,
+      transportId: parsed.data.transportId ?? null,
       amount: parsed.data.amount,
       currency: parsed.data.currency ?? "HUF",
       amountScope: parsed.data.amountScope ?? "TOTAL",
@@ -85,6 +127,14 @@ export async function updateCost(data: {
       title: parsed.data.title,
       paidByFamilyMemberId: parsed.data.paidByFamilyMemberId ?? null,
     },
+  });
+
+  await recordTripActivity({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    type: "COST_UPDATED",
+    summary: `Költség frissítve: ${parsed.data.title}`,
+    meta: { costId: parsed.data.id },
   });
 
   invalidateTripsAndReports(user.id, parsed.data.tripId);
@@ -110,7 +160,15 @@ export async function deleteCost(id: string): Promise<ActionResult> {
 
   await prisma.cost.delete({ where: { id } });
 
-  invalidateTripsAndReports(user.id, cost.tripId);
+  await recordTripActivity({
+    tripId: cost.tripId,
+    actorUserId: user.id,
+    type: "COST_DELETED",
+    summary: `Költség törölve: ${cost.title}`,
+    meta: { costId: id },
+  });
+
+  invalidateTripMutation(user.id, cost.tripId);
   return { success: true, data: undefined };
 }
 

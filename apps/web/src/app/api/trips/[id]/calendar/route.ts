@@ -42,6 +42,20 @@ export async function GET(
         },
         orderBy: { checkIn: "asc" },
       },
+      transports: {
+        select: {
+          id: true,
+          title: true,
+          departureDate: true,
+          departureTime: true,
+          arrivalDate: true,
+          arrivalTime: true,
+          fromLocation: true,
+          toLocation: true,
+          url: true,
+        },
+        orderBy: [{ departureDate: "asc" }, { departureTime: "asc" }],
+      },
     },
   });
 
@@ -62,6 +76,10 @@ export async function GET(
     accommodations: trip.accommodations.map((accommodation) => ({
       ...accommodation,
       description: accommodation.location ? `Helyszín: ${accommodation.location}` : null,
+    })),
+    transports: trip.transports.map((transport) => ({
+      ...transport,
+      description: [transport.fromLocation, transport.toLocation].filter(Boolean).join(" → ") || null,
     })),
   });
 

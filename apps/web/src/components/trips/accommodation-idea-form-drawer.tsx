@@ -31,7 +31,7 @@ import {
 import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateTripIdea, useUpdateTripIdea } from "@/hooks/use-ideas";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
-import { cn } from "@/lib/utils";
+import { ParticipantPicker } from "@/components/trips/participant-picker";
 
 export interface AccommodationIdeaFormData {
   id: string;
@@ -228,23 +228,11 @@ export function AccommodationIdeaFormDrawer({
           {participants.length > 0 && (
             <div className="space-y-1.5">
               <Label>Kinek tetszik?</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {participants.map((member) => (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => toggleParticipant(member.id)}
-                    className={cn(
-                      "rounded-full border px-2.5 py-0.5 text-xs transition-colors min-h-[var(--touch-target)] sm:min-h-0",
-                      participantIds.includes(member.id)
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input hover:bg-accent"
-                    )}
-                  >
-                    {member.name}
-                  </button>
-                ))}
-              </div>
+              <ParticipantPicker
+                members={participants}
+                selectedIds={participantIds}
+                onToggle={toggleParticipant}
+              />
             </div>
           )}
 

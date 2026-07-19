@@ -205,6 +205,8 @@ export function TripFinancesSection({
           description="Ki mennyit fizetett és kinek kell visszafizetnie"
         />
         <TripSettlementPanel
+          tripId={trip.id}
+          tripTitle={trip.title}
           trip={{
             participants: trip.participants,
             programs: trip.programs.map((p) => ({
@@ -215,7 +217,12 @@ export function TripFinancesSection({
               id: a.id,
               participants: a.participants.map((x) => ({ familyMemberId: x.familyMember.id })),
             })),
+            transports: (trip.transports ?? []).map((t) => ({
+              id: t.id,
+              participants: t.participants.map((x) => ({ familyMemberId: x.familyMember.id })),
+            })),
             costs,
+            settlementPayments: trip.settlementPayments ?? [],
           }}
         />
       </div>

@@ -161,10 +161,87 @@ export const updateAccommodationSchema = accommodationDateRangeRefine(
   accommodationBaseSchema.extend({ id: z.string().uuid() })
 );
 
+export const TRANSPORT_TYPES = [
+  "FLIGHT",
+  "TRAIN",
+  "BUS",
+  "CAR",
+  "FERRY",
+  "OTHER",
+] as const;
+
+export type TransportType = (typeof TRANSPORT_TYPES)[number];
+
+export const TRANSPORT_TYPE_LABELS: Record<TransportType, string> = {
+  FLIGHT: "Repülő",
+  TRAIN: "Vonat",
+  BUS: "Busz",
+  CAR: "Autó",
+  FERRY: "Komp",
+  OTHER: "Egyéb",
+};
+
+const optionalUrlSchema = z
+  .string()
+  .optional()
+  .nullable()
+  .transform((v) => {
+    const trimmed = (v ?? "").trim();
+    return trimmed === "" ? null : trimmed;
+  })
+  .refine((v) => v === null || z.string().url().safeParse(v).success, {
+    message: "Érvényes URL szükséges",
+  });
+
+const optionalNoteSchema = z
+  .string()
+  .max(5000)
+  .optional()
+  .nullable()
+  .transform((v) => {
+    const trimmed = (v ?? "").trim();
+    return trimmed === "" ? null : trimmed;
+  });
+
+const transportBaseSchema = z.object({
+  tripId: z.string().uuid(),
+  type: z.enum(TRANSPORT_TYPES).default("OTHER"),
+  title: z.string().min(1, "A cím kötelező").max(200),
+  departureDate: z
+    .string()
+    .regex(/^\d{4}\.\d{2}\.\d{2}$/, "Érvénytelen dátum formátum (YYYY.MM.DD)"),
+  departureTime: z
+    .string()
+    .regex(timeRegex, "Érvénytelen időformátum (HH:MM)")
+    .optional()
+    .nullable(),
+  arrivalDate: z
+    .string()
+    .regex(/^\d{4}\.\d{2}\.\d{2}$/, "Érvénytelen dátum formátum (YYYY.MM.DD)")
+    .optional()
+    .nullable(),
+  arrivalTime: z
+    .string()
+    .regex(timeRegex, "Érvénytelen időformátum (HH:MM)")
+    .optional()
+    .nullable(),
+  fromLocation: z.string().max(300).optional().nullable(),
+  toLocation: z.string().max(300).optional().nullable(),
+  bookingRef: z.string().max(100).optional().nullable(),
+  url: optionalUrlSchema,
+  note: optionalNoteSchema,
+  participantIds: z.array(z.string().uuid()).min(1, "Legalább egy résztvevő kötelező"),
+  ideaId: z.string().uuid().optional().nullable(),
+});
+
+export const transportSchema = transportBaseSchema;
+export const updateTransportSchema = transportBaseSchema.extend({ id: z.string().uuid() });
+
 const costBaseSchema = z.object({
   tripId: z.string().uuid(),
   programId: z.string().uuid().optional().nullable(),
   accommodationId: z.string().uuid().optional().nullable(),
+  transportId: z.string().uuid().optional().nullable(),
   amount: z.number().positive("Az összegnek pozitívnak kell lennie"),
   currency: z.enum(CURRENCIES).default("HUF"),
   amountScope: z.enum(IDEA_AMOUNT_SCOPES).default("TOTAL"),
@@ -174,11 +251,57 @@ const costBaseSchema = z.object({
 });
 
 function costLinkRefine<T extends z.ZodTypeAny>(schema: T) {
-  return schema.refine((data) => !(data.programId && data.accommodationId), {
-    message: "Költség csak programhoz vagy szálláshoz kapcsolható, nem mindkettőhöz",
-    path: ["accommodationId"],
-  });
+  return schema.refine(
+    (data) => {
+      const links = [data.programId, data.accommodationId, data.transportId].filter(Boolean);
+      return links.length <= 1;
+    },
+    {
+      message: "Költség csak egy entitáshoz kapcsolható (program, szállás vagy közlekedés)",
+      path: ["transportId"],
+    }
+  );
 }
+
+export const quickCostSchema = z.object({
+  tripId: z.string().uuid(),
+  amount: z.number().positive("Az összegnek pozitívnak kell lennie"),
+  currency: z.enum(CURRENCIES).default("HUF"),
+  category: z.enum(COST_CATEGORIES).default("OTHER"),
+  title: z.string().max(200).optional().nullable(),
+  paidByFamilyMemberId: z.string().uuid().optional().nullable(),
+});
+
+export const settlementPaymentSchema = z.object({
+  tripId: z.string().uuid(),
+  fromFamilyMemberId: z.string().uuid(),
+  toFamilyMemberId: z.string().uuid(),
+  amountHuf: z.number().int().positive("Az összegnek pozitívnak kell lennie"),
+  note: optionalNoteSchema,
+});
+
+export const packingItemSchema = z.object({
+  tripId: z.string().uuid(),
+  title: z.string().min(1, "A megnevezés kötelező").max(200),
+  assigneeFamilyMemberId: z.string().uuid().optional().nullable(),
+});
+
+export const updatePackingItemSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).max(200).optional(),
+  assigneeFamilyMemberId: z.string().uuid().optional().nullable(),
+  isPacked: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export const setTripParticipantsSchema = z.object({
+  tripId: z.string().uuid(),
+  participantIds: z.array(z.string().uuid()).min(1, "Legalább egy résztvevő kötelező"),
+});
+
+export const dismissReminderSchema = z.object({
+  reminderKey: z.string().min(1).max(300),
+});
 
 export const costSchema = costLinkRefine(costBaseSchema);
 
@@ -325,6 +448,7 @@ export const TRIP_DOCUMENT_CATEGORIES = [
   "INSURANCE",
   "VOUCHER",
   "TICKET",
+  "PHOTO",
   "OTHER",
 ] as const;
 
@@ -350,6 +474,7 @@ export const TRIP_DOCUMENT_CATEGORY_LABELS: Record<TripDocumentCategory, string>
   INSURANCE: "Biztosítás",
   VOUCHER: "Szállás / voucher",
   TICKET: "Jegy",
+  PHOTO: "Fotó",
   OTHER: "Egyéb",
 };
 
@@ -373,6 +498,7 @@ export const ALL_DOCUMENT_CATEGORIES = [
   "INSURANCE",
   "VOUCHER",
   "TICKET",
+  "PHOTO",
   "PROGRAM_TICKET",
   "PROGRAM_BOOKING",
   "PROGRAM_MAP",
@@ -408,10 +534,37 @@ export const duplicateTripSchema = z.object({
   endDate: z.string().regex(/^\d{4}\.\d{2}\.\d{2}$/),
   copyPrograms: z.boolean().default(true),
   copyAccommodations: z.boolean().default(true),
+  copyTransports: z.boolean().default(true),
+  copyPacking: z.boolean().default(true),
   copyIdeas: z.boolean().default(true),
   copyBudget: z.boolean().default(true),
   shiftProgramDates: z.boolean().default(true),
 });
+
+export const TRIP_ACTIVITY_TYPES = [
+  "PROGRAM_CREATED",
+  "PROGRAM_UPDATED",
+  "PROGRAM_DELETED",
+  "ACCOMMODATION_CREATED",
+  "ACCOMMODATION_UPDATED",
+  "ACCOMMODATION_DELETED",
+  "TRANSPORT_CREATED",
+  "TRANSPORT_UPDATED",
+  "TRANSPORT_DELETED",
+  "COST_CREATED",
+  "COST_UPDATED",
+  "COST_DELETED",
+  "DOCUMENT_UPLOADED",
+  "DOCUMENT_DELETED",
+  "PHOTO_UPLOADED",
+  "PARTICIPANTS_UPDATED",
+  "SETTLEMENT_PAYMENT",
+  "PACKING_UPDATED",
+  "COVER_UPDATED",
+  "IDEA_CREATED",
+] as const;
+
+export type TripActivityType = (typeof TRIP_ACTIVITY_TYPES)[number];
 
 export const claimFamilyMemberSchema = z.object({
   familyMemberId: z.string().uuid(),
@@ -430,7 +583,11 @@ export type FamilyMemberInput = z.infer<typeof familyMemberSchema>;
 export type TripInput = z.infer<typeof tripSchema>;
 export type ProgramInput = z.infer<typeof programSchema>;
 export type AccommodationInput = z.infer<typeof accommodationSchema>;
+export type TransportInput = z.infer<typeof transportSchema>;
 export type CostInput = z.infer<typeof costSchema>;
+export type QuickCostInput = z.infer<typeof quickCostSchema>;
 export type TripIdeaInput = z.infer<typeof tripIdeaSchema>;
 export type AccommodationIdeaInput = z.infer<typeof accommodationIdeaSchema>;
 export type DuplicateTripInput = z.infer<typeof duplicateTripSchema>;
+export type SettlementPaymentInput = z.infer<typeof settlementPaymentSchema>;
+export type PackingItemInput = z.infer<typeof packingItemSchema>;

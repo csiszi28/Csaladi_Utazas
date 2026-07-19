@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@csaladi-utazas/database";
 
 const REQUIRED_ENV = [
@@ -24,16 +25,23 @@ export function validateAppEnv(): string | null {
   );
 }
 
+const getCachedDbProbe = unstable_cache(
+  async (): Promise<string | null> => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return null;
+    } catch (error) {
+      return getDatabaseErrorMessage(error);
+    }
+  },
+  ["db-probe"],
+  { revalidate: 60 }
+);
+
 export async function probeDatabase(): Promise<string | null> {
   const envError = validateAppEnv();
   if (envError) return envError;
-
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return null;
-  } catch (error) {
-    return getDatabaseErrorMessage(error);
-  }
+  return getCachedDbProbe();
 }
 
 export function getSiteUrl(): string {

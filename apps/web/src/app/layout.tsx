@@ -1,23 +1,33 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Montserrat } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { BRAND, BRAND_TITLE_DEFAULT, BRAND_TITLE_TEMPLATE } from "@/lib/brand";
 import "./globals.css";
 
-const APP_NAME = "Családi Utazástervező";
-const APP_DEFAULT_TITLE = "Családi Utazás";
-const APP_DESCRIPTION = "Családi utazások tervezése és követése";
+const fontDisplay = Montserrat({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const fontBody = Inter({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-body",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  applicationName: APP_NAME,
+  applicationName: BRAND.taglineHu,
   title: {
-    default: APP_DEFAULT_TITLE,
-    template: `%s · ${APP_DEFAULT_TITLE}`,
+    default: BRAND_TITLE_DEFAULT,
+    template: BRAND_TITLE_TEMPLATE,
   },
-  description: APP_DESCRIPTION,
+  description: BRAND.description,
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: APP_DEFAULT_TITLE,
+    title: BRAND.shortName,
   },
   formatDetection: {
     telephone: false,
@@ -36,7 +46,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: "#1a365d",
+  themeColor: BRAND.themeColor,
 };
 
 const SPLASH_CRITICAL_CSS = [
@@ -57,8 +67,8 @@ const SPLASH_CRITICAL_CSS = [
   "html.app-splash-exiting #app-splash-blocker{opacity:0;transition:opacity 1.4s cubic-bezier(.4,0,.2,1);pointer-events:none}",
   "html.app-splash-active #app-splash-blocker .app-splash-footer{animation:splash-footer-enter 1s cubic-bezier(.22,1,.36,1) forwards;opacity:0}",
   "@keyframes splash-footer-enter{to{opacity:1}}",
-  ".app-splash-title{margin:0;font-size:3rem;font-weight:700;letter-spacing:.35em;padding-left:.35em;line-height:1.1;color:#fff;min-height:1.1em;font-family:ui-sans-serif,system-ui,sans-serif}",
-  ".app-splash-subtitle{margin:1.5rem 0 0;font-size:.875rem;font-weight:600;letter-spacing:.28em;padding-left:.28em;line-height:1.4;color:rgba(214,227,255,.9);min-height:1.4em;font-family:ui-sans-serif,system-ui,sans-serif}",
+  ".app-splash-title{margin:0;font-size:3rem;font-weight:700;letter-spacing:.35em;padding-left:.35em;line-height:1.1;color:#fff;min-height:1.1em;font-family:var(--font-display),ui-sans-serif,system-ui,sans-serif}",
+  ".app-splash-subtitle{margin:1.5rem 0 0;font-size:.875rem;font-weight:600;letter-spacing:.28em;padding-left:.28em;line-height:1.4;color:rgba(214,227,255,.9);min-height:1.4em;font-family:var(--font-body),ui-sans-serif,system-ui,sans-serif}",
   ".app-splash-footer{position:fixed;top:calc(100svh - max(1.5rem,env(safe-area-inset-bottom,0px)));left:50%;z-index:100001;display:flex;flex-direction:column;align-items:center;gap:.75rem;width:max-content;max-width:calc(100vw - 2rem);padding:0 1rem;box-sizing:border-box;contain:layout style;transform:translate(-50%,-100%)}",
   ".app-splash-connecting{font-size:.875rem;font-weight:600;letter-spacing:.05em;line-height:1.25;min-height:1.25em;color:#adc7f7}",
   ".app-splash-progress-track{position:relative;width:12rem;height:2px;overflow:hidden;border-radius:9999px;background:rgba(255,255,255,.25)}",
@@ -68,18 +78,25 @@ const SPLASH_CRITICAL_CSS = [
 // Keep in sync with SPLASH_KEY in @/lib/app-splash.ts
 const SPLASH_BOOT_SCRIPT = `(function(){try{var html=document.documentElement;var k="app-splash-seen-v2";var mobile=matchMedia("(max-width:767px)").matches;var standalone=matchMedia("(display-mode:standalone)").matches||("standalone" in navigator&&navigator.standalone);if(!(mobile||standalone)||sessionStorage.getItem(k)==="1"){html.classList.add("app-ready");return}html.classList.add("app-splash-active")}catch(e){document.documentElement.classList.add("app-ready")}})();`;
 
+const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem("fam-theme");var dark=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);if(dark){document.documentElement.classList.add("dark");document.documentElement.style.colorScheme="dark"}else{document.documentElement.style.colorScheme="light"}}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="hu" suppressHydrationWarning className="app-root splash-gate">
+    <html
+      lang="hu"
+      suppressHydrationWarning
+      className={`app-root splash-gate ${fontDisplay.variable} ${fontBody.variable}`}
+    >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
         <style dangerouslySetInnerHTML={{ __html: SPLASH_CRITICAL_CSS }} />
       </head>
       <body>
         <div id="app-splash-blocker" aria-hidden="true">
           <div className="app-splash-brand">
-            <h1 className="app-splash-title">F.A.M.</h1>
-            <p className="app-splash-subtitle">FAMILY ADVENTURE MANAGER</p>
+            <h1 className="app-splash-title">{BRAND.shortName}</h1>
+            <p className="app-splash-subtitle">{BRAND.taglineHu.toUpperCase()}</p>
           </div>
           <div className="app-splash-footer" aria-hidden="true">
             <span className="app-splash-connecting splash-connecting-pulse">Connecting...</span>

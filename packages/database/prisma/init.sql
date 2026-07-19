@@ -66,7 +66,7 @@ CREATE INDEX IF NOT EXISTS program_participants_programId_idx ON program_partici
 CREATE TABLE IF NOT EXISTS costs (
   id        TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   "tripId"  TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  "programId" TEXT REFERENCES programs(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  "programId" TEXT REFERENCES programs(id) ON DELETE CASCADE ON UPDATE CASCADE,
   amount    DOUBLE PRECISION NOT NULL,
   currency  TEXT NOT NULL DEFAULT 'HUF',
   category  TEXT NOT NULL,

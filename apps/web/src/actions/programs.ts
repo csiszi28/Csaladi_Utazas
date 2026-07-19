@@ -3,11 +3,12 @@
 import { prisma } from "@csaladi-utazas/database";
 import { isDateInRange, parseDate } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
+import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
 import { programSchema, updateProgramSchema } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 
 import { findAccessibleTrip } from "@/lib/trip-access";
+import { recordTripActivity } from "@/lib/trip-activity";
 
 export async function createProgram(data: {
   tripId: string;
@@ -51,6 +52,14 @@ export async function createProgram(data: {
         create: parsed.data.participantIds.map((familyMemberId) => ({ familyMemberId })),
       },
     },
+  });
+
+  await recordTripActivity({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    type: "PROGRAM_CREATED",
+    summary: `Új program: ${parsed.data.title}`,
+    meta: { programId: program.id },
   });
 
   invalidateTripsAndReports(user.id, parsed.data.tripId);
@@ -104,6 +113,14 @@ export async function updateProgram(data: {
     }),
   ]);
 
+  await recordTripActivity({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    type: "PROGRAM_UPDATED",
+    summary: `Program frissítve: ${parsed.data.title}`,
+    meta: { programId: parsed.data.id },
+  });
+
   invalidateTripsAndReports(user.id, parsed.data.tripId);
   return { success: true, data: undefined };
 }
@@ -125,8 +142,19 @@ export async function deleteProgram(id: string): Promise<ActionResult> {
     return { success: false, error: "Program nem található" };
   }
 
-  await prisma.program.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.cost.deleteMany({ where: { programId: id } }),
+    prisma.program.delete({ where: { id } }),
+  ]);
 
-  invalidateTripsAndReports(user.id, program.tripId);
+  await recordTripActivity({
+    tripId: program.tripId,
+    actorUserId: user.id,
+    type: "PROGRAM_DELETED",
+    summary: `Program törölve: ${program.title}`,
+    meta: { programId: id },
+  });
+
+  invalidateTripMutation(user.id, program.tripId);
   return { success: true, data: undefined };
 }

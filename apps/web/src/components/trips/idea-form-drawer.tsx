@@ -29,7 +29,7 @@ import {
   createEmptyCostFields,
   type CostFieldsValue,
 } from "@/components/trips/cost-fields-block";
-import { cn } from "@/lib/utils";
+import { ParticipantPicker } from "@/components/trips/participant-picker";
 
 export interface TripIdeaFormData {
   id: string;
@@ -220,23 +220,11 @@ export function IdeaFormDrawer({
           {participants.length > 0 && (
             <div className="space-y-1.5">
               <Label>Kit érdekel?</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {participants.map((member) => (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => toggleParticipant(member.id)}
-                    className={cn(
-                      "rounded-full border px-2.5 py-0.5 text-sm transition-colors min-h-[var(--touch-target)] sm:min-h-0",
-                      participantIds.includes(member.id)
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input hover:bg-accent"
-                    )}
-                  >
-                    {member.name}
-                  </button>
-                ))}
-              </div>
+              <ParticipantPicker
+                members={participants}
+                selectedIds={participantIds}
+                onToggle={toggleParticipant}
+              />
             </div>
           )}
         </DialogBody>

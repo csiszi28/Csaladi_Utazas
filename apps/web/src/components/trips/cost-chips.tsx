@@ -34,7 +34,6 @@ export function CostChips({
           amountScope={cost.amountScope}
           participantCount={participantCount}
           chip
-          chipLabel={cost.title}
           className="font-medium"
         />
       ))}

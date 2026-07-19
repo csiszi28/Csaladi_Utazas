@@ -5,6 +5,7 @@ import {
   CalendarDays,
   FileText,
   LayoutDashboard,
+  Plane,
   Users,
   Wallet,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import {
 
 export type TripDetailTab =
   | "overview"
+  | "transport"
   | "planning"
   | "accommodations"
   | "finances"
@@ -34,6 +36,11 @@ const TABS: {
     id: "overview",
     label: "Áttekintés",
     icon: <LayoutDashboard className="h-4 w-4 shrink-0" />,
+  },
+  {
+    id: "transport",
+    label: "Közlekedés",
+    icon: <Plane className="h-4 w-4 shrink-0" />,
   },
   {
     id: "planning",
@@ -73,8 +80,8 @@ interface TripDetailTabsProps {
 export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps) {
   return (
     <>
-      {/* Mobile: full-width section picker — 6 pills don't fit legibly */}
-      <div className="sticky top-0 z-10 sm:hidden">
+      {/* Mobile + narrow tablet: select — 7 tabs don't fit */}
+      <div className="sticky top-0 z-10 lg:hidden">
         <label className="sr-only" htmlFor="trip-section-select">
           Utazás szekció
         </label>
@@ -104,9 +111,9 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
         </Select>
       </div>
 
-      {/* Desktop / tablet: horizontal tabs */}
+      {/* Large screens: scrollable horizontal tabs (no shrink) */}
       <nav
-        className="sticky top-0 z-10 hidden gap-1 overflow-x-auto rounded-xl border bg-background p-1 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] sm:flex [&::-webkit-scrollbar]:hidden"
+        className="sticky top-0 z-10 hidden gap-1 overflow-x-auto rounded-xl border bg-background p-1 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] lg:flex [&::-webkit-scrollbar]:hidden"
         aria-label="Utazás szekciók"
       >
         {TABS.map((tab) => {
@@ -119,18 +126,18 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
               type="button"
               onClick={() => onChange(tab.id)}
               className={cn(
-                "flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors md:flex-none",
+                "flex min-h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
                 active === tab.id
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
               )}
             >
-              <span className="hidden lg:inline">{tab.icon}</span>
-              <span className="truncate">{tab.label}</span>
+              {tab.icon}
+              <span>{tab.label}</span>
               {showCount && (
                 <span
                   className={cn(
-                    "shrink-0 rounded-full px-2 py-0.5 text-xs tabular-nums",
+                    "shrink-0 rounded-full px-1.5 py-0.5 text-xs tabular-nums",
                     active === tab.id
                       ? "bg-primary/10 text-primary"
                       : "bg-muted text-muted-foreground"
@@ -157,12 +164,14 @@ export function TripSectionHeading({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex items-start justify-between gap-2 sm:gap-3">
       <div className="min-w-0">
         <h3 className="text-base font-semibold tracking-tight">{title}</h3>
-        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+        {description ? (
+          <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{description}</p>
+        ) : null}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {action && <div className="flex shrink-0 items-center gap-2 self-center">{action}</div>}
     </div>
   );
 }

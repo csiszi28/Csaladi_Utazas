@@ -11,42 +11,49 @@ datasource db {
 }
 
 model User {
-  id                        String             @id @default(uuid())
-  email                     String             @unique
+  id                        String                       @id @default(uuid())
+  email                     String                       @unique
   name                      String
   members                   FamilyMember[]
-  linkedProfiles            FamilyMember[]     @relation("LinkedFamilyProfile")
-  pendingFamilyLinkRequests FamilyMember[]     @relation("PendingFamilyLink")
-  linkProposalResponses     FamilyMember[]     @relation("LinkProposalResponded")
+  linkedProfiles            FamilyMember[]               @relation("LinkedFamilyProfile")
+  pendingFamilyLinkRequests FamilyMember[]               @relation("PendingFamilyLink")
+  linkProposalResponses     FamilyMember[]               @relation("LinkProposalResponded")
   trips                     Trip[]
   tripCollaborations        TripCollaborator[]
-  createdAt                 DateTime           @default(now())
+  createdAt                 DateTime                     @default(now())
   ideaMessages              TripIdeaMessage[]
+  tripActivities            TripActivity[]
+  settlementPayments        SettlementPayment[]
+  notificationDismissals    UserNotificationDismissal[]
 
   @@map("users")
 }
 
 model FamilyMember {
-  id                String              @id @default(uuid())
-  name              String
-  email             String?
-  userId            String?
-  user              User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  linkedUserId      String?
-  linkedUser        User?               @relation("LinkedFamilyProfile", fields: [linkedUserId], references: [id], onDelete: SetNull)
-  pendingLinkUserId String?
-  pendingLinkUser   User?               @relation("PendingFamilyLink", fields: [pendingLinkUserId], references: [id], onDelete: SetNull)
-  linkProposalOutcome       String?
-  linkProposalOutcomeAt     DateTime?
-  linkProposalOutcomeSeenAt DateTime?
+  id                          String                     @id @default(uuid())
+  name                        String
+  email                       String?
+  userId                      String?
+  user                        User?                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedUserId                String?
+  linkedUser                  User?                      @relation("LinkedFamilyProfile", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  pendingLinkUserId           String?
+  pendingLinkUser             User?                      @relation("PendingFamilyLink", fields: [pendingLinkUserId], references: [id], onDelete: SetNull)
+  linkProposalOutcome         String?
+  linkProposalOutcomeAt       DateTime?
+  linkProposalOutcomeSeenAt   DateTime?
   linkProposalRespondedUserId String?
-  linkProposalRespondedUser   User? @relation("LinkProposalResponded", fields: [linkProposalRespondedUserId], references: [id], onDelete: SetNull)
-  trips             TripParticipant[]
-  programs          ProgramParticipant[]
-  accommodations    AccommodationParticipant[]
-  ideaInterests     TripIdeaInterest[]
-  paidCosts         Cost[]
-  documents         Document[]
+  linkProposalRespondedUser   User?                      @relation("LinkProposalResponded", fields: [linkProposalRespondedUserId], references: [id], onDelete: SetNull)
+  trips                       TripParticipant[]
+  programs                    ProgramParticipant[]
+  accommodations              AccommodationParticipant[]
+  transports                  TransportParticipant[]
+  ideaInterests               TripIdeaInterest[]
+  paidCosts                   Cost[]
+  documents                   Document[]
+  packingItems                PackingItem[]              @relation("PackingAssignee")
+  settlementPaymentsFrom      SettlementPayment[]        @relation("SettlementFrom")
+  settlementPaymentsTo        SettlementPayment[]        @relation("SettlementTo")
 
   @@index([userId])
   @@index([linkedUserId])
@@ -56,23 +63,29 @@ model FamilyMember {
 }
 
 model Trip {
-  id             String             @id @default(uuid())
-  title          String
-  destination    String
-  startDate      DateTime
-  endDate        DateTime
-  budgetAmount   Float?
-  budgetCurrency String             @default("HUF")
-  userId         String
-  inviteCode     String?            @unique
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  participants  TripParticipant[]
-  programs       Program[]
-  accommodations Accommodation[]
-  costs          Cost[]
-  documents      Document[]
-  collaborators  TripCollaborator[]
-  ideas          TripIdea[]
+  id               String              @id @default(uuid())
+  title            String
+  destination      String
+  startDate        DateTime
+  endDate          DateTime
+  budgetAmount     Float?
+  budgetCurrency   String              @default("HUF")
+  coverStoragePath String?
+  coverMimeType    String?
+  userId           String
+  inviteCode       String?             @unique
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participants     TripParticipant[]
+  programs         Program[]
+  accommodations   Accommodation[]
+  transports       Transport[]
+  costs            Cost[]
+  documents        Document[]
+  collaborators    TripCollaborator[]
+  ideas            TripIdea[]
+  activities       TripActivity[]
+  settlementPayments SettlementPayment[]
+  packingItems     PackingItem[]
 
   @@index([userId])
   @@index([startDate, endDate])
@@ -146,6 +159,7 @@ model TripIdea {
   messages       TripIdeaMessage[]
   programs       Program[]
   accommodations Accommodation[]
+  transports     Transport[]
   createdAt      DateTime           @default(now())
 
   @@index([tripId])
@@ -184,6 +198,45 @@ model AccommodationParticipant {
   @@unique([accommodationId, familyMemberId])
   @@index([accommodationId])
   @@map("accommodation_participants")
+}
+
+model Transport {
+  id            String                 @id @default(uuid())
+  tripId        String
+  trip          Trip                   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  ideaId        String?
+  idea          TripIdea?              @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  type          String                 @default("OTHER")
+  title         String
+  departureDate DateTime
+  departureTime String?
+  arrivalDate   DateTime?
+  arrivalTime   String?
+  fromLocation  String?
+  toLocation    String?
+  bookingRef    String?
+  url           String?
+  note          String?
+  participants  TransportParticipant[]
+  costs         Cost[]
+  documents     Document[]
+
+  @@index([tripId])
+  @@index([ideaId])
+  @@index([departureDate])
+  @@map("transports")
+}
+
+model TransportParticipant {
+  id             String       @id @default(uuid())
+  transportId    String
+  transport      Transport    @relation(fields: [transportId], references: [id], onDelete: Cascade)
+  familyMemberId String
+  familyMember   FamilyMember @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([transportId, familyMemberId])
+  @@index([transportId])
+  @@map("transport_participants")
 }
 
 model TripIdeaMessage {
@@ -228,9 +281,11 @@ model Cost {
   tripId               String
   trip                 Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
   programId            String?
-  program              Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
+  program              Program?       @relation(fields: [programId], references: [id], onDelete: Cascade)
   accommodationId      String?
-  accommodation        Accommodation? @relation(fields: [accommodationId], references: [id], onDelete: SetNull)
+  accommodation        Accommodation? @relation(fields: [accommodationId], references: [id], onDelete: Cascade)
+  transportId          String?
+  transport            Transport?     @relation(fields: [transportId], references: [id], onDelete: Cascade)
   paidByFamilyMemberId String?
   paidBy               FamilyMember?  @relation(fields: [paidByFamilyMemberId], references: [id], onDelete: SetNull)
   amount               Float
@@ -242,6 +297,7 @@ model Cost {
   @@index([tripId])
   @@index([programId])
   @@index([accommodationId])
+  @@index([transportId])
   @@index([paidByFamilyMemberId])
   @@map("costs")
 }
@@ -254,6 +310,8 @@ model Document {
   program          Program?       @relation(fields: [programId], references: [id], onDelete: Cascade)
   accommodationId  String?
   accommodation    Accommodation? @relation(fields: [accommodationId], references: [id], onDelete: Cascade)
+  transportId      String?
+  transport        Transport?     @relation(fields: [transportId], references: [id], onDelete: Cascade)
   familyMemberId   String?
   familyMember     FamilyMember?  @relation(fields: [familyMemberId], references: [id], onDelete: SetNull)
   category         String         @default("OTHER")
@@ -266,7 +324,67 @@ model Document {
   @@index([tripId])
   @@index([programId])
   @@index([accommodationId])
+  @@index([transportId])
   @@index([category])
   @@index([familyMemberId])
   @@map("documents")
+}
+
+model TripActivity {
+  id          String   @id @default(uuid())
+  tripId      String
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  actorUserId String
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  type        String
+  summary     String
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  @@index([tripId, createdAt])
+  @@map("trip_activities")
+}
+
+model SettlementPayment {
+  id                 String       @id @default(uuid())
+  tripId             String
+  trip               Trip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromFamilyMemberId String
+  fromMember         FamilyMember @relation("SettlementFrom", fields: [fromFamilyMemberId], references: [id], onDelete: Cascade)
+  toFamilyMemberId   String
+  toMember           FamilyMember @relation("SettlementTo", fields: [toFamilyMemberId], references: [id], onDelete: Cascade)
+  amountHuf          Int
+  note               String?
+  paidAt             DateTime     @default(now())
+  createdByUserId    String
+  createdBy          User         @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("settlement_payments")
+}
+
+model PackingItem {
+  id                     String        @id @default(uuid())
+  tripId                 String
+  trip                   Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  title                  String
+  assigneeFamilyMemberId String?
+  assignee               FamilyMember? @relation("PackingAssignee", fields: [assigneeFamilyMemberId], references: [id], onDelete: SetNull)
+  isPacked               Boolean       @default(false)
+  sortOrder              Int           @default(0)
+
+  @@index([tripId])
+  @@map("packing_items")
+}
+
+model UserNotificationDismissal {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminderKey String
+  dismissedAt DateTime @default(now())
+
+  @@unique([userId, reminderKey])
+  @@index([userId])
+  @@map("user_notification_dismissals")
 }

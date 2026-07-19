@@ -27,6 +27,8 @@ import { CostChips } from "./cost-chips";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
 import { TripFilterChips, TripSectionHeading } from "./trip-detail-tabs";
 import { cn } from "@/lib/utils";
+import { useMemo } from "react";
+import { parseDate } from "@csaladi-utazas/shared";
 
 type TripIdeaRow = TripDetailRow["ideas"][number];
 type ProgramRow = TripDetailRow["programs"][number];
@@ -34,6 +36,106 @@ type ProgramFilter = "ideas" | "programs" | "documents";
 
 function programDateLabel(date: Date | string) {
   return formatDate(date);
+}
+
+function ProgramTimeline({
+  tripStartDate,
+  tripEndDate,
+  programs,
+  showEmptyDays,
+  onToggleEmptyDays,
+  onEdit,
+}: {
+  tripStartDate: string;
+  tripEndDate: string;
+  programs: ProgramRow[];
+  showEmptyDays: boolean;
+  onToggleEmptyDays: () => void;
+  onEdit: (program: ProgramRow) => void;
+}) {
+  const days = useMemo(() => {
+    const start = parseDate(tripStartDate);
+    const end = parseDate(tripEndDate);
+    const result: Date[] = [];
+    const cursor = new Date(start);
+    cursor.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(0, 0, 0, 0);
+    while (cursor <= endDay) {
+      result.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return result;
+  }, [tripStartDate, tripEndDate]);
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, ProgramRow[]>();
+    for (const p of programs) {
+      const key = formatDate(p.date);
+      const list = map.get(key) ?? [];
+      list.push(p);
+      map.set(key, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""));
+    }
+    return map;
+  }, [programs]);
+
+  const visibleDays = showEmptyDays
+    ? days
+    : days.filter((d) => (byDay.get(formatDate(d)) ?? []).length > 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end sm:hidden">
+        <button
+          type="button"
+          className="text-sm font-medium text-primary"
+          onClick={onToggleEmptyDays}
+        >
+          {showEmptyDays ? "Csak eseményes napok" : "Minden nap"}
+        </button>
+      </div>
+      {visibleDays.length === 0 ? (
+        <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+          Még nincsenek programok az idővonalon.
+        </p>
+      ) : (
+        visibleDays.map((day) => {
+          const key = formatDate(day);
+          const items = byDay.get(key) ?? [];
+          return (
+            <div key={key} className="rounded-xl border">
+              <div className="border-b bg-muted/40 px-4 py-2 text-sm font-semibold">
+                {key}
+              </div>
+              {items.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-muted-foreground">Nincs program</p>
+              ) : (
+                <ul className="divide-y">
+                  {items.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        className="flex w-full min-h-[var(--touch-target)] items-center gap-3 px-4 py-3 text-left hover:bg-muted/30"
+                        onClick={() => onEdit(p)}
+                      >
+                        <span className="w-14 shrink-0 text-sm tabular-nums text-muted-foreground">
+                          {p.startTime ?? "–"}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{p.title}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
 }
 
 interface TripProgramsSectionProps {
@@ -84,6 +186,8 @@ export function TripProgramsSection({
   onDocumentDeleted,
 }: TripProgramsSectionProps) {
   const [filter, setFilter] = useState<ProgramFilter>("programs");
+  const [listMode, setListMode] = useState<"list" | "timeline">("list");
+  const [showEmptyDays, setShowEmptyDays] = useState(false);
   const [ideaDrawerOpen, setIdeaDrawerOpen] = useState(false);
   const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<TripIdeaFormData | null>(null);
@@ -313,19 +417,60 @@ export function TripProgramsSection({
             title="Programok"
             description="Napi programok időponttal és résztvevőkkel"
             action={
-              <Button
-                className={TRIP_SECTION_BTN_CLASS}
-                onClick={() => {
-                  setEditingProgram(null);
-                  setProgramDrawerOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Új program
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex rounded-lg border p-0.5">
+                  <button
+                    type="button"
+                    className={cn(
+                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
+                      listMode === "list"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground"
+                    )}
+                    onClick={() => setListMode("list")}
+                  >
+                    Lista
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
+                      listMode === "timeline"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground"
+                    )}
+                    onClick={() => setListMode("timeline")}
+                  >
+                    Idővonal
+                  </button>
+                </div>
+                <Button
+                  className={TRIP_SECTION_BTN_CLASS}
+                  onClick={() => {
+                    setEditingProgram(null);
+                    setProgramDrawerOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Új program
+                </Button>
+              </div>
             }
           />
 
+          {listMode === "timeline" ? (
+            <ProgramTimeline
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
+              programs={programs}
+              showEmptyDays={showEmptyDays}
+              onToggleEmptyDays={() => setShowEmptyDays((v) => !v)}
+              onEdit={(program) => {
+                setEditingProgram(program);
+                setProgramDrawerOpen(true);
+              }}
+            />
+          ) : (
           <div className="space-y-3">
             {programs.map((program) => {
               const programCosts = costs.filter((c) => c.programId === program.id);
@@ -422,6 +567,7 @@ export function TripProgramsSection({
               </p>
             )}
           </div>
+          )}
         </section>
       )}
 

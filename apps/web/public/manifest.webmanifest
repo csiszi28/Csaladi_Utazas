@@ -1,6 +1,6 @@
 {
-  "name": "Családi Utazástervező",
-  "short_name": "Utazás",
+  "name": "F.A.M. — Családi Utazástervező",
+  "short_name": "F.A.M.",
   "description": "Családi utazások tervezése, költségkezelés és naptár",
   "start_url": "/",
   "scope": "/",

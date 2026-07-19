@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import type { ReportsData } from "@/lib/queries/reports";
 import { pickDefaultTripId } from "@/lib/reports-utils";
 import { cn } from "@/lib/utils";
@@ -112,6 +113,84 @@ function ChartSection({
   );
 }
 
+function ChartsGrid({
+  categoryData,
+  totalHuf,
+}: {
+  categoryData: { label: string; amount: number }[];
+  totalHuf: number;
+}) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
+      <ChartSection title="Költségek kategóriánként" description="Megoszlás százalékban">
+        <div className="space-y-4">
+          <div className="md:hidden space-y-2">
+            {categoryData.map((item, index) => {
+              const pct = totalHuf > 0 ? Math.round((item.amount / totalHuf) * 100) : 0;
+              return (
+                <div key={item.label} className="rounded-xl border px-3 py-2.5">
+                  <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <span className="truncate">{item.label}</span>
+                    </span>
+                    <span className="shrink-0 font-medium">{pct}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${pct}%`,
+                        backgroundColor: COLORS[index % COLORS.length],
+                      }}
+                    />
+                  </div>
+                  <p className="mt-1 text-right text-xs text-muted-foreground">{huf(item.amount)}</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden md:block">
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  dataKey="amount"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={90}
+                  label={({ name, percent }) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                >
+                  {categoryData.map((_, index) => (
+                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => huf(Number(value ?? 0))} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </ChartSection>
+
+      <ChartSection title="Kategóriák összehasonlítása">
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={categoryData} margin={{ left: -12, right: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={50} />
+            <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} width={36} tick={{ fontSize: 10 }} />
+            <Tooltip formatter={(value) => huf(Number(value ?? 0))} />
+            <Bar dataKey="amount" fill="#3b5bdb" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartSection>
+    </div>
+  );
+}
+
 export function ReportsPage({ data }: { data: ReportsData }) {
   const { tripBreakdowns } = data;
   const defaultTripId = useMemo(() => pickDefaultTripId(tripBreakdowns), [tripBreakdowns]);
@@ -125,6 +204,30 @@ export function ReportsPage({ data }: { data: ReportsData }) {
   const totalHuf = selectedTrip?.totalHuf ?? 0;
   const totalParticipants = selectedTrip?.perPerson.length ?? 0;
   const perPersonCost = totalParticipants > 0 ? Math.round(totalHuf / totalParticipants) : 0;
+
+  const topCategory = useMemo(() => {
+    if (!categoryData.length) return null;
+    return [...categoryData].sort((a, b) => b.amount - a.amount)[0] ?? null;
+  }, [categoryData]);
+
+  const storyText = useMemo(() => {
+    if (!selectedTrip) return null;
+    const parts: string[] = [];
+    parts.push(
+      `${selectedTrip.title} eddig ${huf(totalHuf)} költést gyűjtött ${totalParticipants} résztvevővel (${huf(perPersonCost)} / fő).`
+    );
+    if (topCategory) {
+      const pct = totalHuf > 0 ? Math.round((topCategory.amount / totalHuf) * 100) : 0;
+      parts.push(`A legnagyobb tétel a ${topCategory.label} kategória (${pct}%).`);
+    }
+    const settlementCount = selectedTrip.settlement?.transfers.length ?? 0;
+    if (settlementCount > 0) {
+      parts.push(`Az elszámolásban még ${settlementCount} ajánlott átutalás van.`);
+    } else if ((selectedTrip.costCount ?? 0) > 0) {
+      parts.push("Az elszámolás jelenleg kiegyenlítettnek tűnik.");
+    }
+    return parts.join(" ");
+  }, [selectedTrip, totalHuf, totalParticipants, perPersonCost, topCategory]);
 
   const dayChartData = (selectedTrip?.days ?? []).map((d) => ({
     name: d.date.slice(5),
@@ -214,6 +317,13 @@ export function ReportsPage({ data }: { data: ReportsData }) {
         </div>
       </section>
 
+      {storyText ? (
+        <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+          <p className="text-sm font-medium text-primary">Összefoglaló</p>
+          <p className="mt-2 text-base leading-relaxed sm:text-lg">{storyText}</p>
+        </section>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard label="Összes költség" value={huf(totalHuf)} icon={Wallet} accent="primary" />
         <StatCard label="Résztvevők" value={String(totalParticipants)} icon={Users} />
@@ -226,75 +336,19 @@ export function ReportsPage({ data }: { data: ReportsData }) {
       </div>
 
       {categoryData.length > 0 && (
-        <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-          <ChartSection title="Költségek kategóriánként" description="Megoszlás százalékban">
-            <div className="space-y-4">
-              <div className="md:hidden space-y-2">
-                {categoryData.map((item, index) => {
-                  const pct =
-                    totalHuf > 0 ? Math.round((item.amount / totalHuf) * 100) : 0;
-                  return (
-                    <div key={item.label} className="rounded-xl border px-3 py-2.5">
-                      <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span
-                            className="h-2.5 w-2.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                          />
-                          <span className="truncate">{item.label}</span>
-                        </span>
-                        <span className="shrink-0 font-medium">{pct}%</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${pct}%`,
-                            backgroundColor: COLORS[index % COLORS.length],
-                          }}
-                        />
-                      </div>
-                      <p className="mt-1 text-right text-xs text-muted-foreground">{huf(item.amount)}</p>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="hidden md:block">
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      dataKey="amount"
-                      nameKey="label"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={90}
-                      label={({ name, percent }) =>
-                        `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`
-                      }
-                    >
-                      {categoryData.map((_, index) => (
-                        <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => huf(Number(value ?? 0))} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </ChartSection>
+        <CollapsiblePanel
+          title="Grafikonok"
+          subtitle="Kategóriák megoszlása és összehasonlítása"
+          defaultOpen={false}
+          className="sm:hidden"
+        >
+          <ChartsGrid categoryData={categoryData} totalHuf={totalHuf} />
+        </CollapsiblePanel>
+      )}
 
-          <ChartSection title="Kategóriák összehasonlítása">
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={categoryData} margin={{ left: -12, right: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={50} />
-                <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} width={36} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(value) => huf(Number(value ?? 0))} />
-                <Bar dataKey="amount" fill="#3b5bdb" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartSection>
+      {categoryData.length > 0 && (
+        <div className="hidden sm:block">
+          <ChartsGrid categoryData={categoryData} totalHuf={totalHuf} />
         </div>
       )}
 
@@ -388,7 +442,8 @@ export function ReportsPage({ data }: { data: ReportsData }) {
 
             {detailTab === "program" && (
               <div className="space-y-3">
-                {selectedTrip.programs.length === 0 && selectedTrip.accommodations.length === 0 ? (
+                {selectedTrip.programs.length === 0 &&
+                (selectedTrip.accommodations ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Nincs programhoz vagy szálláshoz kötött költség.
                   </p>
@@ -414,7 +469,7 @@ export function ReportsPage({ data }: { data: ReportsData }) {
                         </div>
                       </article>
                     ))}
-                    {selectedTrip.accommodations.map((accommodation) => (
+                    {(selectedTrip.accommodations ?? []).map((accommodation) => (
                       <article key={accommodation.id} className="overflow-hidden rounded-2xl border">
                         <div className="flex flex-col gap-1 border-b bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
                           <span className="font-medium">

@@ -16,6 +16,7 @@ import { IdeaFormDrawer, type TripIdeaFormData } from "./idea-form-drawer";
 import { IdeaChatPanel } from "./idea-chat-panel";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
+import { TripSectionHeading } from "./trip-detail-tabs";
 
 type TripIdeaRow = TripDetailRow["ideas"][number];
 
@@ -205,17 +206,17 @@ export function TripIdeasSection({
         content
       ) : (
         <section className="rounded-xl border bg-card p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between border-b pb-3">
-            <div>
-              <h3 className="text-lg font-semibold">Ötletek</h3>
-              <p className="text-sm text-muted-foreground">
-                Programjavaslatok – a résztvevők jelölhetik, mi érdekli őket.
-              </p>
-            </div>
-            <Button className={TRIP_SECTION_BTN_CLASS} onClick={openNewIdea}>
-              <Plus className="h-4 w-4" />
-              Új ötlet
-            </Button>
+          <div className="mb-4 border-b pb-3">
+            <TripSectionHeading
+              title="Ötletek"
+              description="Programjavaslatok – a résztvevők jelölhetik, mi érdekli őket."
+              action={
+                <Button className={TRIP_SECTION_BTN_CLASS} onClick={openNewIdea}>
+                  <Plus className="h-4 w-4" />
+                  Új ötlet
+                </Button>
+              }
+            />
           </div>
           {content}
         </section>

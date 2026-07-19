@@ -3,9 +3,10 @@
 import { prisma } from "@csaladi-utazas/database";
 import { isDateInRange, parseDate, accommodationSchema, updateAccommodationSchema } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
+import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
 import type { ActionResult } from "./auth";
 import { findAccessibleTrip } from "@/lib/trip-access";
+import { recordTripActivity } from "@/lib/trip-activity";
 
 function validateStayDates(
   checkIn: Date,
@@ -71,6 +72,14 @@ export async function createAccommodation(data: {
     },
   });
 
+  await recordTripActivity({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    type: "ACCOMMODATION_CREATED",
+    summary: `Új szállás: ${parsed.data.title}`,
+    meta: { accommodationId: accommodation.id },
+  });
+
   invalidateTripsAndReports(user.id, parsed.data.tripId);
   return { success: true, data: { id: accommodation.id } };
 }
@@ -124,6 +133,14 @@ export async function updateAccommodation(data: {
     }),
   ]);
 
+  await recordTripActivity({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    type: "ACCOMMODATION_UPDATED",
+    summary: `Szállás frissítve: ${parsed.data.title}`,
+    meta: { accommodationId: parsed.data.id },
+  });
+
   invalidateTripsAndReports(user.id, parsed.data.tripId);
   return { success: true, data: undefined };
 }
@@ -145,8 +162,19 @@ export async function deleteAccommodation(id: string): Promise<ActionResult> {
     return { success: false, error: "Szállás nem található" };
   }
 
-  await prisma.accommodation.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.cost.deleteMany({ where: { accommodationId: id } }),
+    prisma.accommodation.delete({ where: { id } }),
+  ]);
 
-  invalidateTripsAndReports(user.id, accommodation.tripId);
+  await recordTripActivity({
+    tripId: accommodation.tripId,
+    actorUserId: user.id,
+    type: "ACCOMMODATION_DELETED",
+    summary: `Szállás törölve: ${accommodation.title}`,
+    meta: { accommodationId: id },
+  });
+
+  invalidateTripMutation(user.id, accommodation.tripId);
   return { success: true, data: undefined };
 }

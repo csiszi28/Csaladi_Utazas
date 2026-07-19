@@ -58,6 +58,7 @@ function emptyDayData(): DayData {
     dayTrips: [],
     dayPrograms: [],
     dayAccommodations: [],
+    dayTransports: [],
     dayCosts: [],
     totalCost: 0,
     totalCostHuf: 0,
@@ -90,7 +91,9 @@ function tripToCostContext(trip: CalendarTripRow): TripCostContext {
       participantIds: a.participants.map((x) => x.familyMember.id),
       costs: a.costs,
     })),
-    tripLevelCosts: trip.costs.filter((c) => !c.programId && !c.accommodationId),
+    tripLevelCosts: trip.costs.filter(
+      (c) => !c.programId && !c.accommodationId && !c.transportId
+    ),
   };
 }
 
@@ -121,6 +124,12 @@ function buildDayData(day: Date, trips: CalendarTripRow[], rates: HufRateMap) {
       .map((a) => ({ ...a, tripTitle: t.title, tripId: t.id }))
   );
 
+  const dayTransports = dayTrips.flatMap((t) =>
+    (t.transports ?? [])
+      .filter((tr) => isSameDay(new Date(tr.departureDate), day))
+      .map((tr) => ({ ...tr, tripTitle: t.title, tripId: t.id }))
+  );
+
   const dayCosts = dayTrips.flatMap((t) => {
     const programCosts = t.programs
       .filter((p) => isSameDay(new Date(p.date), day))
@@ -128,10 +137,14 @@ function buildDayData(day: Date, trips: CalendarTripRow[], rates: HufRateMap) {
     const accommodationCosts = (t.accommodations ?? [])
       .filter((a) => isAccommodationNight(day, a.checkIn, a.checkOut))
       .flatMap((a) => a.costs);
+    const transportCosts = (t.transports ?? [])
+      .filter((tr) => isSameDay(new Date(tr.departureDate), day))
+      .flatMap((tr) => tr.costs);
     return [
-      ...t.costs.filter((c) => !c.programId && !c.accommodationId),
+      ...t.costs.filter((c) => !c.programId && !c.accommodationId && !c.transportId),
       ...programCosts,
       ...accommodationCosts,
+      ...transportCosts,
     ];
   });
 
@@ -152,7 +165,16 @@ function buildDayData(day: Date, trips: CalendarTripRow[], rates: HufRateMap) {
   const badgeNames =
     programParticipantNames.length > 0 ? programParticipantNames : tripParticipantNames;
 
-  return { dayTrips, dayPrograms, dayAccommodations, dayCosts, totalCost, totalCostHuf, badgeNames };
+  return {
+    dayTrips,
+    dayPrograms,
+    dayAccommodations,
+    dayTransports,
+    dayCosts,
+    totalCost,
+    totalCostHuf,
+    badgeNames,
+  };
 }
 
 function hasDayActivity(data: DayData) {
@@ -160,6 +182,7 @@ function hasDayActivity(data: DayData) {
     data.dayTrips.length > 0 ||
     data.dayPrograms.length > 0 ||
     data.dayAccommodations.length > 0 ||
+    data.dayTransports.length > 0 ||
     data.dayCosts.length > 0
   );
 }

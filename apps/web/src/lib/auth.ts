@@ -50,46 +50,45 @@ export async function syncUser(
     email?: string;
     user_metadata?: { name?: string };
   },
-  options?: { allowEmailAutoLink?: boolean }
+  options?: { allowEmailAutoLink?: boolean; skipAutoLink?: boolean }
 ) {
   const email = authUser.email ?? "";
   const name =
     (authUser.user_metadata?.name as string | undefined) ?? email.split("@")[0];
 
-  return prisma.user
-    .upsert({
-      where: { id: authUser.id },
-      create: { id: authUser.id, email, name },
-      update: { email, name },
-    })
-    .then(async (user) => {
-      const { ensureSelfFamilyMember } = await import("@/lib/queries/family");
-      await ensureSelfFamilyMember(user.id, user.name);
+  const user = await prisma.user.upsert({
+    where: { id: authUser.id },
+    create: { id: authUser.id, email, name },
+    update: { email, name },
+  });
 
-      const { autoLinkRegisteredUserToParticipantProfiles } = await import(
-        "@/actions/family"
-      );
-      const linkResult = await autoLinkRegisteredUserToParticipantProfiles(
-        user.id,
-        user.name,
-        user.email,
-        { allowEmailMatch: options?.allowEmailAutoLink ?? false }
-      );
-      if (linkResult) {
-        const { invalidateTripsAndReports } = await import("@/lib/revalidate-app-data");
-        const { prisma } = await import("@csaladi-utazas/database");
-        for (const tripId of linkResult.tripIds) {
-          invalidateTripsAndReports(user.id, tripId);
-          const trip = await prisma.trip.findUnique({
-            where: { id: tripId },
-            select: { userId: true },
-          });
-          if (trip?.userId) {
-            invalidateTripsAndReports(trip.userId, tripId);
-          }
-        }
+  const { ensureSelfFamilyMember } = await import("@/lib/queries/family");
+  await ensureSelfFamilyMember(user.id, user.name);
+
+  if (options?.skipAutoLink) {
+    return user;
+  }
+
+  const { autoLinkRegisteredUserToParticipantProfiles } = await import("@/actions/family");
+  const linkResult = await autoLinkRegisteredUserToParticipantProfiles(
+    user.id,
+    user.name,
+    user.email,
+    { allowEmailMatch: options?.allowEmailAutoLink ?? false }
+  );
+  if (linkResult) {
+    const { invalidateTripsAndReports } = await import("@/lib/revalidate-app-data");
+    for (const tripId of linkResult.tripIds) {
+      invalidateTripsAndReports(user.id, tripId);
+      const trip = await prisma.trip.findUnique({
+        where: { id: tripId },
+        select: { userId: true },
+      });
+      if (trip?.userId) {
+        invalidateTripsAndReports(trip.userId, tripId);
       }
+    }
+  }
 
-      return user;
-    });
+  return user;
 }

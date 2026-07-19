@@ -44,6 +44,8 @@ export function DuplicateTripDialog({
   const [endDate, setEndDate] = useState(formatDate(sourceTrip.endDate));
   const [copyPrograms, setCopyPrograms] = useState(true);
   const [copyAccommodations, setCopyAccommodations] = useState(true);
+  const [copyTransports, setCopyTransports] = useState(true);
+  const [copyPacking, setCopyPacking] = useState(true);
   const [copyIdeas, setCopyIdeas] = useState(true);
   const [copyBudget, setCopyBudget] = useState(true);
   const [shiftProgramDates, setShiftProgramDates] = useState(true);
@@ -62,6 +64,8 @@ export function DuplicateTripDialog({
         endDate,
         copyPrograms,
         copyAccommodations,
+        copyTransports,
+        copyPacking,
         copyIdeas,
         copyBudget,
         shiftProgramDates,
@@ -110,6 +114,8 @@ export function DuplicateTripDialog({
             {[
               ["copyPrograms", "Programok másolása", copyPrograms, setCopyPrograms],
               ["copyAccommodations", "Szállások másolása", copyAccommodations, setCopyAccommodations],
+              ["copyTransports", "Közlekedés másolása", copyTransports, setCopyTransports],
+              ["copyPacking", "Csomagolási lista másolása", copyPacking, setCopyPacking],
               ["copyIdeas", "Ötletek másolása", copyIdeas, setCopyIdeas],
               ["copyBudget", "Költségvetési limit másolása", copyBudget, setCopyBudget],
               ["shiftProgramDates", "Dátumok eltolása az új kezdő dátumhoz", shiftProgramDates, setShiftProgramDates],

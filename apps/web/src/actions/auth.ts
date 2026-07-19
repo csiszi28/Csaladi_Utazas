@@ -74,7 +74,7 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
     if (error.message.toLowerCase().includes("email not confirmed")) {
@@ -86,18 +86,14 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
     return { success: false, error: "Hibás e-mail vagy jelszó" };
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
+  if (data.user) {
     try {
       assertDatabaseEnv();
-      await syncUser(user);
+      // Login critical path: upsert + self member only (auto-link runs on register)
+      await syncUser(data.user, { skipAutoLink: true });
     } catch (err) {
       return { success: false, error: getDatabaseErrorMessage(err) };
     }
-    revalidatePath("/", "layout");
   }
 
   return { success: true, data: undefined };

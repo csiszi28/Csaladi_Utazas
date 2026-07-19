@@ -216,6 +216,8 @@ export async function duplicateTrip(data: {
   endDate: string;
   copyPrograms?: boolean;
   copyAccommodations?: boolean;
+  copyTransports?: boolean;
+  copyPacking?: boolean;
   copyIdeas?: boolean;
   copyBudget?: boolean;
   shiftProgramDates?: boolean;
@@ -243,6 +245,13 @@ export async function duplicateTrip(data: {
         },
         orderBy: { checkIn: "asc" },
       },
+      transports: {
+        include: {
+          participants: { select: { familyMemberId: true } },
+        },
+        orderBy: { departureDate: "asc" },
+      },
+      packingItems: true,
       ideas: true,
     },
   });
@@ -325,6 +334,40 @@ export async function duplicateTrip(data: {
                   familyMemberId: p.familyMemberId,
                 })),
               },
+            })),
+          }
+        : undefined,
+      transports: parsed.data.copyTransports
+        ? {
+            create: source.transports.map((transport) => ({
+              type: transport.type,
+              title: transport.title,
+              departureDate: shiftDateValue(transport.departureDate, dateOffset),
+              departureTime: transport.departureTime,
+              arrivalDate: transport.arrivalDate
+                ? shiftDateValue(transport.arrivalDate, dateOffset)
+                : null,
+              arrivalTime: transport.arrivalTime,
+              fromLocation: transport.fromLocation,
+              toLocation: transport.toLocation,
+              bookingRef: transport.bookingRef,
+              url: transport.url,
+              note: transport.note,
+              participants: {
+                create: transport.participants.map((p) => ({
+                  familyMemberId: p.familyMemberId,
+                })),
+              },
+            })),
+          }
+        : undefined,
+      packingItems: parsed.data.copyPacking
+        ? {
+            create: source.packingItems.map((item) => ({
+              title: item.title,
+              assigneeFamilyMemberId: item.assigneeFamilyMemberId,
+              isPacked: false,
+              sortOrder: item.sortOrder,
             })),
           }
         : undefined,

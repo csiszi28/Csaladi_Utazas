@@ -94,12 +94,12 @@ export function CostAmountDisplay({
   ) : (
     <span
       className={cn(
-        "flex min-w-0 max-w-full flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-1.5",
+        "flex min-w-0 max-w-full flex-row flex-wrap items-center gap-x-1.5 gap-y-1",
         !chip && className
       )}
     >
       <AmountWithScope amount={split.perPerson} currency={currency} scopeLabel="1 főre" />
-      <span className="hidden text-muted-foreground sm:inline" aria-hidden>
+      <span className="text-muted-foreground" aria-hidden>
         ·
       </span>
       <AmountWithScope amount={split.total} currency={currency} scopeLabel="Összesen" />

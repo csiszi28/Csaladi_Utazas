@@ -11,6 +11,7 @@ const MAX_SIZE = 10 * 1024 * 1024;
 import { findAccessibleTrip, verifyDocumentAccess } from "@/lib/trip-access";
 import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
 import { documentCategorySchema } from "@csaladi-utazas/shared";
+import { recordTripActivity } from "@/lib/trip-activity";
 
 function resolveMimeType(file: File): string | null {
   if (file.type && ALLOWED_TYPES.includes(file.type)) {
@@ -106,6 +107,15 @@ export async function uploadDocument(
       },
     });
 
+    await recordTripActivity({
+      tripId,
+      actorUserId: user.id,
+      type: category === "PHOTO" ? "PHOTO_UPLOADED" : "DOCUMENT_UPLOADED",
+      summary:
+        category === "PHOTO" ? `Fotó feltöltve: ${file.name}` : `Dokumentum feltöltve: ${file.name}`,
+      meta: { documentId: doc.id },
+    });
+
     invalidateTripsAndReports(user.id, tripId);
     return {
       success: true,
@@ -165,6 +175,14 @@ export async function deleteDocument(id: string): Promise<ActionResult> {
   const supabase = await createServiceClient();
   await supabase.storage.from("trip-documents").remove([doc.storagePath]);
   await prisma.document.delete({ where: { id } });
+
+  await recordTripActivity({
+    tripId: doc.tripId,
+    actorUserId: user.id,
+    type: "DOCUMENT_DELETED",
+    summary: `Dokumentum törölve: ${doc.fileName}`,
+    meta: { documentId: id },
+  });
 
   invalidateTripsAndReports(user.id, doc.tripId);
   return { success: true, data: undefined };

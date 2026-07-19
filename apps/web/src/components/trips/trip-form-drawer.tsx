@@ -18,7 +18,7 @@ import {
 import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { createTrip, updateTrip } from "@/actions/trips";
 import type { FamilyMemberRow } from "@/lib/queries/family";
-import { cn } from "@/lib/utils";
+import { ParticipantPicker } from "@/components/trips/participant-picker";
 import {
   Select,
   SelectContent,
@@ -174,28 +174,12 @@ export function TripFormDrawer({
           </div>
           <div className="space-y-1.5">
             <Label>Résztvevők</Label>
-            {members.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Előbb adj hozzá családtagot a Család fülön.</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {members.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => toggleParticipant(m.id)}
-                    disabled={isPending}
-                    className={cn(
-                      "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
-                      participantIds.includes(m.id)
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input hover:bg-accent"
-                    )}
-                  >
-                    {m.name}
-                  </button>
-                ))}
-              </div>
-            )}
+            <ParticipantPicker
+              members={members}
+              selectedIds={participantIds}
+              onToggle={toggleParticipant}
+              disabled={isPending}
+            />
           </div>
         </DialogBody>
         <DialogFooter className="grid grid-cols-2 gap-2">

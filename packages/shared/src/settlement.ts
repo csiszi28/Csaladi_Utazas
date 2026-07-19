@@ -8,6 +8,7 @@ export interface SettlementCost {
   amountScope?: string;
   programId?: string | null;
   accommodationId?: string | null;
+  transportId?: string | null;
   paidByFamilyMemberId?: string | null;
 }
 
@@ -21,10 +22,16 @@ export interface SettlementAccommodation {
   participantIds: string[];
 }
 
+export interface SettlementTransport {
+  id: string;
+  participantIds: string[];
+}
+
 export interface SettlementContext {
   participants: CostParticipant[];
   programs: SettlementProgram[];
   accommodations?: SettlementAccommodation[];
+  transports?: SettlementTransport[];
   costs: SettlementCost[];
 }
 
@@ -61,8 +68,14 @@ function participantIdsForCost(
   cost: SettlementCost,
   programs: SettlementProgram[],
   accommodations: SettlementAccommodation[],
+  transports: SettlementTransport[],
   allParticipantIds: string[]
 ): string[] {
+  if (cost.transportId) {
+    const transport = transports.find((t) => t.id === cost.transportId);
+    if (!transport || transport.participantIds.length === 0) return allParticipantIds;
+    return transport.participantIds;
+  }
   if (cost.accommodationId) {
     const accommodation = accommodations.find((a) => a.id === cost.accommodationId);
     if (!accommodation || accommodation.participantIds.length === 0) return allParticipantIds;
@@ -97,6 +110,7 @@ export function buildTripSettlement(
       cost,
       ctx.programs,
       ctx.accommodations ?? [],
+      ctx.transports ?? [],
       allIds
     );
     const totalHuf = costTotalHuf(cost, Math.max(ids.length, 1), rates);

@@ -15,6 +15,7 @@ import {
 import type { ActionResult } from "./auth";
 import { findAccessibleTrip } from "@/lib/trip-access";
 import { isDateInRange, parseDate } from "@csaladi-utazas/shared";
+import { recordTripActivity } from "@/lib/trip-activity";
 
 function parseOptionalIdeaDate(value?: string | null): Date | null {
   if (!value) return null;
@@ -176,6 +177,14 @@ export async function createTripIdea(data: {
       error: err instanceof Error ? err.message : "Érvénytelen résztvevők",
     };
   }
+
+  await recordTripActivity({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    type: "IDEA_CREATED",
+    summary: `Új ötlet: ${parsed.data.title}`,
+    meta: { ideaId: idea.id },
+  });
 
   invalidateTripsAndReports(user.id, parsed.data.tripId);
   return { success: true, data: { id: idea.id } };

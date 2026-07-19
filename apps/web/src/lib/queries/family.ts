@@ -4,8 +4,17 @@ import { requireAuthUserId } from "@/lib/auth";
 import { USER_DATA_TAG } from "@/lib/revalidate-user-data";
 
 export async function ensureSelfFamilyMember(userId: string, userName: string) {
-  const count = await prisma.familyMember.count({ where: { userId } });
-  if (count === 0) {
+  const self = await prisma.familyMember.findFirst({
+    where: { userId, linkedUserId: userId },
+    select: { id: true },
+  });
+  if (self) return null;
+
+  const owned = await prisma.familyMember.findFirst({
+    where: { userId },
+    select: { id: true },
+  });
+  if (!owned) {
     return prisma.familyMember.create({
       data: { name: userName, userId, linkedUserId: userId },
     });

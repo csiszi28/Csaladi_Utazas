@@ -7,6 +7,8 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ExchangeRatesProvider } from "@/components/exchange-rates-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { BRAND } from "@/lib/brand";
+import { RemindersBell } from "@/components/reminders/reminders-bell";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -69,7 +71,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 >
                   <Menu className="h-5 w-5" />
                 </Button>
-                <span className="text-base font-bold text-primary">Családi Utazás</span>
+                <div className="min-w-0 flex-1">
+                  <span className="font-display text-base font-bold tracking-wide text-primary">
+                    {BRAND.shortName}
+                  </span>
+                </div>
+                <RemindersBell />
               </div>
               <div className="px-[var(--app-content-padding)] pb-[var(--app-content-padding)] md:p-[var(--app-content-padding)]">
                 {children}

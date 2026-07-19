@@ -80,6 +80,34 @@ const calendarSelect = {
     },
     orderBy: { checkIn: "asc" as const },
   },
+  transports: {
+    select: {
+      id: true,
+      type: true,
+      title: true,
+      departureDate: true,
+      departureTime: true,
+      arrivalDate: true,
+      arrivalTime: true,
+      fromLocation: true,
+      toLocation: true,
+      url: true,
+      participants: {
+        select: { familyMember: { select: { id: true, name: true } } },
+      },
+      costs: {
+        select: {
+          id: true,
+          amount: true,
+          currency: true,
+          title: true,
+          category: true,
+          amountScope: true,
+        },
+      },
+    },
+    orderBy: [{ departureDate: "asc" as const }, { departureTime: "asc" as const }],
+  },
   costs: {
     select: {
       id: true,
@@ -88,6 +116,7 @@ const calendarSelect = {
       title: true,
       programId: true,
       accommodationId: true,
+      transportId: true,
       category: true,
       amountScope: true,
     },
@@ -142,6 +171,29 @@ const tripDetailInclude = {
     },
     orderBy: [{ date: "asc" as const }, { startTime: "asc" as const }],
   },
+  transports: {
+    include: {
+      participants: { include: { familyMember: true } },
+      costs: true,
+    },
+    orderBy: [{ departureDate: "asc" as const }, { departureTime: "asc" as const }],
+  },
+  activities: {
+    include: { actor: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "desc" as const },
+    take: 50,
+  },
+  settlementPayments: {
+    include: {
+      fromMember: { select: { id: true, name: true } },
+      toMember: { select: { id: true, name: true } },
+    },
+    orderBy: { paidAt: "desc" as const },
+  },
+  packingItems: {
+    include: { assignee: { select: { id: true, name: true } } },
+    orderBy: [{ sortOrder: "asc" as const }, { title: "asc" as const }],
+  },
   costs: true,
   documents: true,
 } satisfies Prisma.TripInclude;
@@ -193,7 +245,16 @@ const getCachedTripDetail = (userId: string, id: string) =>
     async () =>
       prisma.trip.findFirst({
         where: { id, ...tripAccessFilter(userId) },
-        include: tripDetailInclude,
+        include: {
+          ...tripDetailInclude,
+          // Saját műveletek nem jelennek meg — azt a felhasználó amúgy is tudja
+          activities: {
+            where: { actorUserId: { not: userId } },
+            include: { actor: { select: { id: true, name: true } } },
+            orderBy: { createdAt: "desc" as const },
+            take: 50,
+          },
+        },
       }),
     [`trip-detail-${userId}-${id}`],
     { revalidate: 30, tags: [userDataTag(userId), `trip-${id}`] }
