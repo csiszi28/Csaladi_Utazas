@@ -5,6 +5,7 @@ import { Camera, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { uploadDocument, deleteDocument, getDocumentSignedUrl } from "@/actions/documents";
 import { getCachedDocumentUrl } from "@/lib/document-url-cache";
+import { PhotoLightbox, type PhotoLightboxItem } from "@/components/photos/photo-lightbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { DocumentItem } from "@/components/documents/document-upload";
@@ -26,7 +27,7 @@ export function PhotoGalleryPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +50,17 @@ export function PhotoGalleryPanel({
       cancelled = true;
     };
   }, [documents]);
+
+  useEffect(() => {
+    if (lightboxIndex == null) return;
+    if (documents.length === 0) {
+      setLightboxIndex(null);
+      return;
+    }
+    if (lightboxIndex >= documents.length) {
+      setLightboxIndex(documents.length - 1);
+    }
+  }, [documents, lightboxIndex]);
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -96,6 +108,12 @@ export function PhotoGalleryPanel({
     });
   }
 
+  const lightboxItems: PhotoLightboxItem[] = documents.map((doc) => ({
+    id: doc.id,
+    fileName: doc.fileName,
+    url: urls[doc.id],
+  }));
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
@@ -126,17 +144,17 @@ export function PhotoGalleryPanel({
           Még nincsenek fotók. Tölts fel emlékképeket az utazásról.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {documents.map((doc) => (
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+          {documents.map((doc, index) => (
             <div
               key={doc.id}
-              className="group relative aspect-square overflow-hidden rounded-xl border bg-muted"
+              className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
             >
               {urls[doc.id] ? (
                 <button
                   type="button"
                   className="h-full w-full"
-                  onClick={() => setLightbox(urls[doc.id] ?? null)}
+                  onClick={() => setLightboxIndex(index)}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -146,35 +164,33 @@ export function PhotoGalleryPanel({
                   />
                 </button>
               ) : (
-                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                  Betöltés…
+                <div className="flex h-full items-center justify-center text-[10px] text-muted-foreground">
+                  …
                 </div>
               )}
               <Button
                 type="button"
                 variant="destructive"
                 size="icon"
-                className="absolute top-2 right-2 h-8 w-8 opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+                className="absolute top-1 right-1 h-6 w-6 opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
                 disabled={pending}
-                onClick={() => handleDelete(doc.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(doc.id);
+                }}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3 w-3" />
               </Button>
             </div>
           ))}
         </div>
       )}
 
-      {lightbox ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightbox(null)}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
-        </button>
-      ) : null}
+      <PhotoLightbox
+        items={lightboxItems}
+        index={lightboxIndex}
+        onIndexChange={setLightboxIndex}
+      />
     </div>
   );
 }

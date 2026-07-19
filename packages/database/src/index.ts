@@ -41,9 +41,22 @@ if (enginePath) {
   process.env.PRISMA_QUERY_ENGINE_LIBRARY = enginePath;
 }
 
+/** Bump when Prisma schema fields change so HMR/dev doesn't keep a stale client. */
+const PRISMA_SCHEMA_VERSION = 2;
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaSchemaVersion?: number;
 };
+
+if (
+  process.env.NODE_ENV !== "production" &&
+  globalForPrisma.prisma &&
+  globalForPrisma.prismaSchemaVersion !== PRISMA_SCHEMA_VERSION
+) {
+  void globalForPrisma.prisma.$disconnect();
+  globalForPrisma.prisma = undefined;
+}
 
 export const prisma =
   globalForPrisma.prisma ??
@@ -53,6 +66,7 @@ export const prisma =
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+  globalForPrisma.prismaSchemaVersion = PRISMA_SCHEMA_VERSION;
 }
 
 export * from "./generated/prisma";

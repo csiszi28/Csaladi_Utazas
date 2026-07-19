@@ -283,12 +283,28 @@ export const settlementPaymentSchema = z.object({
 export const packingItemSchema = z.object({
   tripId: z.string().uuid(),
   title: z.string().min(1, "A megnevezés kötelező").max(200),
+  quantity: z.number().int().min(1).max(99).optional().default(1),
   assigneeFamilyMemberId: z.string().uuid().optional().nullable(),
+});
+
+export const packingItemsBatchSchema = z.object({
+  tripId: z.string().uuid(),
+  assigneeFamilyMemberId: z.string().uuid().optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(200),
+        quantity: z.number().int().min(1).max(99).optional().default(1),
+      })
+    )
+    .min(1)
+    .max(40),
 });
 
 export const updatePackingItemSchema = z.object({
   id: z.string().uuid(),
   title: z.string().min(1).max(200).optional(),
+  quantity: z.number().int().min(1).max(99).optional(),
   assigneeFamilyMemberId: z.string().uuid().optional().nullable(),
   isPacked: z.boolean().optional(),
   sortOrder: z.number().int().optional(),

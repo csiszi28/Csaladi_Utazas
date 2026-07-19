@@ -6,6 +6,7 @@ export * from "./cost-allocation";
 export * from "./budget-summary";
 export * from "./settlement";
 export * from "./settlement-payments";
+export * from "./packing-presets";
 export * from "./ical";
 export * from "./document-checklist";
 export * from "./reminders";

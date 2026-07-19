@@ -365,6 +365,7 @@ export async function duplicateTrip(data: {
         ? {
             create: source.packingItems.map((item) => ({
               title: item.title,
+              quantity: item.quantity,
               assigneeFamilyMemberId: item.assigneeFamilyMemberId,
               isPacked: false,
               sortOrder: item.sortOrder,

@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS "packing_items" (
   "id" TEXT PRIMARY KEY,
   "tripId" TEXT NOT NULL REFERENCES "trips"("id") ON DELETE CASCADE,
   "title" TEXT NOT NULL,
+  "quantity" INTEGER NOT NULL DEFAULT 1,
   "assigneeFamilyMemberId" TEXT REFERENCES "family_members"("id") ON DELETE SET NULL,
   "isPacked" BOOLEAN NOT NULL DEFAULT FALSE,
   "sortOrder" INTEGER NOT NULL DEFAULT 0

@@ -368,6 +368,7 @@ model PackingItem {
   tripId                 String
   trip                   Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
   title                  String
+  quantity               Int           @default(1)
   assigneeFamilyMemberId String?
   assignee               FamilyMember? @relation("PackingAssignee", fields: [assigneeFamilyMemberId], references: [id], onDelete: SetNull)
   isPacked               Boolean       @default(false)

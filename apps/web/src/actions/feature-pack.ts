@@ -3,6 +3,7 @@
 import { prisma } from "@csaladi-utazas/database";
 import {
   packingItemSchema,
+  packingItemsBatchSchema,
   updatePackingItemSchema,
   settlementPaymentSchema,
   setTripParticipantsSchema,
@@ -18,8 +19,9 @@ import { createServiceClient } from "@/lib/supabase/server";
 export async function createPackingItem(data: {
   tripId: string;
   title: string;
+  quantity?: number;
   assigneeFamilyMemberId?: string | null;
-}): Promise<ActionResult<{ id: string }>> {
+}): Promise<ActionResult<{ id: string; quantity: number }>> {
   const user = await requireUser();
   const parsed = packingItemSchema.safeParse(data);
   if (!parsed.success) {
@@ -29,35 +31,59 @@ export async function createPackingItem(data: {
   const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
   if (!trip) return { success: false, error: "Utazás nem található" };
 
-  const maxOrder = await prisma.packingItem.aggregate({
-    where: { tripId: parsed.data.tripId },
-    _max: { sortOrder: true },
-  });
-
   const item = await prisma.packingItem.create({
     data: {
       tripId: parsed.data.tripId,
       title: parsed.data.title,
+      quantity: parsed.data.quantity,
       assigneeFamilyMemberId: parsed.data.assigneeFamilyMemberId ?? null,
-      sortOrder: (maxOrder._max.sortOrder ?? 0) + 1,
+      sortOrder: Date.now() % 2_000_000_000,
     },
+    select: { id: true, quantity: true },
   });
 
-  await recordTripActivity({
-    tripId: parsed.data.tripId,
-    actorUserId: user.id,
-    type: "PACKING_UPDATED",
-    summary: `Csomagolás: ${parsed.data.title}`,
-    meta: { packingItemId: item.id },
-  });
+  invalidateTripMutation(user.id, parsed.data.tripId);
+  return { success: true, data: item };
+}
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
-  return { success: true, data: { id: item.id } };
+export async function createPackingItemsBatch(data: {
+  tripId: string;
+  assigneeFamilyMemberId?: string | null;
+  items: { title: string; quantity?: number }[];
+}): Promise<ActionResult<{ ids: string[] }>> {
+  const user = await requireUser();
+  const parsed = packingItemsBatchSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
+  if (!trip) return { success: false, error: "Utazás nem található" };
+
+  const baseOrder = Date.now() % 2_000_000_000;
+  const created = await prisma.$transaction(
+    parsed.data.items.map((item, index) =>
+      prisma.packingItem.create({
+        data: {
+          tripId: parsed.data.tripId,
+          title: item.title,
+          quantity: item.quantity,
+          assigneeFamilyMemberId: parsed.data.assigneeFamilyMemberId ?? null,
+          sortOrder: baseOrder + index,
+        },
+        select: { id: true },
+      })
+    )
+  );
+
+  invalidateTripMutation(user.id, parsed.data.tripId);
+  return { success: true, data: { ids: created.map((row) => row.id) } };
 }
 
 export async function updatePackingItem(data: {
   id: string;
   title?: string;
+  quantity?: number;
   assigneeFamilyMemberId?: string | null;
   isPacked?: boolean;
   sortOrder?: number;
@@ -68,16 +94,17 @@ export async function updatePackingItem(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const existing = await prisma.packingItem.findFirst({ where: { id: parsed.data.id } });
+  const existing = await prisma.packingItem.findFirst({
+    where: { id: parsed.data.id, trip: tripAccessFilter(user.id) },
+    select: { id: true, tripId: true },
+  });
   if (!existing) return { success: false, error: "Tétel nem található" };
-
-  const trip = await findAccessibleTrip(existing.tripId, user.id);
-  if (!trip) return { success: false, error: "Nincs jogosultság" };
 
   await prisma.packingItem.update({
     where: { id: parsed.data.id },
     data: {
       ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+      ...(parsed.data.quantity !== undefined ? { quantity: parsed.data.quantity } : {}),
       ...(parsed.data.assigneeFamilyMemberId !== undefined
         ? { assigneeFamilyMemberId: parsed.data.assigneeFamilyMemberId }
         : {}),
@@ -86,20 +113,20 @@ export async function updatePackingItem(data: {
     },
   });
 
-  invalidateTripsAndReports(user.id, existing.tripId);
+  invalidateTripMutation(user.id, existing.tripId);
   return { success: true, data: undefined };
 }
 
 export async function deletePackingItem(id: string): Promise<ActionResult> {
   const user = await requireUser();
-  const existing = await prisma.packingItem.findFirst({ where: { id } });
+  const existing = await prisma.packingItem.findFirst({
+    where: { id, trip: tripAccessFilter(user.id) },
+    select: { id: true, tripId: true },
+  });
   if (!existing) return { success: false, error: "Tétel nem található" };
 
-  const trip = await findAccessibleTrip(existing.tripId, user.id);
-  if (!trip) return { success: false, error: "Nincs jogosultság" };
-
   await prisma.packingItem.delete({ where: { id } });
-  invalidateTripsAndReports(user.id, existing.tripId);
+  invalidateTripMutation(user.id, existing.tripId);
   return { success: true, data: undefined };
 }
 

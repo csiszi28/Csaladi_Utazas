@@ -41,7 +41,11 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
   const [viewerDocId, setViewerDocId] = useState<string | undefined>();
 
   const totalCount = useMemo(
-    () => trips.reduce((sum, trip) => sum + trip.documents.length, 0),
+    () =>
+      trips.reduce(
+        (sum, trip) => sum + trip.documents.filter((d) => d.category !== "PHOTO").length,
+        0
+      ),
     [trips]
   );
 
@@ -76,6 +80,7 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
       if (tripFilter !== ALL && trip.id !== tripFilter) continue;
 
       for (const doc of trip.documents) {
+        if (doc.category === "PHOTO") continue;
         if (programFilter === TRIP_LEVEL && doc.programId) continue;
         if (programFilter !== ALL && programFilter !== TRIP_LEVEL && doc.programId !== programFilter) {
           continue;
@@ -158,7 +163,7 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dokumentumok</h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
               {totalCount} fájl az összes elérhető utazásból — szűrj utazás, program, személy vagy
-              kategória szerint.
+              kategória szerint. A fotók a Fotók menüben találhatók.
             </p>
           </div>
         </div>
@@ -241,7 +246,7 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Minden kategória</SelectItem>
-                {ALL_DOCUMENT_CATEGORIES.map((cat) => (
+                {ALL_DOCUMENT_CATEGORIES.filter((cat) => cat !== "PHOTO").map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {DOCUMENT_CATEGORY_LABELS[cat as DocumentCategory]}
                   </SelectItem>

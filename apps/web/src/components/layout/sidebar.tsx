@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Calendar,
   FileText,
+  Images,
   LayoutDashboard,
   Map,
   Users,
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/", label: "Naptár", icon: Calendar },
   { href: "/trips", label: "Utazások", icon: Map },
   { href: "/documents", label: "Dokumentumok", icon: FileText },
+  { href: "/photos", label: "Fotók", icon: Images },
   { href: "/family", label: "Család", icon: Users },
   { href: "/dashboard", label: "Kimutatások", icon: LayoutDashboard },
 ];
