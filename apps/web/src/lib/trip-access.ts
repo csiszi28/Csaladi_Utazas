@@ -1,5 +1,10 @@
 import { prisma } from "@csaladi-utazas/database";
 import type { Prisma } from "@csaladi-utazas/database";
+import {
+  canEditTrip,
+  normalizeCollaboratorRole,
+  type TripRole,
+} from "@csaladi-utazas/shared";
 
 export function tripAccessFilter(userId: string): Prisma.TripWhereInput {
   return {
@@ -17,6 +22,35 @@ export async function findOwnedTrip(tripId: string, userId: string) {
   return prisma.trip.findFirst({
     where: { id: tripId, userId },
   });
+}
+
+export async function resolveTripRole(
+  tripId: string,
+  userId: string
+): Promise<TripRole | null> {
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId, ...tripAccessFilter(userId) },
+    select: {
+      userId: true,
+      collaborators: {
+        where: { userId },
+        select: { role: true },
+        take: 1,
+      },
+    },
+  });
+  if (!trip) return null;
+  if (trip.userId === userId) return "OWNER";
+  return normalizeCollaboratorRole(trip.collaborators[0]?.role);
+}
+
+export async function requireTripEditor(tripId: string, userId: string) {
+  const role = await resolveTripRole(tripId, userId);
+  if (!role) return { ok: false as const, error: "Nincs hozzáférésed ehhez az utazáshoz" };
+  if (!canEditTrip(role)) {
+    return { ok: false as const, error: "Csak olvasási jogod van ehhez az utazáshoz" };
+  }
+  return { ok: true as const, role };
 }
 
 export function generateInviteCode(): string {

@@ -1,3 +1,5 @@
+import { isTripType, TRIP_TYPE_PACKING_EXTRAS } from "./trip-types";
+
 /** Gyakori utazási / nyaralási csomagolási tételek (HU). */
 export const PACKING_PRESET_GROUPS = [
   {
@@ -80,3 +82,9 @@ export const PACKING_PRESET_GROUPS = [
 ] as const;
 
 export type PackingPresetGroupId = (typeof PACKING_PRESET_GROUPS)[number]["id"];
+
+/** Flat list of packing titles for a trip type (extras only). */
+export function packingExtrasForTripType(tripType: string | null | undefined): string[] {
+  if (!tripType || !isTripType(tripType)) return [];
+  return [...TRIP_TYPE_PACKING_EXTRAS[tripType]];
+}

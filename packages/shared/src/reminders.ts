@@ -2,7 +2,9 @@ export type ReminderKind =
   | "checklist_missing"
   | "tomorrow_program"
   | "tomorrow_transport"
-  | "open_settlement";
+  | "open_settlement"
+  | "idea_voting_deadline"
+  | "trip_starts_soon";
 
 export interface AppReminder {
   key: string;
@@ -15,6 +17,12 @@ export interface AppReminder {
   href: string;
 }
 
+export interface ReminderIdeaDeadline {
+  ideaId: string;
+  ideaTitle: string;
+  voteDeadline: Date | string;
+}
+
 export interface ReminderTripInput {
   id: string;
   title: string;
@@ -24,6 +32,7 @@ export interface ReminderTripInput {
   tomorrowProgramTitles?: string[];
   tomorrowTransportTitles?: string[];
   openSettlementTransferCount?: number;
+  ideaDeadlines?: ReminderIdeaDeadline[];
 }
 
 function startOfDay(d: Date): Date {
@@ -128,6 +137,45 @@ export function buildReminders(
           body: `${trip.title}: ${trip.openSettlementTransferCount} átutalás még nyitott.`,
           dueAt: end.toISOString(),
           href: `/trips/${trip.id}?tab=finances`,
+        });
+      }
+    }
+
+    if ([7, 3, 1].includes(daysUntilStart)) {
+      const key = `trip-start:${trip.id}:${daysUntilStart}`;
+      if (!dismissed.has(key)) {
+        reminders.push({
+          key,
+          kind: "trip_starts_soon",
+          tripId: trip.id,
+          tripTitle: trip.title,
+          title: "Közelgő utazás",
+          body: `${trip.title}: ${daysUntilStart} nap múlva indul.`,
+          dueAt: start.toISOString(),
+          href: `/trips/${trip.id}?tab=overview`,
+        });
+      }
+    }
+
+    if (trip.ideaDeadlines) {
+      for (const idea of trip.ideaDeadlines) {
+        const deadline = asDate(idea.voteDeadline);
+        const daysUntil = daysBetween(deadline, today);
+        if (daysUntil < 0 || daysUntil > 1) continue;
+        const key = `idea-vote:${idea.ideaId}:${deadline.toISOString().slice(0, 10)}`;
+        if (dismissed.has(key)) continue;
+        reminders.push({
+          key,
+          kind: "idea_voting_deadline",
+          tripId: trip.id,
+          tripTitle: trip.title,
+          title: "Szavazási határidő",
+          body:
+            daysUntil === 0
+              ? `${trip.title}: „${idea.ideaTitle}” szavazása ma lejár.`
+              : `${trip.title}: „${idea.ideaTitle}” szavazása holnap lejár.`,
+          dueAt: deadline.toISOString(),
+          href: `/trips/${trip.id}?tab=planning`,
         });
       }
     }

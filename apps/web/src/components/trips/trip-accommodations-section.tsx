@@ -9,14 +9,20 @@ import {
   BedDouble,
   MapPin,
   CalendarDays,
+  Check,
+  X,
+  Clock,
 } from "lucide-react";
-import { formatDate } from "@csaladi-utazas/shared";
+import { formatDate, IDEA_DECISION_LABELS, type IdeaDecision } from "@csaladi-utazas/shared";
+import { toast } from "sonner";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
 import { useDeleteTripIdea } from "@/hooks/use-ideas";
 import { useDeleteAccommodation } from "@/hooks/use-accommodations";
+import { setIdeaDecision } from "@/actions/ideas";
+import { cn } from "@/lib/utils";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import {
   AccommodationIdeaFormDrawer,
@@ -28,6 +34,8 @@ import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { CostChips } from "./cost-chips";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
 import { TripFilterChips, TripSectionHeading } from "./trip-detail-tabs";
+import { TripMapView, buildTripMapMarkers } from "./trip-map-view";
+import { GeocodeStatusBadge, resolveGeocodeStatus } from "./geocode-status";
 type TripIdeaRow = TripDetailRow["ideas"][number];
 type AccommodationRow = TripDetailRow["accommodations"][number];
 
@@ -43,6 +51,7 @@ interface TripAccommodationsSectionProps {
   costs: TripDetailRow["costs"];
   currentUserId: string;
   currentUserName: string;
+  canEdit?: boolean;
   onRefresh: () => void;
   onConvertToAccommodation: (ideaId: string) => void;
   convertedIdeaIds: Set<string>;
@@ -50,6 +59,23 @@ interface TripAccommodationsSectionProps {
   accommodationOpenSignal?: number;
   convertIdeaId?: string;
   onConvertIdeaHandled?: () => void;
+}
+
+function IdeaDecisionBadge({ decision }: { decision: string | null | undefined }) {
+  const value = (decision ?? "OPEN") as IdeaDecision;
+  if (value === "OPEN") return null;
+  return (
+    <span
+      className={cn(
+        "rounded-lg px-2 py-0.5 text-xs font-medium sm:text-sm",
+        value === "ACCEPTED"
+          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+          : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200"
+      )}
+    >
+      {IDEA_DECISION_LABELS[value]}
+    </span>
+  );
 }
 
 function stayNightLabel(checkIn: Date | string, checkOut: Date | string) {
@@ -72,6 +98,7 @@ export function TripAccommodationsSection({
   costs,
   currentUserId,
   currentUserName,
+  canEdit = true,
   onRefresh,
   onConvertToAccommodation,
   convertedIdeaIds,
@@ -81,6 +108,7 @@ export function TripAccommodationsSection({
   onConvertIdeaHandled,
 }: TripAccommodationsSectionProps) {
   const [filter, setFilter] = useState<AccommodationFilter>("bookings");
+  const [bookingView, setBookingView] = useState<"list" | "map">("list");
   const [ideaDrawerOpen, setIdeaDrawerOpen] = useState(false);
   const [accommodationDrawerOpen, setAccommodationDrawerOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<AccommodationIdeaFormData | null>(null);
@@ -128,6 +156,12 @@ export function TripAccommodationsSection({
     if (result.success) onRefresh();
   }
 
+  async function handleSetDecision(ideaId: string, decision: IdeaDecision) {
+    const result = await setIdeaDecision({ ideaId, decision });
+    if (!result.success) toast.error(result.error);
+    else onRefresh();
+  }
+
   const ideaOptions = accommodationIdeas.map((idea) => ({
     id: idea.id,
     title: idea.title,
@@ -162,16 +196,18 @@ export function TripAccommodationsSection({
             title="Szállás ötletek"
             description="Gyűjts szálláslehetőségeket, jelöld meg kinek tetszik"
             action={
-              <Button
-                className={TRIP_SECTION_BTN_CLASS}
-                onClick={() => {
-                  setEditingIdea(null);
-                  setIdeaDrawerOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Új ötlet
-              </Button>
+              canEdit ? (
+                <Button
+                  className={TRIP_SECTION_BTN_CLASS}
+                  onClick={() => {
+                    setEditingIdea(null);
+                    setIdeaDrawerOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Új ötlet
+                </Button>
+              ) : null
             }
           />
 
@@ -192,6 +228,7 @@ export function TripAccommodationsSection({
                           Szállásként rögzítve
                         </span>
                       )}
+                      <IdeaDecisionBadge decision={idea.decision} />
                     </span>
                   }
                   subtitle={
@@ -211,6 +248,12 @@ export function TripAccommodationsSection({
                           chip
                         />
                       )}
+                      {idea.voteDeadline && (
+                        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                          <Clock className="h-3.5 w-3.5 shrink-0" />
+                          Szavazás: {formatDate(idea.voteDeadline)}-ig
+                        </span>
+                      )}
                     </span>
                   }
                   alwaysVisible={
@@ -227,40 +270,45 @@ export function TripAccommodationsSection({
                           </a>
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditingIdea({
-                            id: idea.id,
-                            title: idea.title,
-                            url: idea.url,
-                            amount: idea.amount,
-                            currency: idea.currency,
-                            amountScope: idea.amountScope,
-                            checkInDate: idea.checkInDate
-                              ? formatDate(idea.checkInDate)
-                              : null,
-                            checkOutDate: idea.checkOutDate
-                              ? formatDate(idea.checkOutDate)
-                              : null,
-                            interestedParticipantIds: idea.interests.map(
-                              (i) => i.familyMember.id
-                            ),
-                          });
-                          setIdeaDrawerOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteIdea(idea.id)}
-                        disabled={deleteIdeaMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canEdit ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditingIdea({
+                                id: idea.id,
+                                title: idea.title,
+                                url: idea.url,
+                                amount: idea.amount,
+                                currency: idea.currency,
+                                amountScope: idea.amountScope,
+                                checkInDate: idea.checkInDate
+                                  ? formatDate(idea.checkInDate)
+                                  : null,
+                                checkOutDate: idea.checkOutDate
+                                  ? formatDate(idea.checkOutDate)
+                                  : null,
+                                voteDeadline: idea.voteDeadline,
+                                interestedParticipantIds: idea.interests.map(
+                                  (i) => i.familyMember.id
+                                ),
+                              });
+                              setIdeaDrawerOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteIdea(idea.id)}
+                            disabled={deleteIdeaMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   }
                 >
@@ -282,15 +330,51 @@ export function TripAccommodationsSection({
                       currentUserName={currentUserName}
                     />
 
-                    {!isConverted && (
-                      <Button
-                        size="sm"
-                        className="w-full sm:w-auto"
-                        onClick={() => onConvertToAccommodation(idea.id)}
-                      >
-                        <BedDouble className="h-4 w-4" />
-                        Szállásként rögzítés
-                      </Button>
+                    {canEdit && (
+                      <div className="flex flex-wrap gap-2">
+                        {!isConverted && (
+                          <Button
+                            size="sm"
+                            className="w-full sm:w-auto"
+                            onClick={() => onConvertToAccommodation(idea.id)}
+                          >
+                            <BedDouble className="h-4 w-4" />
+                            Szállásként rögzítés
+                          </Button>
+                        )}
+                        {idea.decision !== "ACCEPTED" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full sm:w-auto"
+                            onClick={() => handleSetDecision(idea.id, "ACCEPTED")}
+                          >
+                            <Check className="h-4 w-4" />
+                            Elfogadás
+                          </Button>
+                        )}
+                        {idea.decision !== "REJECTED" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full sm:w-auto"
+                            onClick={() => handleSetDecision(idea.id, "REJECTED")}
+                          >
+                            <X className="h-4 w-4" />
+                            Elutasítás
+                          </Button>
+                        )}
+                        {idea.decision !== "OPEN" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="w-full sm:w-auto"
+                            onClick={() => handleSetDecision(idea.id, "OPEN")}
+                          >
+                            Visszaállítás
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </CollapsiblePanel>
@@ -312,19 +396,55 @@ export function TripAccommodationsSection({
             title="Foglalások"
             description="Tényleges szállások be- és kijelentkezési dátummal"
             action={
-              <Button
-                className={TRIP_SECTION_BTN_CLASS}
-                onClick={() => {
-                  setEditingAccommodation(null);
-                  setAccommodationDrawerOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Új szállás
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex rounded-lg border p-0.5">
+                  <button
+                    type="button"
+                    className={cn(
+                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
+                      bookingView === "list"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground"
+                    )}
+                    onClick={() => setBookingView("list")}
+                  >
+                    Lista
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
+                      bookingView === "map"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground"
+                    )}
+                    onClick={() => setBookingView("map")}
+                  >
+                    Térkép
+                  </button>
+                </div>
+                {canEdit ? (
+                  <Button
+                    className={TRIP_SECTION_BTN_CLASS}
+                    onClick={() => {
+                      setEditingAccommodation(null);
+                      setAccommodationDrawerOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Új szállás
+                  </Button>
+                ) : null}
+              </div>
             }
           />
 
+          {bookingView === "map" ? (
+            <TripMapView
+              markers={buildTripMapMarkers({ programs: [], accommodations })}
+              canEdit={canEdit}
+            />
+          ) : (
           <div className="space-y-3">
             {accommodations.map((accommodation) => {
               const accommodationCosts = costs.filter(
@@ -335,7 +455,18 @@ export function TripAccommodationsSection({
                 <CollapsiblePanel
                   key={accommodation.id}
                   defaultOpen={false}
-                  title={accommodation.title}
+                  title={
+                    <span className="flex flex-wrap items-center gap-2">
+                      {accommodation.title}
+                      <GeocodeStatusBadge
+                        status={resolveGeocodeStatus({
+                          location: accommodation.location ?? accommodation.title,
+                          lat: accommodation.lat,
+                          lng: accommodation.lng,
+                        })}
+                      />
+                    </span>
+                  }
                   subtitle={
                     <span className="flex flex-col gap-1.5 sm:gap-2">
                       <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -374,26 +505,30 @@ export function TripAccommodationsSection({
                           </a>
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => {
-                          setEditingAccommodation(accommodation);
-                          setAccommodationDrawerOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => handleDeleteAccommodation(accommodation.id)}
-                        disabled={deleteAccommodationMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canEdit ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => {
+                              setEditingAccommodation(accommodation);
+                              setAccommodationDrawerOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => handleDeleteAccommodation(accommodation.id)}
+                            disabled={deleteAccommodationMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   }
                 >
@@ -418,6 +553,7 @@ export function TripAccommodationsSection({
               </p>
             )}
           </div>
+          )}
         </section>
       )}
 

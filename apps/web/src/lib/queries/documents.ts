@@ -31,6 +31,8 @@ const getCachedDocumentsOverview = (userId: string) =>
               programId: true,
               familyMemberId: true,
               category: true,
+              takenAt: true,
+              locationLabel: true,
             },
             orderBy: { uploadedAt: "desc" },
           },

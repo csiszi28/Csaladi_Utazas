@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { formatDate, CURRENCIES, CURRENCY_LABELS, formatAmountInput, parseAmountInput } from "@csaladi-utazas/shared";
+import {
+  formatDate,
+  CURRENCIES,
+  CURRENCY_LABELS,
+  formatAmountInput,
+  parseAmountInput,
+  TRIP_TYPES,
+  TRIP_TYPE_LABELS,
+  type TripType,
+} from "@csaladi-utazas/shared";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +49,7 @@ interface TripFormDrawerProps {
     endDate: Date;
     budgetAmount?: number | null;
     budgetCurrency?: string;
+    tripType?: string | null;
     participants: { familyMember: { id: string; name: string } }[];
   };
 }
@@ -59,6 +69,7 @@ export function TripFormDrawer({
   const [participantIds, setParticipantIds] = useState<string[]>([]);
   const [budgetAmount, setBudgetAmount] = useState("");
   const [budgetCurrency, setBudgetCurrency] = useState("HUF");
+  const [tripType, setTripType] = useState<string>("__none");
 
   useEffect(() => {
     if (!open) return;
@@ -72,6 +83,7 @@ export function TripFormDrawer({
         trip.budgetAmount != null ? formatAmountInput(String(Math.round(trip.budgetAmount))) : ""
       );
       setBudgetCurrency(trip.budgetCurrency ?? "HUF");
+      setTripType(trip.tripType ?? "__none");
     } else {
       setTitle("");
       setDestination("");
@@ -80,6 +92,7 @@ export function TripFormDrawer({
       setParticipantIds(members[0] ? [members[0].id] : []);
       setBudgetAmount("");
       setBudgetCurrency("HUF");
+      setTripType("__none");
     }
   }, [trip, open, members]);
 
@@ -105,6 +118,7 @@ export function TripFormDrawer({
         participantIds,
         budgetAmount: parsedBudget && parsedBudget > 0 ? parsedBudget : null,
         budgetCurrency,
+        tripType: tripType === "__none" ? null : tripType,
       };
       const result = trip
         ? await updateTrip({ id: trip.id, ...data })
@@ -144,6 +158,25 @@ export function TripFormDrawer({
               <Label>Záró dátum</Label>
               <DatePicker value={endDate} onChange={setEndDate} minDate={startDate || undefined} inDialog />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Utazás típusa (opcionális)</Label>
+            <Select value={tripType} onValueChange={setTripType} disabled={isPending}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">Nincs megadva</SelectItem>
+                {TRIP_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {TRIP_TYPE_LABELS[type as TripType]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Ajánlott csomagolási és dokumentum tételekhez használjuk.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>Költségvetési limit (opcionális)</Label>

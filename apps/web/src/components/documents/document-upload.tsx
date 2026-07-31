@@ -37,6 +37,10 @@ export interface DocumentItem {
   familyMemberId?: string | null;
   category?: string;
   pending?: boolean;
+  takenAt?: Date | string | null;
+  locationLabel?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 interface DocumentUploadProps {
@@ -48,6 +52,7 @@ interface DocumentUploadProps {
   onDocumentUploaded?: (document: DocumentItem) => void;
   onDocumentDeleted?: (documentId: string) => void;
   compact?: boolean;
+  canEdit?: boolean;
 }
 
 const ALL_FAMILY_VALUE = "__all__";
@@ -65,6 +70,7 @@ export function DocumentUpload({
   onDocumentUploaded,
   onDocumentDeleted,
   compact = false,
+  canEdit = true,
 }: DocumentUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploads, setPendingUploads] = useState<DocumentItem[]>([]);
@@ -242,66 +248,70 @@ export function DocumentUpload({
 
   return (
     <div className="min-w-0 space-y-3 overflow-hidden">
-      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="min-w-0 space-y-1.5">
-          <Label>Dokumentum kategória</Label>
-          <Select value={category} onValueChange={(v) => setCategory(v as DocumentCategory)}>
-            <SelectTrigger className="w-full min-w-0 max-w-full min-h-[var(--touch-target)] sm:min-h-9 [&>span]:line-clamp-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {categoryOptions.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {DOCUMENT_CATEGORY_LABELS[cat]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {canEdit ? (
+        <>
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1.5">
+              <Label>Dokumentum kategória</Label>
+              <Select value={category} onValueChange={(v) => setCategory(v as DocumentCategory)}>
+                <SelectTrigger className="w-full min-w-0 max-w-full min-h-[var(--touch-target)] sm:min-h-9 [&>span]:line-clamp-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryOptions.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {DOCUMENT_CATEGORY_LABELS[cat]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        {participantOptions.length > 0 && (
-          <div className="min-w-0 space-y-1.5">
-            <Label>Kinek szól?</Label>
-            <Select value={familyMemberId} onValueChange={setFamilyMemberId}>
-              <SelectTrigger className="w-full min-w-0 max-w-full min-h-[var(--touch-target)] sm:min-h-9 [&>span]:line-clamp-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_FAMILY_VALUE}>Teljes család (közös)</SelectItem>
-                {participantOptions.map((member) => (
-                  <SelectItem key={member.id} value={member.id}>
-                    {member.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {participantOptions.length > 0 && (
+              <div className="min-w-0 space-y-1.5">
+                <Label>Kinek szól?</Label>
+                <Select value={familyMemberId} onValueChange={setFamilyMemberId}>
+                  <SelectTrigger className="w-full min-w-0 max-w-full min-h-[var(--touch-target)] sm:min-h-9 [&>span]:line-clamp-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_FAMILY_VALUE}>Teljes család (közös)</SelectItem>
+                    {participantOptions.map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <div
-        className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors hover:border-primary/40 hover:bg-accent/40"
-        onClick={() => !uploading && fileInputRef.current?.click()}
-        onKeyDown={(e) => e.key === "Enter" && !uploading && fileInputRef.current?.click()}
-        role="button"
-        tabIndex={0}
-      >
-        <Upload className="mb-2 h-7 w-7 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          {uploading
-            ? "Feltöltés folyamatban…"
-            : "Kattints vagy húzd ide a fájlokat (PDF, PNG, JPEG, max 10 MB / fájl)"}
-        </p>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-          multiple
-          className="hidden"
-          onChange={handleUpload}
-          disabled={uploading}
-        />
-      </div>
+          <div
+            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors hover:border-primary/40 hover:bg-accent/40"
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            onKeyDown={(e) => e.key === "Enter" && !uploading && fileInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+          >
+            <Upload className="mb-2 h-7 w-7 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {uploading
+                ? "Feltöltés folyamatban…"
+                : "Kattints vagy húzd ide a fájlokat (PDF, PNG, JPEG, max 10 MB / fájl)"}
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+              multiple
+              className="hidden"
+              onChange={handleUpload}
+              disabled={uploading}
+            />
+          </div>
+        </>
+      ) : null}
 
       {readyDocs.length > 0 && !compact && (
         <Button
@@ -323,6 +333,7 @@ export function DocumentUpload({
         onView={openViewer}
         onDownload={handleDownload}
         onDelete={handleDelete}
+        canEdit={canEdit}
       />
 
       <DocumentViewer

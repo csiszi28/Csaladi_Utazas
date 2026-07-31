@@ -68,6 +68,8 @@ const tripBaseSchema = z.object({
     .optional()
     .nullable(),
   budgetCurrency: z.enum(CURRENCIES).default("HUF"),
+  tripType: z.enum(["CITY", "BEACH", "SKI", "NATURE", "OTHER"]).optional().nullable(),
+  isTemplate: z.boolean().optional().default(false),
 });
 
 function tripDateRefine<T extends z.ZodTypeAny>(schema: T) {
@@ -360,6 +362,12 @@ const tripIdeaBaseSchema = z.object({
     .regex(/^\d{4}\.\d{2}\.\d{2}$/, "Érvénytelen dátum formátum (YYYY.MM.DD)")
     .optional()
     .nullable(),
+  voteDeadline: z
+    .string()
+    .regex(/^\d{4}\.\d{2}\.\d{2}$/, "Érvénytelen dátum formátum (YYYY.MM.DD)")
+    .optional()
+    .nullable(),
+  decision: z.enum(["OPEN", "ACCEPTED", "REJECTED"]).optional().default("OPEN"),
   interestedParticipantIds: z.array(z.string().uuid()).default([]),
 });
 
@@ -414,6 +422,59 @@ export const toggleIdeaInterestSchema = z.object({
   ideaId: z.string().uuid(),
   familyMemberId: z.string().uuid(),
   interested: z.boolean(),
+});
+
+export const setIdeaDecisionSchema = z.object({
+  ideaId: z.string().uuid(),
+  decision: z.enum(["OPEN", "ACCEPTED", "REJECTED"]),
+});
+
+export const updateCollaboratorRoleSchema = z.object({
+  tripId: z.string().uuid(),
+  userId: z.string().uuid(),
+  role: z.enum(["EDITOR", "VIEWER"]),
+});
+
+export const saveTripAsTemplateSchema = z.object({
+  tripId: z.string().uuid(),
+  title: z.string().min(1).max(200).optional(),
+});
+
+export const createTripFromTemplateSchema = z.object({
+  templateId: z.string().uuid(),
+  title: z.string().min(1).max(200),
+  startDate: z.string().regex(/^\d{4}\.\d{2}\.\d{2}$/, "Érvénytelen dátum formátum (YYYY.MM.DD)"),
+  participantIds: z.array(z.string().uuid()).min(1, "Legalább egy résztvevő kötelező"),
+});
+
+export const importIcalProgramsSchema = z.object({
+  tripId: z.string().uuid(),
+  icalText: z.string().min(1).max(500_000),
+  selectedIndexes: z.array(z.number().int().min(0)).optional(),
+});
+
+export const geocodeLocationSchema = z.object({
+  query: z.string().min(1).max(300),
+  limit: z.number().int().min(1).max(8).optional().default(5),
+});
+
+export const updateEntityCoordsSchema = z.object({
+  entityType: z.enum([
+    "program",
+    "accommodation",
+    "transport_from",
+    "transport_to",
+    "document",
+  ]),
+  entityId: z.string().uuid(),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+});
+
+export const nearbyPlacesSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  radiusMeters: z.number().int().min(200).max(3000).optional().default(1200),
 });
 
 export const ideaMessageSchema = z.object({

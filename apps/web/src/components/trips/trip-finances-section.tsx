@@ -21,6 +21,7 @@ interface TripFinancesSectionProps {
   programTitleById: Map<string, string>;
   accommodationTitleById: Map<string, string>;
   participantNameById: Map<string, string>;
+  canEdit?: boolean;
   isPending?: boolean;
   onAddCost: () => void;
   onEditCost: (cost: CostRow) => void;
@@ -50,6 +51,7 @@ export function TripFinancesSection({
   programTitleById,
   accommodationTitleById,
   participantNameById,
+  canEdit = true,
   isPending = false,
   onAddCost,
   onEditCost,
@@ -95,10 +97,12 @@ export function TripFinancesSection({
           title="Költségek"
           description="Utazás, program és szállás szintű kiadások"
           action={
-            <Button className={TRIP_SECTION_BTN_CLASS} onClick={onAddCost}>
-              <Plus className="h-4 w-4" />
-              Új költség
-            </Button>
+            canEdit ? (
+              <Button className={TRIP_SECTION_BTN_CLASS} onClick={onAddCost}>
+                <Plus className="h-4 w-4" />
+                Új költség
+              </Button>
+            ) : null
           }
         />
 
@@ -147,25 +151,27 @@ export function TripFinancesSection({
                   </span>
                 }
                 actions={
-                  <div className="flex shrink-0 gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => onEditCost(cost)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => onDeleteCost(cost.id)}
-                      disabled={isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  canEdit ? (
+                    <div className="flex shrink-0 gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={() => onEditCost(cost)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={() => onDeleteCost(cost.id)}
+                        disabled={isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : undefined
                 }
                 className="shadow-none"
               >

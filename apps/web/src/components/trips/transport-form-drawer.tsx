@@ -35,6 +35,7 @@ import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateTransport, useUpdateTransport } from "@/hooks/use-transports";
 import { useCreateCost } from "@/hooks/use-costs";
 import { ParticipantPicker } from "@/components/trips/participant-picker";
+import { LocationAutocomplete } from "@/components/trips/location-autocomplete";
 import {
   CostFieldsBlock,
   createEmptyCostFields,
@@ -273,20 +274,18 @@ export function TransportFormDrawer({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="from-loc">Honnan</Label>
-                <Input
+                <LocationAutocomplete
                   id="from-loc"
                   value={fromLocation}
-                  onChange={(e) => setFromLocation(e.target.value)}
-                  className="min-h-[var(--touch-target)]"
+                  onChange={setFromLocation}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="to-loc">Hova</Label>
-                <Input
+                <LocationAutocomplete
                   id="to-loc"
                   value={toLocation}
-                  onChange={(e) => setToLocation(e.target.value)}
-                  className="min-h-[var(--touch-target)]"
+                  onChange={setToLocation}
                 />
               </div>
             </div>

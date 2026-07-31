@@ -42,6 +42,7 @@ export interface TripIdeaFormData {
   date: Date | string | null;
   startTime: string | null;
   endTime: string | null;
+  voteDeadline: Date | string | null;
   interestedParticipantIds: string[];
 }
 
@@ -74,6 +75,7 @@ export function IdeaFormDrawer({
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [voteDeadline, setVoteDeadline] = useState("");
   const [costFields, setCostFields] = useState<CostFieldsValue>(() =>
     createEmptyCostFields("OTHER")
   );
@@ -86,6 +88,7 @@ export function IdeaFormDrawer({
       setDate(idea.date ? formatDate(idea.date) : "");
       setStartTime(idea.startTime ?? "");
       setEndTime(idea.endTime ?? "");
+      setVoteDeadline(idea.voteDeadline ? formatDate(idea.voteDeadline) : "");
       setCostFields({
         amount: idea.amount != null ? formatAmountInput(String(idea.amount)) : "",
         currency: idea.currency,
@@ -100,6 +103,7 @@ export function IdeaFormDrawer({
       setDate("");
       setStartTime("");
       setEndTime("");
+      setVoteDeadline("");
       setCostFields(createEmptyCostFields("OTHER"));
       setParticipantIds([]);
     }
@@ -130,6 +134,7 @@ export function IdeaFormDrawer({
       date: date.trim() || null,
       startTime: startTime ? normalizeTimeValue(startTime) : null,
       endTime: endTime ? normalizeTimeValue(endTime) : null,
+      voteDeadline: voteDeadline.trim() || null,
       amount,
       currency: costFields.currency,
       amountScope: costFields.amountScope,
@@ -200,6 +205,13 @@ export function IdeaFormDrawer({
                 maxLength={5}
               />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Szavazási határidő (opcionális)</Label>
+            <p className="text-sm text-muted-foreground">
+              Eddig lehet szavazni/dönteni erről az ötletről
+            </p>
+            <DatePicker value={voteDeadline} onChange={setVoteDeadline} dropdownWidth={380} inDialog />
           </div>
           <div className="space-y-1.5">
             <Label>URL (opcionális)</Label>

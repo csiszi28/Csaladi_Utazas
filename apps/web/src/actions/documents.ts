@@ -8,7 +8,7 @@ import type { ActionResult } from "./auth";
 const ALLOWED_TYPES = ["application/pdf", "image/png", "image/jpeg"];
 const MAX_SIZE = 10 * 1024 * 1024;
 
-import { findAccessibleTrip, verifyDocumentAccess } from "@/lib/trip-access";
+import { findAccessibleTrip, requireTripEditor, verifyDocumentAccess } from "@/lib/trip-access";
 import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
 import { documentCategorySchema } from "@csaladi-utazas/shared";
 import { recordTripActivity } from "@/lib/trip-activity";
@@ -32,6 +32,8 @@ export async function uploadDocument(
     id: string;
     category: string;
     familyMemberId: string | null;
+    takenAt: Date | null;
+    locationLabel: string | null;
   }>
 > {
   const user = await requireUser();
@@ -40,9 +42,13 @@ export async function uploadDocument(
   const programId = formData.get("programId") as string | null;
   const categoryRaw = (formData.get("category") as string | null) ?? "OTHER";
   const familyMemberIdRaw = (formData.get("familyMemberId") as string | null) ?? null;
+  const takenAtRaw = (formData.get("takenAt") as string | null) ?? null;
+  const locationLabelRaw = (formData.get("locationLabel") as string | null) ?? null;
   const categoryParsed = documentCategorySchema.safeParse(categoryRaw);
   const category = categoryParsed.success ? categoryParsed.data : "OTHER";
   const mimeType = file ? resolveMimeType(file) : null;
+  const takenAt = takenAtRaw ? new Date(takenAtRaw) : null;
+  const locationLabel = locationLabelRaw?.trim() ? locationLabelRaw.trim().slice(0, 300) : null;
 
   if (!file || !tripId) {
     return { success: false, error: "Hiányzó fájl vagy utazás azonosító" };
@@ -56,10 +62,8 @@ export async function uploadDocument(
     return { success: false, error: "A fájl mérete maximum 10 MB lehet" };
   }
 
-  const trip = await findAccessibleTrip(tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Utazás nem található" };
-  }
+  const access = await requireTripEditor(tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   let familyMemberId: string | null = null;
   if (familyMemberIdRaw && familyMemberIdRaw !== "__all__") {
@@ -104,6 +108,8 @@ export async function uploadDocument(
         storagePath,
         mimeType,
         sizeBytes: file.size,
+        takenAt: category === "PHOTO" && takenAt && !Number.isNaN(takenAt.getTime()) ? takenAt : null,
+        locationLabel: category === "PHOTO" ? locationLabel : null,
       },
     });
 
@@ -123,6 +129,8 @@ export async function uploadDocument(
         id: doc.id,
         category: doc.category,
         familyMemberId: doc.familyMemberId,
+        takenAt: doc.takenAt,
+        locationLabel: doc.locationLabel,
       },
     };
   } catch (error) {
@@ -171,6 +179,9 @@ export async function deleteDocument(id: string): Promise<ActionResult> {
   if (!doc) {
     return { success: false, error: "Dokumentum nem található" };
   }
+
+  const access = await requireTripEditor(doc.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const supabase = await createServiceClient();
   await supabase.storage.from("trip-documents").remove([doc.storagePath]);

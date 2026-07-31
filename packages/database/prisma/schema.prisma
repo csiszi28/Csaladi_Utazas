@@ -72,6 +72,8 @@ model Trip {
   budgetCurrency   String              @default("HUF")
   coverStoragePath String?
   coverMimeType    String?
+  tripType         String?
+  isTemplate       Boolean             @default(false)
   userId           String
   inviteCode       String?             @unique
   user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -89,6 +91,7 @@ model Trip {
 
   @@index([userId])
   @@index([startDate, endDate])
+  @@index([isTemplate])
   @@map("trips")
 }
 
@@ -98,6 +101,7 @@ model TripCollaborator {
   trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
   userId   String
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     String   @default("EDITOR")
   joinedAt DateTime @default(now())
 
   @@unique([tripId, userId])
@@ -128,6 +132,8 @@ model Program {
   startTime    String?
   endTime      String?
   location     String?
+  lat          Float?
+  lng          Float?
   url          String
   participants ProgramParticipant[]
   costs        Cost[]
@@ -155,6 +161,8 @@ model TripIdea {
   checkInDate    DateTime?
   checkOutDate   DateTime?
   note           String?
+  voteDeadline   DateTime?
+  decision       String             @default("OPEN")
   interests      TripIdeaInterest[]
   messages       TripIdeaMessage[]
   programs       Program[]
@@ -177,6 +185,8 @@ model Accommodation {
   checkIn      DateTime
   checkOut     DateTime
   location     String?
+  lat          Float?
+  lng          Float?
   note         String?
   participants AccommodationParticipant[]
   costs        Cost[]
@@ -214,6 +224,10 @@ model Transport {
   arrivalTime   String?
   fromLocation  String?
   toLocation    String?
+  fromLat       Float?
+  fromLng       Float?
+  toLat         Float?
+  toLng         Float?
   bookingRef    String?
   url           String?
   note          String?
@@ -319,6 +333,10 @@ model Document {
   storagePath      String
   mimeType         String
   sizeBytes        Int
+  takenAt          DateTime?
+  locationLabel    String?
+  lat              Float?
+  lng              Float?
   uploadedAt       DateTime       @default(now())
 
   @@index([tripId])
@@ -327,6 +345,7 @@ model Document {
   @@index([transportId])
   @@index([category])
   @@index([familyMemberId])
+  @@index([takenAt])
   @@map("documents")
 }
 

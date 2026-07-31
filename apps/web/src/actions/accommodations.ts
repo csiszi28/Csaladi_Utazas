@@ -5,7 +5,7 @@ import { isDateInRange, parseDate, accommodationSchema, updateAccommodationSchem
 import { requireUser } from "@/lib/auth";
 import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
 import type { ActionResult } from "./auth";
-import { findAccessibleTrip } from "@/lib/trip-access";
+import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
 
 function validateStayDates(
@@ -43,6 +43,9 @@ export async function createAccommodation(data: {
   if (!parsed.success) {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
+
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
   if (!trip) {
@@ -103,6 +106,9 @@ export async function updateAccommodation(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
   const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
   if (!trip) {
     return { success: false, error: "Utazás nem található" };
@@ -115,17 +121,32 @@ export async function updateAccommodation(data: {
     return { success: false, error: dateError };
   }
 
+  const existing = await prisma.accommodation.findFirst({
+    where: { id: parsed.data.id },
+    select: { location: true, title: true },
+  });
+  if (!existing) {
+    return { success: false, error: "Szállás nem található" };
+  }
+
+  const nextLocation = parsed.data.location ?? null;
+  const nextTitle = parsed.data.title;
+  const geoQueryChanged =
+    (existing.location?.trim() || existing.title) !==
+    (nextLocation?.trim() || nextTitle);
+
   await prisma.$transaction([
     prisma.accommodationParticipant.deleteMany({ where: { accommodationId: parsed.data.id } }),
     prisma.accommodation.update({
       where: { id: parsed.data.id },
       data: {
-        title: parsed.data.title,
+        title: nextTitle,
         checkIn,
         checkOut,
         url: parsed.data.url ?? null,
-        location: parsed.data.location ?? null,
+        location: nextLocation,
         note: parsed.data.note ?? null,
+        ...(geoQueryChanged ? { lat: null, lng: null } : {}),
         participants: {
           create: parsed.data.participantIds.map((familyMemberId: string) => ({ familyMemberId })),
         },
@@ -157,10 +178,8 @@ export async function deleteAccommodation(id: string): Promise<ActionResult> {
     return { success: false, error: "Szállás nem található" };
   }
 
-  const accessible = await findAccessibleTrip(accommodation.tripId, user.id);
-  if (!accessible) {
-    return { success: false, error: "Szállás nem található" };
-  }
+  const access = await requireTripEditor(accommodation.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   await prisma.$transaction([
     prisma.cost.deleteMany({ where: { accommodationId: id } }),

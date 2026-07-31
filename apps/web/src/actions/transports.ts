@@ -4,7 +4,7 @@ import { prisma } from "@csaladi-utazas/database";
 import { isDateInRange, parseDate, transportSchema, updateTransportSchema } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
 import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
-import { findAccessibleTrip } from "@/lib/trip-access";
+import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
 import type { ActionResult } from "./auth";
 
@@ -30,6 +30,9 @@ export async function createTransport(data: {
   if (!parsed.success) {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
+
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
   if (!trip) {
@@ -100,6 +103,9 @@ export async function updateTransport(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
   const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
   if (!trip) {
     return { success: false, error: "Utazás nem található" };
@@ -112,6 +118,20 @@ export async function updateTransport(data: {
 
   const arrivalDate = parsed.data.arrivalDate ? parseDate(parsed.data.arrivalDate) : null;
 
+  const existing = await prisma.transport.findFirst({
+    where: { id: parsed.data.id },
+    select: { fromLocation: true, toLocation: true },
+  });
+  if (!existing) {
+    return { success: false, error: "Közlekedés nem található" };
+  }
+
+  const nextFrom = parsed.data.fromLocation ?? null;
+  const nextTo = parsed.data.toLocation ?? null;
+  const fromChanged =
+    (existing.fromLocation ?? "").trim() !== (nextFrom ?? "").trim();
+  const toChanged = (existing.toLocation ?? "").trim() !== (nextTo ?? "").trim();
+
   await prisma.$transaction([
     prisma.transportParticipant.deleteMany({ where: { transportId: parsed.data.id } }),
     prisma.transport.update({
@@ -123,8 +143,10 @@ export async function updateTransport(data: {
         departureTime: parsed.data.departureTime ?? null,
         arrivalDate,
         arrivalTime: parsed.data.arrivalTime ?? null,
-        fromLocation: parsed.data.fromLocation ?? null,
-        toLocation: parsed.data.toLocation ?? null,
+        fromLocation: nextFrom,
+        toLocation: nextTo,
+        ...(fromChanged ? { fromLat: null, fromLng: null } : {}),
+        ...(toChanged ? { toLat: null, toLng: null } : {}),
         bookingRef: parsed.data.bookingRef ?? null,
         url: parsed.data.url ?? null,
         note: parsed.data.note ?? null,
@@ -159,10 +181,8 @@ export async function deleteTransport(id: string): Promise<ActionResult> {
     return { success: false, error: "Közlekedés nem található" };
   }
 
-  const trip = await findAccessibleTrip(transport.tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Nincs jogosultság" };
-  }
+  const access = await requireTripEditor(transport.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   await prisma.$transaction([
     prisma.cost.deleteMany({ where: { transportId: id } }),

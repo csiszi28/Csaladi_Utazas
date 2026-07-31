@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import {
   BedDouble,
   CalendarDays,
@@ -21,9 +21,18 @@ import {
   Wallet,
   ChevronLeft,
   ChevronRight,
+  Upload,
+  Check,
   type LucideIcon,
 } from "lucide-react";
-import { formatDate, type TripActivityType } from "@csaladi-utazas/shared";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import {
+  formatDate,
+  parseIcalToProgramCandidates,
+  type TripActivityType,
+  type IcalImportCandidate,
+} from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -33,12 +42,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TripBudgetPanel } from "@/components/trips/trip-budget-panel";
+import { TripItinerarySection } from "@/components/trips/trip-itinerary-section";
+import { TripMapView, buildTripMapMarkers } from "@/components/trips/trip-map-view";
 import { TripSectionHeading, type TripDetailTab } from "@/components/trips/trip-detail-tabs";
 import { TRIP_SECTION_BTN_CLASS } from "@/components/trips/trip-section-styles";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import { Monogram, MonogramGroup } from "@/components/monogram";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { MoneyDisplay } from "@/components/money-display";
+import { importIcalPrograms } from "@/actions/trips";
 import { cn } from "@/lib/utils";
 
 type QuickActionId = "program" | "idea" | "cost" | "documents" | "people" | "transport";
@@ -62,6 +74,8 @@ interface TripOverviewSectionProps {
   documentsCount: number;
   programIdeasCount: number;
   accommodationIdeasCount: number;
+  canEdit: boolean;
+  initialDay?: string | null;
   onNavigate: (tab: TripDetailTab) => void;
   onAddProgram: () => void;
   onAddCost: () => void;
@@ -322,10 +336,6 @@ function parseParticipantActivityMeta(meta: unknown): {
   return { addedNames, removedNames };
 }
 
-function dayKey(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
 function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -343,59 +353,165 @@ function relativeActivityTime(date: Date | string) {
   return `${days} napja`;
 }
 
+function IcalImportPanel({ tripId, onImported }: { tripId: string; onImported: () => void }) {
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [icalText, setIcalText] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<IcalImportCandidate[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [isPending, startTransition] = useTransition();
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      const parsed = parseIcalToProgramCandidates(text);
+      if (parsed.length === 0) {
+        toast.error("Nem található importálható esemény az iCal fájlban");
+        return;
+      }
+      setIcalText(text);
+      setCandidates(parsed);
+      setSelected(new Set(parsed.map((_, i) => i)));
+    };
+    reader.readAsText(file);
+  }
+
+  function toggle(index: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function handleConfirm() {
+    if (!icalText || selected.size === 0) return;
+    startTransition(async () => {
+      const result = await importIcalPrograms({
+        tripId,
+        icalText,
+        selectedIndexes: [...selected],
+      });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${result.data.created} program importálva`);
+      setIcalText(null);
+      setCandidates([]);
+      onImported();
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="space-y-3">
+      <TripSectionHeading title="iCal import" description="Programok importálása .ics fájlból" />
+      {!icalText ? (
+        <div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".ics,text/calendar"
+            className="hidden"
+            onChange={handleFile}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className={TRIP_SECTION_BTN_CLASS}
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload className="h-4 w-4" />
+            iCal fájl kiválasztása
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {candidates.length} esemény található — válaszd ki, melyeket importáljuk programként.
+          </p>
+          <ul className="max-h-64 space-y-1.5 overflow-y-auto rounded-xl border p-2">
+            {candidates.map((c, index) => {
+              const isSelected = selected.has(index);
+              return (
+                <li key={`${c.title}-${index}`}>
+                  <button
+                    type="button"
+                    onClick={() => toggle(index)}
+                    className={cn(
+                      "flex w-full min-h-[var(--touch-target)] items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors sm:min-h-9",
+                      isSelected ? "border-primary bg-primary/5" : "border-transparent hover:bg-muted/50"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2",
+                        isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"
+                      )}
+                    >
+                      {isSelected ? <Check className="h-3 w-3" /> : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{c.title}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {c.date}
+                        {c.startTime ? ` · ${c.startTime}` : ""}
+                        {c.location ? ` · ${c.location}` : ""}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className={TRIP_SECTION_BTN_CLASS}
+              onClick={() => {
+                setIcalText(null);
+                setCandidates([]);
+              }}
+              disabled={isPending}
+            >
+              Mégse
+            </Button>
+            <Button
+              type="button"
+              className={TRIP_SECTION_BTN_CLASS}
+              onClick={handleConfirm}
+              disabled={selected.size === 0 || isPending}
+            >
+              {selected.size} program importálása
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function TripOverviewSection({
   trip,
   costsCount,
   documentsCount,
   programIdeasCount,
   accommodationIdeasCount,
+  canEdit,
+  initialDay,
   onNavigate,
   onAddProgram,
   onAddCost,
   onAddIdea,
 }: TripOverviewSectionProps) {
-  const [dayMode, setDayMode] = useState<"today" | "tomorrow">("today");
-
   const now = useMemo(() => new Date(), []);
-
-  const focusDate = useMemo(() => {
-    const d = startOfDay(now);
-    if (dayMode === "tomorrow") d.setDate(d.getDate() + 1);
-    return d;
-  }, [now, dayMode]);
-
-  const focusKey = dayKey(focusDate);
-
-  const dayItems = useMemo(() => {
-    const items: { time: string; label: string; kind: string }[] = [];
-
-    for (const p of trip.programs) {
-      if (dayKey(new Date(p.date)) !== focusKey) continue;
-      items.push({
-        time: p.startTime ?? "–",
-        label: p.title,
-        kind: "program",
-      });
-    }
-    for (const t of trip.transports ?? []) {
-      if (dayKey(new Date(t.departureDate)) !== focusKey) continue;
-      items.push({
-        time: t.departureTime ?? "–",
-        label: t.title,
-        kind: "transport",
-      });
-    }
-    for (const a of trip.accommodations) {
-      if (dayKey(new Date(a.checkIn)) === focusKey) {
-        items.push({ time: "CI", label: `Bejelentkezés: ${a.title}`, kind: "stay" });
-      }
-      if (dayKey(new Date(a.checkOut)) === focusKey) {
-        items.push({ time: "CO", label: `Kijelentkezés: ${a.title}`, kind: "stay" });
-      }
-    }
-
-    return items.sort((a, b) => a.time.localeCompare(b.time));
-  }, [trip, focusKey]);
 
   const showTodayPanel = useMemo(() => {
     const s = startOfDay(new Date(trip.startDate));
@@ -453,65 +569,78 @@ export function TripOverviewSection({
     }
   }
 
+  const mapMarkers = useMemo(
+    () =>
+      buildTripMapMarkers({
+        programs: trip.programs,
+        accommodations: trip.accommodations,
+        transports: trip.transports,
+        photos: trip.documents
+          .filter((d) => d.category === "PHOTO")
+          .map((d) => ({
+            id: d.id,
+            fileName: d.fileName,
+            locationLabel: d.locationLabel,
+            lat: d.lat,
+            lng: d.lng,
+          })),
+      }),
+    [trip]
+  );
+
+  const mapDays = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of mapMarkers) {
+      if (m.dayKey) set.add(m.dayKey);
+    }
+    return [...set].sort();
+  }, [mapMarkers]);
+
   return (
     <div className="space-y-6">
+      <TripItinerarySection
+        trip={trip}
+        initialDay={initialDay}
+        canEdit={canEdit}
+        onNavigateTab={onNavigate}
+      />
+
+      <section className="space-y-3">
+        <TripSectionHeading
+          title="Térkép"
+          description="Programok, szállás, közlekedés és fotók — mobilbarát pin lista alul"
+        />
+        <TripMapView
+          markers={mapMarkers}
+          canEdit={canEdit}
+          dayOptions={mapDays}
+          initialDay={initialDay}
+          heightClassName="h-[42vh] min-h-[240px] max-h-[420px]"
+          onOpenEntity={(marker) => {
+            if (marker.kind === "accommodation") onNavigate("accommodations");
+            else if (marker.kind.startsWith("transport")) onNavigate("transport");
+            else if (marker.kind === "photo") onNavigate("documents");
+            else onNavigate("planning");
+          }}
+        />
+      </section>
+
+      {canEdit ? <IcalImportPanel tripId={trip.id} onImported={() => onNavigate("planning")} /> : null}
+
       {showTodayPanel ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <TripSectionHeading title={dayMode === "today" ? "Mai nap" : "Holnap"} />
-            <div className="flex rounded-lg border p-0.5">
-              <button
-                type="button"
-                className={`min-h-9 rounded-md px-3 text-sm font-medium ${
-                  dayMode === "today" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                }`}
-                onClick={() => setDayMode("today")}
-              >
-                Ma
-              </button>
-              <button
-                type="button"
-                className={`min-h-9 rounded-md px-3 text-sm font-medium ${
-                  dayMode === "tomorrow"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground"
-                }`}
-                onClick={() => setDayMode("tomorrow")}
-              >
-                Holnap
-              </button>
-            </div>
-          </div>
-          {dayItems.length > 0 ? (
-            <ul className="divide-y rounded-xl border">
-              {dayItems.map((item, i) => (
-                <li key={`${item.kind}-${item.label}-${i}`} className="flex items-center gap-3 px-4 py-3">
-                  <span className="w-12 shrink-0 text-sm font-medium tabular-nums text-muted-foreground">
-                    {item.time}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-              Nincs program erre a napra.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <Button className={TRIP_SECTION_BTN_CLASS} onClick={onAddCost}>
-              <Plus className="h-4 w-4" />
-              Gyors költség
-            </Button>
-            <Button
-              variant="outline"
-              className={TRIP_SECTION_BTN_CLASS}
-              onClick={() => onNavigate("documents")}
-            >
-              Csomagolás
-            </Button>
-          </div>
-        </section>
+        <div className="flex flex-wrap gap-2">
+          <Button className={TRIP_SECTION_BTN_CLASS} onClick={onAddCost} disabled={!canEdit}>
+            <Plus className="h-4 w-4" />
+            Gyors költség
+          </Button>
+          <Button
+            variant="outline"
+            className={TRIP_SECTION_BTN_CLASS}
+            onClick={() => onNavigate("documents")}
+          >
+            Csomagolás
+          </Button>
+        </div>
       ) : null}
 
       <section className="space-y-3">
@@ -573,57 +702,59 @@ export function TripOverviewSection({
         <TripBudgetPanel trip={trip} />
       </section>
 
-      <section className="space-y-3">
-        <TripSectionHeading title="Gyors műveletek" />
-        <div className="sm:hidden">
-          <Select
-            key={actionSelectKey}
-            onValueChange={(value) => {
-              runQuickAction(value as QuickActionId);
-              setActionSelectKey((k) => k + 1);
-            }}
-          >
-            <SelectTrigger className="h-12 w-full rounded-xl border bg-background px-3 text-base shadow-sm">
-              <span className="flex min-w-0 flex-1 items-center gap-2">
-                <Zap className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <SelectValue placeholder="Művelet választása" />
-              </span>
-            </SelectTrigger>
-            <SelectContent className="w-[var(--radix-select-trigger-width)]">
-              {QUICK_ACTIONS.map((action) => (
-                <SelectItem key={action.id} value={action.id} className="py-3">
-                  <span className="flex items-center gap-2">
-                    {action.icon}
-                    <span>{action.label}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="hidden flex-wrap gap-2 sm:flex">
-          <Button className={TRIP_SECTION_BTN_CLASS} onClick={onAddProgram}>
-            <Plus className="h-4 w-4" />
-            Új program
-          </Button>
-          <Button variant="outline" className={TRIP_SECTION_BTN_CLASS} onClick={onAddIdea}>
-            <Plus className="h-4 w-4" />
-            Új ötlet
-          </Button>
-          <Button variant="outline" className={TRIP_SECTION_BTN_CLASS} onClick={onAddCost}>
-            <Plus className="h-4 w-4" />
-            Gyors költség
-          </Button>
-          <Button
-            variant="outline"
-            className={TRIP_SECTION_BTN_CLASS}
-            onClick={() => onNavigate("transport")}
-          >
-            <Plane className="h-4 w-4" />
-            Közlekedés
-          </Button>
-        </div>
-      </section>
+      {canEdit ? (
+        <section className="space-y-3">
+          <TripSectionHeading title="Gyors műveletek" />
+          <div className="sm:hidden">
+            <Select
+              key={actionSelectKey}
+              onValueChange={(value) => {
+                runQuickAction(value as QuickActionId);
+                setActionSelectKey((k) => k + 1);
+              }}
+            >
+              <SelectTrigger className="h-12 w-full rounded-xl border bg-background px-3 text-base shadow-sm">
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <Zap className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="Művelet választása" />
+                </span>
+              </SelectTrigger>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                {QUICK_ACTIONS.map((action) => (
+                  <SelectItem key={action.id} value={action.id} className="py-3">
+                    <span className="flex items-center gap-2">
+                      {action.icon}
+                      <span>{action.label}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="hidden flex-wrap gap-2 sm:flex">
+            <Button className={TRIP_SECTION_BTN_CLASS} onClick={onAddProgram}>
+              <Plus className="h-4 w-4" />
+              Új program
+            </Button>
+            <Button variant="outline" className={TRIP_SECTION_BTN_CLASS} onClick={onAddIdea}>
+              <Plus className="h-4 w-4" />
+              Új ötlet
+            </Button>
+            <Button variant="outline" className={TRIP_SECTION_BTN_CLASS} onClick={onAddCost}>
+              <Plus className="h-4 w-4" />
+              Gyors költség
+            </Button>
+            <Button
+              variant="outline"
+              className={TRIP_SECTION_BTN_CLASS}
+              onClick={() => onNavigate("transport")}
+            >
+              <Plane className="h-4 w-4" />
+              Közlekedés
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <TripSectionHeading

@@ -1,12 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import { Check, Circle } from "lucide-react";
+import { Check, Circle, Info } from "lucide-react";
 import {
   buildMemberDocumentChecklist,
   overallMemberChecklistPercent,
   DOCUMENT_CATEGORY_LABELS,
   TRIP_DOCUMENT_CHECKLIST,
+  TRIP_TYPE_DOCUMENT_EXTRAS,
+  TRIP_TYPE_LABELS,
+  isTripType,
   type DocumentCategory,
 } from "@csaladi-utazas/shared";
 import { cn } from "@/lib/utils";
@@ -18,17 +21,20 @@ interface DocumentChecklistPanelProps {
     familyMemberId?: string | null;
   }[];
   participants: { id: string; name: string }[];
+  tripType?: string | null;
 }
 
 export function DocumentChecklistPanel({
   documents,
   participants,
+  tripType,
 }: DocumentChecklistPanelProps) {
   const rows = useMemo(
     () => buildMemberDocumentChecklist(participants, documents, true),
     [documents, participants]
   );
   const percent = overallMemberChecklistPercent(rows);
+  const typeExtras = isTripType(tripType) ? TRIP_TYPE_DOCUMENT_EXTRAS[tripType] : [];
 
   if (participants.length === 0) {
     return null;
@@ -36,6 +42,17 @@ export function DocumentChecklistPanel({
 
   return (
     <div className="space-y-4">
+      {typeExtras.length > 0 && isTripType(tripType) && (
+        <div className="flex items-start gap-2 rounded-xl border border-dashed bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            <span className="font-medium text-foreground">
+              {TRIP_TYPE_LABELS[tripType]} utazáshoz ajánlott még:
+            </span>{" "}
+            {typeExtras.join(", ")}
+          </p>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           Indulás előtti dokumentumok családtagonként

@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { packingProgress, PACKING_PRESET_GROUPS } from "@csaladi-utazas/shared";
-import { ChevronDown, Minus, Plus, Trash2 } from "lucide-react";
+import {
+  packingProgress,
+  PACKING_PRESET_GROUPS,
+  packingExtrasForTripType,
+  isTripType,
+  TRIP_TYPE_LABELS,
+} from "@csaladi-utazas/shared";
+import { ChevronDown, Minus, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +40,8 @@ interface PackingListPanelProps {
   tripId: string;
   items: PackingItemRow[];
   participants: { id: string; name: string }[];
+  tripType?: string | null;
+  canEdit?: boolean;
 }
 
 function normalizeItems(items: PackingItemRow[]): PackingItemRow[] {
@@ -43,7 +51,13 @@ function normalizeItems(items: PackingItemRow[]): PackingItemRow[] {
   }));
 }
 
-export function PackingListPanel({ tripId, items, participants }: PackingListPanelProps) {
+export function PackingListPanel({
+  tripId,
+  items,
+  participants,
+  tripType,
+  canEdit = true,
+}: PackingListPanelProps) {
   const [, startTransition] = useTransition();
   const [localItems, setLocalItems] = useState(() => normalizeItems(items));
   const [title, setTitle] = useState("");
@@ -51,6 +65,7 @@ export function PackingListPanel({ tripId, items, participants }: PackingListPan
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [selectedPresets, setSelectedPresets] = useState<Record<string, number>>({});
+  const [typeTemplatePending, startTypeTemplateTransition] = useTransition();
 
   useEffect(() => {
     setLocalItems(normalizeItems(items));
@@ -60,6 +75,51 @@ export function PackingListPanel({ tripId, items, participants }: PackingListPan
   const assignee = assigneeId
     ? participants.find((p) => p.id === assigneeId) ?? null
     : null;
+  const typeExtras = isTripType(tripType) ? packingExtrasForTripType(tripType) : [];
+  const missingTypeExtras = typeExtras.filter(
+    (name) => !localItems.some((item) => item.title.toLowerCase() === name.toLowerCase())
+  );
+
+  function addTypeTemplate() {
+    if (missingTypeExtras.length === 0) {
+      toast.message("Ezek a tételek már a listán vannak");
+      return;
+    }
+
+    const optimistic = missingTypeExtras.map((name, index) => ({
+      id: `temp-${crypto.randomUUID()}-${index}`,
+      title: name,
+      quantity: 1,
+      isPacked: false,
+      assigneeFamilyMemberId: null,
+      assignee: null,
+    }));
+
+    setLocalItems((prev) => [...prev, ...optimistic]);
+
+    startTypeTemplateTransition(async () => {
+      const result = await createPackingItemsBatch({
+        tripId,
+        items: optimistic.map((item) => ({ title: item.title, quantity: item.quantity })),
+      });
+      if (!result.success) {
+        const tempIds = new Set(optimistic.map((item) => item.id));
+        setLocalItems((prev) => prev.filter((item) => !tempIds.has(item.id)));
+        toast.error(result.error);
+        return;
+      }
+      setLocalItems((prev) => {
+        const idMap = new Map(
+          optimistic.map((item, index) => [item.id, result.data.ids[index]] as const)
+        );
+        return prev.map((item) => {
+          const realId = idMap.get(item.id);
+          return realId ? { ...item, id: realId } : item;
+        });
+      });
+      toast.success(`${missingTypeExtras.length} tétel hozzáadva`);
+    });
+  }
 
   function clampQty(value: number) {
     return Math.min(99, Math.max(1, value));
@@ -220,6 +280,22 @@ export function PackingListPanel({ tripId, items, participants }: PackingListPan
         </div>
       </div>
 
+      {canEdit && isTripType(tripType) && typeExtras.length > 0 ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full justify-center gap-1.5 sm:w-auto"
+          disabled={typeTemplatePending || missingTypeExtras.length === 0}
+          onClick={addTypeTemplate}
+        >
+          <Sparkles className="h-4 w-4" />
+          {missingTypeExtras.length > 0
+            ? `Sablon a ${TRIP_TYPE_LABELS[tripType].toLowerCase()} utazástípushoz (${missingTypeExtras.length})`
+            : `Sablon hozzáadva (${TRIP_TYPE_LABELS[tripType].toLowerCase()})`}
+        </Button>
+      ) : null}
+
+      {canEdit ? (
       <form onSubmit={handleAdd} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <div className="flex items-center gap-1">
           <Button
@@ -276,7 +352,9 @@ export function PackingListPanel({ tripId, items, participants }: PackingListPan
           Hozzáad
         </Button>
       </form>
+      ) : null}
 
+      {canEdit ? (
       <div className="rounded-xl border">
         <button
           type="button"
@@ -342,6 +420,7 @@ export function PackingListPanel({ tripId, items, participants }: PackingListPan
           </div>
         ) : null}
       </div>
+      ) : null}
 
       {localItems.length === 0 ? (
         <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
@@ -360,7 +439,7 @@ export function PackingListPanel({ tripId, items, participants }: PackingListPan
               <button
                 type="button"
                 onClick={() => togglePacked(item)}
-                disabled={item.id.startsWith("temp-")}
+                disabled={item.id.startsWith("temp-") || !canEdit}
                 className={cn(
                   "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 transition-colors",
                   item.isPacked
@@ -398,16 +477,18 @@ export function PackingListPanel({ tripId, items, participants }: PackingListPan
                   <p className="truncate text-xs text-muted-foreground">{item.assignee.name}</p>
                 ) : null}
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
-                disabled={item.id.startsWith("temp-")}
-                onClick={() => handleDelete(item.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {canEdit ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                  disabled={item.id.startsWith("temp-")}
+                  onClick={() => handleDelete(item.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>

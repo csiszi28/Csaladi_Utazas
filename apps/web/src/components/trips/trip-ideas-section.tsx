@@ -139,6 +139,7 @@ export function TripIdeasSection({
                         date: idea.date,
                         startTime: idea.startTime,
                         endTime: idea.endTime,
+                        voteDeadline: idea.voteDeadline,
                         interestedParticipantIds: idea.interests.map(
                           (i) => i.familyMember.id
                         ),

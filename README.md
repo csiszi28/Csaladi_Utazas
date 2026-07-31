@@ -30,7 +30,7 @@ DIRECT_URL=
 
 1. Futtasd az [`packages/database/prisma/init.sql`](packages/database/prisma/init.sql) fájlt a Supabase SQL Editorban (táblák létrehozása).
 2. Ezután futtasd az [`packages/database/prisma/rls.sql`](packages/database/prisma/rls.sql) fájlt (biztonsági policy-k).
-3. Ha már létező adatbázisod van, futtasd a migrációs fájlokat is sorrendben (pl. [`migrate-budget-settlement.sql`](packages/database/prisma/migrate-budget-settlement.sql), [`migrate-features-7-12.sql`](packages/database/prisma/migrate-features-7-12.sql)).
+3. Ha már létező adatbázisod van, futtasd a migrációs fájlokat is sorrendben (pl. [`migrate-budget-settlement.sql`](packages/database/prisma/migrate-budget-settlement.sql), [`migrate-features-7-12.sql`](packages/database/prisma/migrate-features-7-12.sql), [`migrate-expansion-pack.sql`](packages/database/prisma/migrate-expansion-pack.sql)).
 
 **Alternatíva (Prisma CLI):** Add hozzá a `DATABASE_URL` és `DIRECT_URL` értékeket az `apps/web/.env.local` fájlhoz és a `packages/database/.env` fájlba is (ugyanazok az értékek). A jelszót a Supabase Dashboard → Project Settings → Database → Connection string menüpontban találod.
 
@@ -70,20 +70,30 @@ Lásd: [`DEPLOY.md`](DEPLOY.md)
 - Családtagok kezelése (virtuális profilok)
 - Utazások és programok CRUD
 - Ötlet → program egy kattintással (becsült költség opcionális rögzítéssel)
+- Ötlet szavazás (érdeklődés, határidő, elfogadva/elutasítva)
 - Költségkezelés (HUF/EUR/USD/AED, kategóriák, ki fizette)
 - Költségvetési limit és terv vs. tény összehasonlítás
 - Elszámolás (ki kinek mennyit fizet)
-- Központi naptár nézet
+- Központi naptár nézet + napi útiterv
+- Utazás térkép (Leaflet + OpenStreetMap / Nominatim)
 - Kimutatások (Recharts diagramok, elszámolás)
-- iCal export (Google Naptár / Apple Calendar)
-- Dokumentumfeltöltés (Supabase Storage)
+- iCal export és import (programok)
+- Dokumentumfeltöltés (Supabase Storage) + fotóalbum (nap/hely)
+- Csomagolási és dokumentum sablonok utazástípus szerint
+- Meghívó link / mailto + szerepkörök (tulajdonos / szerkesztő / csak olvasás)
+- Sablonkönyvtár és utazás utáni összefoglaló
+- Offline napi útiterv mentés (PWA)
 - Mobilbarát UI (viewport-alapú méretek) + PWA manifest
 - Családtag ↔ regisztrált fiók összekapcsolás (profil átvétel meghívó után)
-- Utazás másolása / sablonként mentés
-- Dokumentum kategóriák és indulás előtti checklista
-- REST API (`/api/v1/trips`, `/api/v1/family`)
+- REST API (`/api/v1/trips`, programs/costs/ideas/documents/day, `/api/v1/family`)
 - URL előnézet ötleteknél (Open Graph)
 - Unit tesztek a kritikus üzleti logikára (`packages/shared`)
+
+### Adatbázis bővítés (expansion pack)
+
+Futtasd a [`packages/database/prisma/migrate-expansion-pack.sql`](packages/database/prisma/migrate-expansion-pack.sql) fájlt a Supabase SQL Editorban (szerepkörök, sablonok, szavazás, geo, fotó mezők).
+
+Ha a térképcsomag külön kell (közlekedés végpontok + fotó koordináták): [`migrate-map-pack.sql`](packages/database/prisma/migrate-map-pack.sql).
 
 ## Monorepo struktúra
 

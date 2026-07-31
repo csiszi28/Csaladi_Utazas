@@ -7,7 +7,7 @@ import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalid
 import { programSchema, updateProgramSchema } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 
-import { findAccessibleTrip } from "@/lib/trip-access";
+import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
 
 export async function createProgram(data: {
@@ -27,6 +27,9 @@ export async function createProgram(data: {
   if (!parsed.success) {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
+
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
   if (!trip) {
@@ -85,6 +88,9 @@ export async function updateProgram(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
   const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
   if (!trip) {
     return { success: false, error: "Utazás nem található" };
@@ -95,6 +101,18 @@ export async function updateProgram(data: {
     return { success: false, error: "A program dátuma az utazás időtartamán belül kell legyen" };
   }
 
+  const existing = await prisma.program.findFirst({
+    where: { id: parsed.data.id },
+    select: { location: true },
+  });
+  if (!existing) {
+    return { success: false, error: "Program nem található" };
+  }
+
+  const nextLocation = parsed.data.location ?? null;
+  const locationChanged =
+    (existing.location ?? "").trim() !== (nextLocation ?? "").trim();
+
   await prisma.$transaction([
     prisma.programParticipant.deleteMany({ where: { programId: parsed.data.id } }),
     prisma.program.update({
@@ -104,8 +122,9 @@ export async function updateProgram(data: {
         date: programDate,
         startTime: parsed.data.startTime ?? null,
         endTime: parsed.data.endTime ?? null,
-        location: parsed.data.location ?? null,
+        location: nextLocation,
         url: parsed.data.url ?? "",
+        ...(locationChanged ? { lat: null, lng: null } : {}),
         participants: {
           create: parsed.data.participantIds.map((familyMemberId) => ({ familyMemberId })),
         },
@@ -137,10 +156,8 @@ export async function deleteProgram(id: string): Promise<ActionResult> {
     return { success: false, error: "Program nem található" };
   }
 
-  const accessible = await findAccessibleTrip(program.tripId, user.id);
-  if (!accessible) {
-    return { success: false, error: "Program nem található" };
-  }
+  const access = await requireTripEditor(program.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   await prisma.$transaction([
     prisma.cost.deleteMany({ where: { programId: id } }),

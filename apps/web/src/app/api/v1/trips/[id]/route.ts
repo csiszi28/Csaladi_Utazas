@@ -1,6 +1,6 @@
 import { prisma } from "@csaladi-utazas/database";
 import { jsonFail, jsonOk, withApiAuth } from "@/lib/api/handler";
-import { tripAccessFilter } from "@/lib/trip-access";
+import { resolveTripRole, tripAccessFilter } from "@/lib/trip-access";
 
 export const GET = withApiAuth(async ({ userId, params }) => {
   const { id } = await params;
@@ -16,9 +16,14 @@ export const GET = withApiAuth(async ({ userId, params }) => {
       costs: true,
       ideas: true,
       documents: true,
+      collaborators: {
+        select: { userId: true, role: true, joinedAt: true },
+      },
     },
   });
 
   if (!trip) return jsonFail("Utazás nem található", 404, "NOT_FOUND");
-  return jsonOk({ trip });
+
+  const role = await resolveTripRole(id, userId);
+  return jsonOk({ trip, role });
 });

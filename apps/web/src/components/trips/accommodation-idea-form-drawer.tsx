@@ -8,6 +8,7 @@ import {
   CURRENCY_LABELS,
   formatAmountInput,
   parseAmountInput,
+  formatDate,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ export interface AccommodationIdeaFormData {
   amountScope: string;
   checkInDate: string | null;
   checkOutDate: string | null;
+  voteDeadline: Date | string | null;
   interestedParticipantIds: string[];
 }
 
@@ -76,6 +78,7 @@ export function AccommodationIdeaFormDrawer({
   const [amountScope, setAmountScope] = useState<string>("TOTAL");
   const [checkInDate, setCheckInDate] = useState("");
   const [checkOutDate, setCheckOutDate] = useState("");
+  const [voteDeadline, setVoteDeadline] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -87,6 +90,7 @@ export function AccommodationIdeaFormDrawer({
       setAmountScope(idea.amountScope);
       setCheckInDate(idea.checkInDate ?? "");
       setCheckOutDate(idea.checkOutDate ?? "");
+      setVoteDeadline(idea.voteDeadline ? formatDate(idea.voteDeadline) : "");
       setParticipantIds(idea.interestedParticipantIds);
     } else if (!idea && open) {
       setTitle("");
@@ -96,6 +100,7 @@ export function AccommodationIdeaFormDrawer({
       setAmountScope("TOTAL");
       setCheckInDate(tripStartDate);
       setCheckOutDate(tripEndDate);
+      setVoteDeadline("");
       setParticipantIds([]);
     }
   }, [idea, open, tripStartDate, tripEndDate]);
@@ -120,6 +125,7 @@ export function AccommodationIdeaFormDrawer({
       category: "ACCOMMODATION" as const,
       checkInDate: checkInDate || null,
       checkOutDate: checkOutDate || null,
+      voteDeadline: voteDeadline.trim() || null,
       interestedParticipantIds: participantIds,
     };
 
@@ -170,6 +176,11 @@ export function AccommodationIdeaFormDrawer({
                 inDialog
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Szavazási határidő (opcionális)</Label>
+            <DatePicker value={voteDeadline} onChange={setVoteDeadline} inDialog />
           </div>
 
           <div className="space-y-1.5">

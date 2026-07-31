@@ -6,6 +6,14 @@ import { buildTripIcal } from "../ical";
 import { buildDocumentChecklist, buildMemberDocumentChecklist } from "../document-checklist";
 import { parseUrlPreviewFromHtml, validatePreviewUrl } from "../url-preview";
 import { dayOffsetMs } from "../date-shift";
+import {
+  canEditTrip,
+  canManageCollaborators,
+  normalizeCollaboratorRole,
+} from "../trip-roles";
+import { buildDayItinerary, listTripDays } from "../itinerary";
+import { parseIcalToProgramCandidates } from "../ical-import";
+import { buildReminders } from "../reminders";
 
 const rates = { HUF: 1, EUR: 400, USD: 370, AED: 110 };
 
@@ -185,5 +193,107 @@ describe("date-shift", () => {
     const from = new Date(2026, 0, 1);
     const to = new Date(2026, 0, 8);
     expect(dayOffsetMs(from, to)).toBe(7 * 86_400_000);
+  });
+});
+
+describe("trip-roles", () => {
+  it("gates edit permissions", () => {
+    expect(canEditTrip("OWNER")).toBe(true);
+    expect(canEditTrip("EDITOR")).toBe(true);
+    expect(canEditTrip("VIEWER")).toBe(false);
+    expect(canManageCollaborators("OWNER")).toBe(true);
+    expect(canManageCollaborators("EDITOR")).toBe(false);
+    expect(normalizeCollaboratorRole("VIEWER")).toBe("VIEWER");
+    expect(normalizeCollaboratorRole("weird")).toBe("EDITOR");
+  });
+});
+
+describe("itinerary", () => {
+  it("lists trip days and builds day timeline", () => {
+    const days = listTripDays(new Date(2026, 6, 1), new Date(2026, 6, 3));
+    expect(days).toEqual(["2026.07.01", "2026.07.02", "2026.07.03"]);
+
+    const items = buildDayItinerary("2026.07.02", {
+      programs: [
+        {
+          id: "p1",
+          title: "Múzeum",
+          date: new Date(2026, 6, 2),
+          startTime: "10:00",
+          location: "Belváros",
+        },
+      ],
+      transports: [
+        {
+          id: "t1",
+          title: "Vonat",
+          departureDate: new Date(2026, 6, 2),
+          departureTime: "08:30",
+          fromLocation: "Bp",
+          toLocation: "Győr",
+        },
+      ],
+      accommodations: [
+        {
+          id: "a1",
+          title: "Hotel",
+          checkIn: new Date(2026, 6, 2),
+          checkOut: new Date(2026, 6, 4),
+          location: "Győr",
+        },
+      ],
+    });
+
+    expect(items.map((i) => i.kind)).toEqual([
+      "accommodation_checkin",
+      "transport",
+      "program",
+    ]);
+  });
+});
+
+describe("ical-import", () => {
+  it("parses VEVENT blocks", () => {
+    const ics = `BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Teszt program
+DTSTART:20260702T100000
+DTEND:20260702T120000
+LOCATION:Budapest
+END:VEVENT
+END:VCALENDAR`;
+    const candidates = parseIcalToProgramCandidates(ics);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.title).toBe("Teszt program");
+    expect(candidates[0]?.date).toBe("2026.07.02");
+    expect(candidates[0]?.startTime).toBe("10:00");
+    expect(candidates[0]?.location).toBe("Budapest");
+  });
+});
+
+describe("reminders-expansion", () => {
+  it("emits trip start and idea voting reminders", () => {
+    const now = new Date(2026, 5, 24);
+    const reminders = buildReminders(
+      [
+        {
+          id: "trip-1",
+          title: "Nyár",
+          startDate: new Date(2026, 6, 1),
+          endDate: new Date(2026, 6, 5),
+          ideaDeadlines: [
+            {
+              ideaId: "idea-1",
+              ideaTitle: "Állatkert",
+              voteDeadline: new Date(2026, 5, 24),
+            },
+          ],
+        },
+      ],
+      [],
+      now
+    );
+    expect(reminders.some((r) => r.kind === "trip_starts_soon")).toBe(true);
+    expect(reminders.some((r) => r.kind === "idea_voting_deadline")).toBe(true);
   });
 });

@@ -14,6 +14,7 @@ interface DocumentTableProps {
   onView: (documentId: string) => void;
   onDownload: (documentId: string) => void;
   onDelete: (documentId: string) => void;
+  canEdit?: boolean;
 }
 
 function formatSize(bytes: number) {
@@ -38,6 +39,7 @@ export function DocumentTable({
   onView,
   onDownload,
   onDelete,
+  canEdit = true,
 }: DocumentTableProps) {
   if (documents.length === 0) {
     return (
@@ -105,16 +107,18 @@ export function DocumentTable({
               >
                 <Download className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={actionClass}
-                onClick={() => onDelete(doc.id)}
-                disabled={doc.pending}
-                title="Törlés"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {canEdit ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={actionClass}
+                  onClick={() => onDelete(doc.id)}
+                  disabled={doc.pending}
+                  title="Törlés"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : null}
             </div>
           </article>
         ))}
@@ -192,16 +196,18 @@ export function DocumentTable({
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={actionClass}
-                        onClick={() => onDelete(doc.id)}
-                        disabled={doc.pending}
-                        title="Törlés"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canEdit ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={actionClass}
+                          onClick={() => onDelete(doc.id)}
+                          disabled={doc.pending}
+                          title="Törlés"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

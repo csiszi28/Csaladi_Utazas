@@ -11,9 +11,10 @@ import {
   updateIdeaNoteSchema,
   updateIdeaMessageSchema,
   deleteIdeaMessageSchema,
+  setIdeaDecisionSchema,
 } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
-import { findAccessibleTrip } from "@/lib/trip-access";
+import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
 import { isDateInRange, parseDate } from "@csaladi-utazas/shared";
 import { recordTripActivity } from "@/lib/trip-activity";
 
@@ -115,6 +116,8 @@ export async function createTripIdea(data: {
   endTime?: string | null;
   checkInDate?: string | null;
   checkOutDate?: string | null;
+  voteDeadline?: string | null;
+  decision?: "OPEN" | "ACCEPTED" | "REJECTED";
   interestedParticipantIds?: string[];
 }): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
@@ -124,10 +127,8 @@ export async function createTripIdea(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Utazás nem található" };
-  }
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const eventDate = parseOptionalIdeaDate(parsed.data.date);
   if (eventDate) {
@@ -161,6 +162,8 @@ export async function createTripIdea(data: {
       endTime: parsed.data.endTime ?? null,
       checkInDate,
       checkOutDate,
+      voteDeadline: parseOptionalIdeaDate(parsed.data.voteDeadline),
+      decision: parsed.data.decision ?? "OPEN",
     },
   });
 
@@ -204,6 +207,8 @@ export async function updateTripIdea(data: {
   endTime?: string | null;
   checkInDate?: string | null;
   checkOutDate?: string | null;
+  voteDeadline?: string | null;
+  decision?: "OPEN" | "ACCEPTED" | "REJECTED";
   interestedParticipantIds?: string[];
 }): Promise<ActionResult> {
   const user = await requireUser();
@@ -217,6 +222,9 @@ export async function updateTripIdea(data: {
   if (!idea || idea.tripId !== parsed.data.tripId) {
     return { success: false, error: "Ötlet nem található" };
   }
+
+  const access = await requireTripEditor(idea.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const eventDate = parseOptionalIdeaDate(parsed.data.date);
   if (eventDate) {
@@ -250,6 +258,8 @@ export async function updateTripIdea(data: {
       endTime: parsed.data.endTime ?? null,
       checkInDate,
       checkOutDate,
+      voteDeadline: parseOptionalIdeaDate(parsed.data.voteDeadline),
+      decision: parsed.data.decision ?? undefined,
     },
   });
 
@@ -277,6 +287,9 @@ export async function deleteTripIdea(id: string): Promise<ActionResult> {
   if (!idea) {
     return { success: false, error: "Ötlet nem található" };
   }
+
+  const access = await requireTripEditor(idea.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   await prisma.tripIdea.delete({ where: { id } });
 
@@ -348,6 +361,9 @@ export async function createIdeaMessage(data: {
     return { success: false, error: "Ötlet nem található" };
   }
 
+  const access = await requireTripEditor(idea.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
   const message = await prisma.tripIdeaMessage.create({
     data: {
       ideaId: parsed.data.ideaId,
@@ -378,6 +394,9 @@ export async function updateIdeaNote(data: {
     return { success: false, error: "Ötlet nem található" };
   }
 
+  const access = await requireTripEditor(idea.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
   await prisma.tripIdea.update({
     where: { id: parsed.data.ideaId },
     data: { note: parsed.data.note ?? null },
@@ -406,10 +425,8 @@ export async function updateIdeaMessage(data: {
     return { success: false, error: "Üzenet nem található vagy nincs jogosultság" };
   }
 
-  const accessible = await findAccessibleIdea(message.ideaId, user.id);
-  if (!accessible) {
-    return { success: false, error: "Ötlet nem található" };
-  }
+  const access = await requireTripEditor(message.idea.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   await prisma.tripIdeaMessage.update({
     where: { id: parsed.data.id },
@@ -429,13 +446,50 @@ export async function deleteIdeaMessage(id: string): Promise<ActionResult> {
 
   const message = await prisma.tripIdeaMessage.findFirst({
     where: { id: parsed.data.id },
+    include: { idea: true },
   });
 
   if (!message || message.userId !== user.id) {
     return { success: false, error: "Üzenet nem található vagy nincs jogosultság" };
   }
 
+  const access = await requireTripEditor(message.idea.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
   await prisma.tripIdeaMessage.delete({ where: { id: parsed.data.id } });
 
+  return { success: true, data: undefined };
+}
+
+export async function setIdeaDecision(data: {
+  ideaId: string;
+  decision: "OPEN" | "ACCEPTED" | "REJECTED";
+}): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = setIdeaDecisionSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  const idea = await findAccessibleIdea(parsed.data.ideaId, user.id);
+  if (!idea) return { success: false, error: "Ötlet nem található" };
+
+  const access = await requireTripEditor(idea.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
+  await prisma.tripIdea.update({
+    where: { id: idea.id },
+    data: { decision: parsed.data.decision },
+  });
+
+  await recordTripActivity({
+    tripId: idea.tripId,
+    actorUserId: user.id,
+    type: "IDEA_CREATED",
+    summary: `Ötlet döntés: ${idea.title} → ${parsed.data.decision}`,
+    meta: { ideaId: idea.id, decision: parsed.data.decision },
+  });
+
+  invalidateTripsAndReports(user.id, idea.tripId);
   return { success: true, data: undefined };
 }

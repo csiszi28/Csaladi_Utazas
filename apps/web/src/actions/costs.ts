@@ -10,7 +10,7 @@ import {
   COST_CATEGORY_LABELS,
 } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
-import { findAccessibleTrip, tripAccessFilter } from "@/lib/trip-access";
+import { requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
 
 export async function createCost(data: {
@@ -32,10 +32,8 @@ export async function createCost(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Utazás nem található" };
-  }
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const cost = await prisma.cost.create({
     data: {
@@ -109,10 +107,8 @@ export async function updateCost(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Utazás nem található" };
-  }
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   await prisma.cost.update({
     where: { id: parsed.data.id },
@@ -153,10 +149,8 @@ export async function deleteCost(id: string): Promise<ActionResult> {
     return { success: false, error: "Költség nem található" };
   }
 
-  const accessible = await findAccessibleTrip(cost.tripId, user.id);
-  if (!accessible) {
-    return { success: false, error: "Költség nem található" };
-  }
+  const access = await requireTripEditor(cost.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   await prisma.cost.delete({ where: { id } });
 

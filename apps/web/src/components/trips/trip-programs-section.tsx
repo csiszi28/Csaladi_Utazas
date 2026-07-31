@@ -10,14 +10,25 @@ import {
   CalendarPlus,
   CalendarDays,
   FileText,
+  Check,
+  X,
+  Clock,
 } from "lucide-react";
-import { formatDate, COST_CATEGORY_LABELS, type CostCategory } from "@csaladi-utazas/shared";
+import {
+  formatDate,
+  COST_CATEGORY_LABELS,
+  IDEA_DECISION_LABELS,
+  type CostCategory,
+  type IdeaDecision,
+} from "@csaladi-utazas/shared";
+import { toast } from "sonner";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
 import { DocumentUpload, type DocumentItem } from "@/components/documents/document-upload";
 import { useDeleteTripIdea } from "@/hooks/use-ideas";
+import { setIdeaDecision } from "@/actions/ideas";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import { IdeaFormDrawer, type TripIdeaFormData } from "./idea-form-drawer";
 import { ProgramFormDrawer } from "./program-form-drawer";
@@ -29,6 +40,8 @@ import { TripFilterChips, TripSectionHeading } from "./trip-detail-tabs";
 import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 import { parseDate } from "@csaladi-utazas/shared";
+import { TripMapView, buildTripMapMarkers } from "./trip-map-view";
+import { GeocodeStatusBadge, resolveGeocodeStatus } from "./geocode-status";
 
 type TripIdeaRow = TripDetailRow["ideas"][number];
 type ProgramRow = TripDetailRow["programs"][number];
@@ -36,6 +49,35 @@ type ProgramFilter = "ideas" | "programs" | "documents";
 
 function programDateLabel(date: Date | string) {
   return formatDate(date);
+}
+
+function IdeaDecisionBadge({ decision }: { decision: string | null | undefined }) {
+  const value = (decision ?? "OPEN") as IdeaDecision;
+  if (value === "OPEN") return null;
+  return (
+    <span
+      className={cn(
+        "rounded-lg px-2 py-0.5 text-xs font-medium sm:text-sm",
+        value === "ACCEPTED"
+          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+          : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200"
+      )}
+    >
+      {IDEA_DECISION_LABELS[value]}
+    </span>
+  );
+}
+
+function programTimeLabel(program: {
+  startTime?: string | null;
+  endTime?: string | null;
+}): string {
+  if (program.startTime && program.endTime) {
+    return `${program.startTime} – ${program.endTime}`;
+  }
+  if (program.startTime) return program.startTime;
+  if (program.endTime) return `– ${program.endTime}`;
+  return "Egész napos";
 }
 
 function ProgramTimeline({
@@ -106,29 +148,59 @@ function ProgramTimeline({
           const key = formatDate(day);
           const items = byDay.get(key) ?? [];
           return (
-            <div key={key} className="rounded-xl border">
+            <div key={key} className="overflow-hidden rounded-xl border">
               <div className="border-b bg-muted/40 px-4 py-2 text-sm font-semibold">
                 {key}
               </div>
               {items.length === 0 ? (
                 <p className="px-4 py-3 text-sm text-muted-foreground">Nincs program</p>
               ) : (
-                <ul className="divide-y">
-                  {items.map((p) => (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        className="flex w-full min-h-[var(--touch-target)] items-center gap-3 px-4 py-3 text-left hover:bg-muted/30"
-                        onClick={() => onEdit(p)}
-                      >
-                        <span className="w-14 shrink-0 text-sm tabular-nums text-muted-foreground">
-                          {p.startTime ?? "–"}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate font-medium">{p.title}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[28rem] text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/20 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <th className="whitespace-nowrap px-4 py-2 font-medium">Időpont</th>
+                        <th className="px-4 py-2 font-medium">Program</th>
+                        <th className="px-4 py-2 font-medium">URL</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {items.map((p) => (
+                        <tr
+                          key={p.id}
+                          className="cursor-pointer hover:bg-muted/30"
+                          onClick={() => onEdit(p)}
+                        >
+                          <td className="whitespace-nowrap px-4 py-3 align-middle tabular-nums text-muted-foreground">
+                            {programTimeLabel(p)}
+                          </td>
+                          <td className="max-w-[14rem] px-4 py-3 align-middle font-medium sm:max-w-none">
+                            <span className="line-clamp-2">{p.title}</span>
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            {p.url ? (
+                              <a
+                                href={p.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex max-w-[12rem] items-center gap-1.5 text-primary hover:underline sm:max-w-[18rem]"
+                                onClick={(e) => e.stopPropagation()}
+                                title={p.url}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">
+                                  {p.url.replace(/^https?:\/\//, "")}
+                                </span>
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">–</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           );
@@ -149,6 +221,7 @@ interface TripProgramsSectionProps {
   participants: { id: string; name: string }[];
   currentUserId: string;
   currentUserName: string;
+  canEdit?: boolean;
   onRefresh: () => void;
   onDeleteProgram: (id: string) => void;
   onConvertToProgram: (ideaId: string) => void;
@@ -173,6 +246,7 @@ export function TripProgramsSection({
   participants,
   currentUserId,
   currentUserName,
+  canEdit = true,
   onRefresh,
   onDeleteProgram,
   onConvertToProgram,
@@ -186,7 +260,7 @@ export function TripProgramsSection({
   onDocumentDeleted,
 }: TripProgramsSectionProps) {
   const [filter, setFilter] = useState<ProgramFilter>("programs");
-  const [listMode, setListMode] = useState<"list" | "timeline">("list");
+  const [listMode, setListMode] = useState<"list" | "timeline" | "map">("list");
   const [showEmptyDays, setShowEmptyDays] = useState(false);
   const [ideaDrawerOpen, setIdeaDrawerOpen] = useState(false);
   const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
@@ -227,6 +301,12 @@ export function TripProgramsSection({
     if (result.success) onRefresh();
   }
 
+  async function handleSetDecision(ideaId: string, decision: IdeaDecision) {
+    const result = await setIdeaDecision({ ideaId, decision });
+    if (!result.success) toast.error(result.error);
+    else onRefresh();
+  }
+
   const ideaOptions = ideas.map((idea) => ({
     id: idea.id,
     title: idea.title,
@@ -260,16 +340,18 @@ export function TripProgramsSection({
             title="Program ötletek"
             description="Gyűjts javaslatokat, jelöld meg kinek érdekes"
             action={
-              <Button
-                className={TRIP_SECTION_BTN_CLASS}
-                onClick={() => {
-                  setEditingIdea(null);
-                  setIdeaDrawerOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Új ötlet
-              </Button>
+              canEdit ? (
+                <Button
+                  className={TRIP_SECTION_BTN_CLASS}
+                  onClick={() => {
+                    setEditingIdea(null);
+                    setIdeaDrawerOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Új ötlet
+                </Button>
+              ) : null
             }
           />
 
@@ -290,6 +372,7 @@ export function TripProgramsSection({
                           Programmá alakítva
                         </span>
                       )}
+                      <IdeaDecisionBadge decision={idea.decision} />
                     </span>
                   }
                   subtitle={
@@ -320,6 +403,12 @@ export function TripProgramsSection({
                       <span>
                         {COST_CATEGORY_LABELS[(idea.category ?? "OTHER") as CostCategory] ?? "Egyéb"}
                       </span>
+                      {idea.voteDeadline && (
+                        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                          <Clock className="h-3.5 w-3.5 shrink-0" />
+                          Szavazás: {formatDate(idea.voteDeadline)}-ig
+                        </span>
+                      )}
                     </span>
                   }
                   alwaysVisible={
@@ -334,38 +423,45 @@ export function TripProgramsSection({
                           </a>
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => {
-                          setEditingIdea({
-                            id: idea.id,
-                            title: idea.title,
-                            url: idea.url,
-                            amount: idea.amount,
-                            currency: idea.currency,
-                            amountScope: idea.amountScope,
-                            category: idea.category ?? "OTHER",
-                            date: idea.date,
-                            startTime: idea.startTime,
-                            endTime: idea.endTime,
-                            interestedParticipantIds: idea.interests.map((i) => i.familyMember.id),
-                          });
-                          setIdeaDrawerOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => handleDeleteIdea(idea.id)}
-                        disabled={deleteIdeaMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canEdit ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => {
+                              setEditingIdea({
+                                id: idea.id,
+                                title: idea.title,
+                                url: idea.url,
+                                amount: idea.amount,
+                                currency: idea.currency,
+                                amountScope: idea.amountScope,
+                                category: idea.category ?? "OTHER",
+                                date: idea.date,
+                                startTime: idea.startTime,
+                                endTime: idea.endTime,
+                                voteDeadline: idea.voteDeadline,
+                                interestedParticipantIds: idea.interests.map(
+                                  (i) => i.familyMember.id
+                                ),
+                              });
+                              setIdeaDrawerOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => handleDeleteIdea(idea.id)}
+                            disabled={deleteIdeaMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   }
                 >
@@ -387,15 +483,51 @@ export function TripProgramsSection({
                       currentUserName={currentUserName}
                     />
 
-                    {!isConverted && (
-                      <Button
-                        size="sm"
-                        className="w-full sm:w-auto"
-                        onClick={() => onConvertToProgram(idea.id)}
-                      >
-                        <CalendarPlus className="h-4 w-4" />
-                        Programmá alakítás
-                      </Button>
+                    {canEdit && (
+                      <div className="flex flex-wrap gap-2">
+                        {!isConverted && (
+                          <Button
+                            size="sm"
+                            className="w-full sm:w-auto"
+                            onClick={() => onConvertToProgram(idea.id)}
+                          >
+                            <CalendarPlus className="h-4 w-4" />
+                            Programmá alakítás
+                          </Button>
+                        )}
+                        {idea.decision !== "ACCEPTED" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full sm:w-auto"
+                            onClick={() => handleSetDecision(idea.id, "ACCEPTED")}
+                          >
+                            <Check className="h-4 w-4" />
+                            Elfogadás
+                          </Button>
+                        )}
+                        {idea.decision !== "REJECTED" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full sm:w-auto"
+                            onClick={() => handleSetDecision(idea.id, "REJECTED")}
+                          >
+                            <X className="h-4 w-4" />
+                            Elutasítás
+                          </Button>
+                        )}
+                        {idea.decision !== "OPEN" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="w-full sm:w-auto"
+                            onClick={() => handleSetDecision(idea.id, "OPEN")}
+                          >
+                            Visszaállítás
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </CollapsiblePanel>
@@ -443,22 +575,51 @@ export function TripProgramsSection({
                   >
                     Idővonal
                   </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
+                      listMode === "map"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground"
+                    )}
+                    onClick={() => setListMode("map")}
+                  >
+                    Térkép
+                  </button>
                 </div>
-                <Button
-                  className={TRIP_SECTION_BTN_CLASS}
-                  onClick={() => {
-                    setEditingProgram(null);
-                    setProgramDrawerOpen(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                  Új program
-                </Button>
+                {canEdit ? (
+                  <Button
+                    className={TRIP_SECTION_BTN_CLASS}
+                    onClick={() => {
+                      setEditingProgram(null);
+                      setProgramDrawerOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Új program
+                  </Button>
+                ) : null}
               </div>
             }
           />
 
-          {listMode === "timeline" ? (
+          {listMode === "map" ? (
+            <TripMapView
+              markers={buildTripMapMarkers({ programs, accommodations: [] })}
+              canEdit={canEdit}
+              dayOptions={[
+                ...new Set(
+                  programs
+                    .map((p) => formatDate(p.date))
+                    .filter(Boolean)
+                ),
+              ].sort()}
+              onOpenEntity={() => {
+                /* list mode already on programs tab */
+              }}
+            />
+          ) : listMode === "timeline" ? (
             <ProgramTimeline
               tripStartDate={tripStartDate}
               tripEndDate={tripEndDate}
@@ -483,6 +644,13 @@ export function TripProgramsSection({
                   title={
                     <span className="flex flex-wrap items-center gap-2">
                       {program.title}
+                      <GeocodeStatusBadge
+                        status={resolveGeocodeStatus({
+                          location: program.location,
+                          lat: program.lat,
+                          lng: program.lng,
+                        })}
+                      />
                       {docsForProgram.length > 0 && (
                         <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2 py-0.5 text-xs text-muted-foreground sm:text-sm">
                           <FileText className="h-3.5 w-3.5" />
@@ -498,12 +666,7 @@ export function TripProgramsSection({
                           <CalendarDays className="h-3.5 w-3.5 shrink-0" />
                           {programDateLabel(program.date)}
                           <span>
-                            ·{" "}
-                            {program.startTime && program.endTime
-                              ? `${program.startTime} – ${program.endTime}`
-                              : program.startTime
-                                ? program.startTime
-                                : "Egész napos"}
+                            · {programTimeLabel(program)}
                           </span>
                         </span>
                         {program.location && (
@@ -533,26 +696,30 @@ export function TripProgramsSection({
                           </a>
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => {
-                          setEditingProgram(program);
-                          setProgramDrawerOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => onDeleteProgram(program.id)}
-                        disabled={isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canEdit ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => {
+                              setEditingProgram(program);
+                              setProgramDrawerOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => onDeleteProgram(program.id)}
+                            disabled={isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   }
                 >
@@ -648,6 +815,7 @@ export function TripProgramsSection({
                     programTitleById={programTitleById}
                     onDocumentUploaded={onDocumentUploaded}
                     onDocumentDeleted={onDocumentDeleted}
+                    canEdit={canEdit}
                     compact
                   />
                 </CollapsiblePanel>

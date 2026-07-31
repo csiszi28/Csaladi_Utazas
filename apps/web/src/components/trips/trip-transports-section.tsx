@@ -18,7 +18,6 @@ import {
   TRANSPORT_TYPE_LABELS,
   type TransportType,
 } from "@csaladi-utazas/shared";
-import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
 import { useDeleteTransport } from "@/hooks/use-transports";
@@ -27,6 +26,9 @@ import { TransportFormDrawer } from "./transport-form-drawer";
 import { CostChips } from "./cost-chips";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
 import { TripSectionHeading } from "./trip-detail-tabs";
+import { TripMapView, buildTripMapMarkers } from "./trip-map-view";
+import { GeocodeStatusBadge, resolveGeocodeStatus } from "./geocode-status";
+import { TripSubviewNav } from "./trip-subview-nav";
 
 type TransportRow = TripDetailRow["transports"][number];
 
@@ -37,6 +39,7 @@ interface TripTransportsSectionProps {
   transports: TransportRow[];
   participants: { id: string; name: string }[];
   costs: TripDetailRow["costs"];
+  canEdit?: boolean;
   onRefresh: () => void;
   openSignal?: number;
 }
@@ -66,11 +69,13 @@ export function TripTransportsSection({
   transports,
   participants,
   costs,
+  canEdit = true,
   onRefresh,
   openSignal = 0,
 }: TripTransportsSectionProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<TransportRow | null>(null);
+  const [view, setView] = useState<"list" | "map">("list");
   const deleteMutation = useDeleteTransport();
 
   useEffect(() => {
@@ -80,48 +85,67 @@ export function TripTransportsSection({
     }
   }, [openSignal]);
 
-  async function handleDelete(id: string) {
-    if (!confirm("Biztosan törlöd ezt a közlekedést?")) return;
-    const result = await deleteMutation.mutateAsync(id);
-    if (result.success) onRefresh();
-  }
-
   return (
     <div className="space-y-4">
       <TripSectionHeading
         title="Közlekedés"
         action={
-          <Button
-            type="button"
-            className={TRIP_SECTION_BTN_CLASS}
-            onClick={() => {
-              setEditing(null);
-              setDrawerOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Új közlekedés
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <TripSubviewNav
+              ariaLabel="Közlekedés nézet"
+              active={view}
+              onChange={(id) => setView(id as "list" | "map")}
+              items={[
+                { id: "list", label: "Lista", shortLabel: "Lista", count: transports.length },
+                { id: "map", label: "Térkép", shortLabel: "Térkép", count: transports.length },
+              ]}
+            />
+            {canEdit ? (
+              <Button
+                type="button"
+                className={TRIP_SECTION_BTN_CLASS}
+                onClick={() => {
+                  setEditing(null);
+                  setDrawerOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Új közlekedés
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
-      {transports.length === 0 ? (
+      {view === "map" ? (
+        <TripMapView
+          markers={buildTripMapMarkers({
+            programs: [],
+            accommodations: [],
+            transports,
+          })}
+          canEdit={canEdit}
+          showNearbyToggle={false}
+        />
+      ) : transports.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-10 text-center">
           <p className="text-sm text-muted-foreground">
             Még nincsenek rögzített járatok vagy utak. Add hozzá a repülőjegyeket, vonatokat vagy
             autóutakat.
           </p>
-          <Button
-            type="button"
-            className={`mt-4 ${TRIP_SECTION_BTN_CLASS}`}
-            onClick={() => {
-              setEditing(null);
-              setDrawerOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Első közlekedés
-          </Button>
+          {canEdit ? (
+            <Button
+              type="button"
+              className={`mt-4 ${TRIP_SECTION_BTN_CLASS}`}
+              onClick={() => {
+                setEditing(null);
+                setDrawerOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Első közlekedés
+            </Button>
+          ) : null}
         </div>
       ) : (
         <ul className="space-y-3">
@@ -140,6 +164,24 @@ export function TripTransportsSection({
                       <span className="rounded-md bg-muted px-1.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
                         {TRANSPORT_TYPE_LABELS[(t.type as TransportType) || "OTHER"] ?? t.type}
                       </span>
+                      {t.fromLocation ? (
+                        <GeocodeStatusBadge
+                          status={resolveGeocodeStatus({
+                            location: t.fromLocation,
+                            lat: t.fromLat,
+                            lng: t.fromLng,
+                          })}
+                        />
+                      ) : null}
+                      {t.toLocation ? (
+                        <GeocodeStatusBadge
+                          status={resolveGeocodeStatus({
+                            location: t.toLocation,
+                            lat: t.toLat,
+                            lng: t.toLng,
+                          })}
+                        />
+                      ) : null}
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {formatDate(t.departureDate)}
@@ -160,63 +202,52 @@ export function TripTransportsSection({
                       </p>
                     ) : null}
                     <div className="mt-2">
-                      <MonogramGroup
-                        names={t.participants.map((p) => p.familyMember.name)}
-                      />
+                      <MonogramGroup names={t.participants.map((p) => p.familyMember.name)} />
                     </div>
                     {linkedCosts.length > 0 ? (
                       <div className="mt-2">
                         <CostChips
-                          costs={linkedCosts.map((c) => ({
-                            id: c.id,
-                            title: c.title,
-                            amount: c.amount,
-                            currency: c.currency,
-                            amountScope: c.amountScope,
-                            category: c.category,
-                          }))}
-                          participantCount={t.participants.length}
+                          costs={linkedCosts}
+                          participantCount={t.participants.length || 1}
                         />
                       </div>
                     ) : null}
-                    {linkedCosts.length === 0 ? null : (
-                      <div className="mt-1 text-sm font-medium">
-                        <CostAmountDisplay
-                          amount={linkedCosts.reduce((s, c) => s + c.amount, 0)}
-                          currency={linkedCosts[0]?.currency ?? "HUF"}
-                        />
-                      </div>
-                    )}
                   </div>
-                  <div className="flex shrink-0 flex-col gap-1">
+                  <div className="flex shrink-0 gap-0.5">
                     {t.url ? (
-                      <Button variant="ghost" size="icon" asChild className="h-9 w-9">
-                        <a href={t.url} target="_blank" rel="noreferrer" aria-label="Link">
+                      <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
+                        <a href={t.url} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="h-4 w-4" />
                         </a>
                       </Button>
                     ) : null}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => {
-                        setEditing(t);
-                        setDrawerOpen(true);
-                      }}
-                      aria-label="Szerkesztés"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 text-destructive"
-                      onClick={() => handleDelete(t.id)}
-                      aria-label="Törlés"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canEdit ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={() => {
+                            setEditing(t);
+                            setDrawerOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9"
+                          disabled={deleteMutation.isPending}
+                          onClick={async () => {
+                            const result = await deleteMutation.mutateAsync(t.id);
+                            if (result.success) onRefresh();
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </li>

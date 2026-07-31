@@ -32,6 +32,7 @@ import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateProgram, useUpdateProgram } from "@/hooks/use-programs";
 import { useCreateCost } from "@/hooks/use-costs";
 import { ParticipantPicker } from "@/components/trips/participant-picker";
+import { LocationAutocomplete } from "@/components/trips/location-autocomplete";
 import { Sparkles } from "lucide-react";
 import {
   CostFieldsBlock,
@@ -209,16 +210,14 @@ export function ProgramFormDrawer({
       const result = await updateMutation.mutateAsync({ id: program.id, ...data });
       if (!result.success) return;
     } else {
-      const parsedAmount = parseAmountInput(costFields.amount);
-      if (parsedAmount <= 0) return;
-
       const result = await createMutation.mutateAsync({
         ...data,
         ideaId: selectedIdeaId || null,
       });
       if (!result.success) return;
 
-      if (result.data?.id) {
+      const parsedAmount = parseAmountInput(costFields.amount);
+      if (result.data?.id && parsedAmount > 0) {
         await createCostMutation.mutateAsync({
           tripId,
           programId: result.data.id,
@@ -235,8 +234,6 @@ export function ProgramFormDrawer({
     onOpenChange(false);
     onSaved?.();
   }
-
-  const isCreateCostValid = program || parseAmountInput(costFields.amount) > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -323,7 +320,7 @@ export function ProgramFormDrawer({
           </div>
           <div className="space-y-1.5">
             <Label>Helyszín</Label>
-            <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+            <LocationAutocomplete value={location} onChange={setLocation} />
           </div>
           <div className="space-y-1.5">
             <Label>URL (opcionális)</Label>
@@ -347,7 +344,7 @@ export function ProgramFormDrawer({
               value={costFields}
               onChange={(patch) => setCostFields((prev) => ({ ...prev, ...patch }))}
               participantOptions={participantOptions}
-              heading="Program költsége"
+              heading="Program költsége (opcionális)"
             />
           )}
         </DialogBody>
@@ -362,7 +359,7 @@ export function ProgramFormDrawer({
           <Button
             className={TRIP_DIALOG_BTN_CLASS}
             onClick={handleSubmit}
-            disabled={!participantIds.length || !title || !date || !isCreateCostValid || isPending}
+            disabled={!participantIds.length || !title || !date || isPending}
           >
             {isPending
               ? "Mentés…"

@@ -24,6 +24,7 @@ import { useCreateAccommodation, useUpdateAccommodation } from "@/hooks/use-acco
 import { useCreateCost, useUpdateCost } from "@/hooks/use-costs";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { ParticipantPicker } from "@/components/trips/participant-picker";
+import { LocationAutocomplete } from "@/components/trips/location-autocomplete";
 import { Sparkles } from "lucide-react";
 import {
   CostFieldsBlock,
@@ -321,7 +322,7 @@ export function AccommodationFormDrawer({
 
           <div className="space-y-1.5">
             <Label>Helyszín (opcionális)</Label>
-            <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+            <LocationAutocomplete value={location} onChange={setLocation} />
           </div>
 
           <div className="space-y-1.5">

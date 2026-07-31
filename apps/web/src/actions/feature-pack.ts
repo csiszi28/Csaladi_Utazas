@@ -11,7 +11,7 @@ import {
 } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
 import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
-import { findAccessibleTrip, tripAccessFilter } from "@/lib/trip-access";
+import { requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
 import type { ActionResult } from "./auth";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -28,8 +28,8 @@ export async function createPackingItem(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) return { success: false, error: "Utazás nem található" };
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const item = await prisma.packingItem.create({
     data: {
@@ -57,8 +57,8 @@ export async function createPackingItemsBatch(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) return { success: false, error: "Utazás nem található" };
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const baseOrder = Date.now() % 2_000_000_000;
   const created = await prisma.$transaction(
@@ -100,6 +100,9 @@ export async function updatePackingItem(data: {
   });
   if (!existing) return { success: false, error: "Tétel nem található" };
 
+  const access = await requireTripEditor(existing.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
   await prisma.packingItem.update({
     where: { id: parsed.data.id },
     data: {
@@ -125,6 +128,9 @@ export async function deletePackingItem(id: string): Promise<ActionResult> {
   });
   if (!existing) return { success: false, error: "Tétel nem található" };
 
+  const access = await requireTripEditor(existing.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
   await prisma.packingItem.delete({ where: { id } });
   invalidateTripMutation(user.id, existing.tripId);
   return { success: true, data: undefined };
@@ -147,8 +153,8 @@ export async function createSettlementPayment(data: {
     return { success: false, error: "A fizető és a kedvezményezett nem lehet ugyanaz" };
   }
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) return { success: false, error: "Utazás nem található" };
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const payment = await prisma.settlementPayment.create({
     data: {
@@ -178,8 +184,8 @@ export async function deleteSettlementPayment(id: string): Promise<ActionResult>
   const payment = await prisma.settlementPayment.findFirst({ where: { id } });
   if (!payment) return { success: false, error: "Fizetés nem található" };
 
-  const trip = await findAccessibleTrip(payment.tripId, user.id);
-  if (!trip) return { success: false, error: "Nincs jogosultság" };
+  const access = await requireTripEditor(payment.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   await prisma.settlementPayment.delete({ where: { id } });
   invalidateTripsAndReports(user.id, payment.tripId);
@@ -196,8 +202,8 @@ export async function setTripParticipants(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) return { success: false, error: "Utazás nem található" };
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const previous = await prisma.tripParticipant.findMany({
     where: { tripId: parsed.data.tripId },
@@ -294,8 +300,8 @@ export async function uploadTripCover(formData: FormData): Promise<ActionResult>
     return { success: false, error: "Csak képfájl tölthető fel borítónak" };
   }
 
-  const trip = await findAccessibleTrip(tripId, user.id);
-  if (!trip) return { success: false, error: "Utazás nem található" };
+  const access = await requireTripEditor(tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const ext = file.name.split(".").pop() || "jpg";
   const storagePath = `${user.id}/${tripId}/cover-${Date.now()}.${ext}`;
@@ -357,6 +363,9 @@ export async function getUserReminders() {
         costs: true,
         documents: { select: { category: true, familyMemberId: true, programId: true } },
         settlementPayments: true,
+        ideas: {
+          select: { id: true, title: true, voteDeadline: true, decision: true },
+        },
       },
     }),
     prisma.userNotificationDismissal.findMany({
@@ -428,6 +437,13 @@ export async function getUserReminders() {
       tomorrowProgramTitles: tomorrowPrograms,
       tomorrowTransportTitles: tomorrowTransports,
       openSettlementTransferCount: remaining.length,
+      ideaDeadlines: trip.ideas
+        .filter((i) => i.voteDeadline && (i.decision ?? "OPEN") === "OPEN")
+        .map((i) => ({
+          ideaId: i.id,
+          ideaTitle: i.title,
+          voteDeadline: i.voteDeadline!,
+        })),
     };
   });
 

@@ -2,7 +2,7 @@
 
 import { prisma } from "@csaladi-utazas/database";
 import { parseDate, duplicateTripSchema, shiftDateValue, dayOffsetMs } from "@csaladi-utazas/shared";
-import { findAccessibleTrip, findOwnedTrip, generateInviteCode, tripAccessFilter } from "@/lib/trip-access";
+import { findOwnedTrip, generateInviteCode, requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
 import { requireUser } from "@/lib/auth";
 import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
 import { tripSchema, updateTripSchema } from "@csaladi-utazas/shared";
@@ -105,6 +105,8 @@ export async function createTrip(data: {
   participantIds: string[];
   budgetAmount?: number | null;
   budgetCurrency?: string;
+  tripType?: string | null;
+  isTemplate?: boolean;
 }): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
 
@@ -136,6 +138,8 @@ export async function createTrip(data: {
       endDate: parseDate(parsed.data.endDate),
       budgetAmount: parsed.data.budgetAmount ?? null,
       budgetCurrency: parsed.data.budgetCurrency ?? "HUF",
+      tripType: parsed.data.tripType ?? null,
+      isTemplate: parsed.data.isTemplate ?? false,
       userId: user.id,
       inviteCode: generateInviteCode(),
       participants: {
@@ -157,6 +161,7 @@ export async function updateTrip(data: {
   participantIds: string[];
   budgetAmount?: number | null;
   budgetCurrency?: string;
+  tripType?: string | null;
 }): Promise<ActionResult> {
   const user = await requireUser();
   const parsed = updateTripSchema.safeParse(data);
@@ -182,6 +187,7 @@ export async function updateTrip(data: {
         endDate: parseDate(parsed.data.endDate),
         budgetAmount: parsed.data.budgetAmount ?? null,
         budgetCurrency: parsed.data.budgetCurrency ?? "HUF",
+        tripType: parsed.data.tripType ?? null,
         participants: {
           create: parsed.data.participantIds.map((familyMemberId: string) => ({ familyMemberId })),
         },
@@ -228,6 +234,9 @@ export async function duplicateTrip(data: {
   if (!parsed.success) {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
+
+  const access = await requireTripEditor(parsed.data.sourceTripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
 
   const source = await prisma.trip.findFirst({
     where: { id: parsed.data.sourceTripId, ...tripAccessFilter(user.id) },
@@ -377,4 +386,209 @@ export async function duplicateTrip(data: {
 
   invalidateTripsAndReports(user.id);
   return { success: true, data: { id: newTrip.id } };
+}
+
+export async function updateCollaboratorRole(data: {
+  tripId: string;
+  userId: string;
+  role: "EDITOR" | "VIEWER";
+}): Promise<ActionResult> {
+  const user = await requireUser();
+  const { updateCollaboratorRoleSchema } = await import("@csaladi-utazas/shared");
+  const parsed = updateCollaboratorRoleSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  const owned = await findOwnedTrip(parsed.data.tripId, user.id);
+  if (!owned) return { success: false, error: "Csak a tulajdonos módosíthat szerepkört" };
+
+  if (parsed.data.userId === user.id) {
+    return { success: false, error: "A tulajdonos szerepköre nem módosítható" };
+  }
+
+  const collab = await prisma.tripCollaborator.findFirst({
+    where: { tripId: parsed.data.tripId, userId: parsed.data.userId },
+  });
+  if (!collab) return { success: false, error: "Közreműködő nem található" };
+
+  await prisma.tripCollaborator.update({
+    where: { id: collab.id },
+    data: { role: parsed.data.role },
+  });
+
+  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  return { success: true, data: undefined };
+}
+
+export async function saveTripAsTemplate(data: {
+  tripId: string;
+  title?: string;
+}): Promise<ActionResult<{ id: string }>> {
+  const user = await requireUser();
+  const { saveTripAsTemplateSchema, formatDate } = await import("@csaladi-utazas/shared");
+  const parsed = saveTripAsTemplateSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  const source = await prisma.trip.findFirst({
+    where: { id: parsed.data.tripId, ...tripAccessFilter(user.id) },
+    select: { title: true, destination: true, startDate: true, endDate: true, tripType: true },
+  });
+  if (!source) return { success: false, error: "Utazás nem található" };
+
+  const result = await duplicateTrip({
+    sourceTripId: parsed.data.tripId,
+    title: parsed.data.title ?? `${source.title} (sablon)`,
+    destination: source.destination,
+    startDate: formatDate(source.startDate),
+    endDate: formatDate(source.endDate),
+    copyPrograms: true,
+    copyAccommodations: true,
+    copyTransports: true,
+    copyPacking: true,
+    copyIdeas: true,
+    copyBudget: false,
+    shiftProgramDates: false,
+  });
+
+  if (!result.success) return result;
+
+  await prisma.trip.update({
+    where: { id: result.data.id },
+    data: {
+      isTemplate: true,
+      tripType: source.tripType,
+      inviteCode: null,
+    },
+  });
+
+  invalidateTripsAndReports(user.id, result.data.id);
+  return { success: true, data: { id: result.data.id } };
+}
+
+export async function createTripFromTemplate(data: {
+  templateId: string;
+  title: string;
+  startDate: string;
+  participantIds: string[];
+}): Promise<ActionResult<{ id: string }>> {
+  const user = await requireUser();
+  const {
+    createTripFromTemplateSchema,
+    formatDate,
+    parseDate: parseSharedDate,
+  } = await import("@csaladi-utazas/shared");
+  const parsed = createTripFromTemplateSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  const template = await prisma.trip.findFirst({
+    where: {
+      id: parsed.data.templateId,
+      isTemplate: true,
+      ...tripAccessFilter(user.id),
+    },
+  });
+  if (!template) return { success: false, error: "Sablon nem található" };
+
+  const durationMs = template.endDate.getTime() - template.startDate.getTime();
+  const newStart = parseSharedDate(parsed.data.startDate);
+  const newEnd = new Date(newStart.getTime() + durationMs);
+
+  const dup = await duplicateTrip({
+    sourceTripId: template.id,
+    title: parsed.data.title,
+    destination: template.destination,
+    startDate: formatDate(newStart),
+    endDate: formatDate(newEnd),
+    copyPrograms: true,
+    copyAccommodations: true,
+    copyTransports: true,
+    copyPacking: true,
+    copyIdeas: true,
+    copyBudget: true,
+    shiftProgramDates: true,
+  });
+
+  if (!dup.success) return dup;
+
+  await prisma.$transaction([
+    prisma.tripParticipant.deleteMany({ where: { tripId: dup.data.id } }),
+    prisma.trip.update({
+      where: { id: dup.data.id },
+      data: {
+        isTemplate: false,
+        tripType: template.tripType,
+        inviteCode: generateInviteCode(),
+        participants: {
+          create: parsed.data.participantIds.map((familyMemberId) => ({ familyMemberId })),
+        },
+      },
+    }),
+  ]);
+
+  invalidateTripsAndReports(user.id, dup.data.id);
+  return { success: true, data: { id: dup.data.id } };
+}
+
+export async function importIcalPrograms(data: {
+  tripId: string;
+  icalText: string;
+  selectedIndexes?: number[];
+}): Promise<ActionResult<{ created: number }>> {
+  const user = await requireUser();
+  const { importIcalProgramsSchema, parseIcalToProgramCandidates } = await import(
+    "@csaladi-utazas/shared"
+  );
+  const parsed = importIcalProgramsSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
+  const candidates = parseIcalToProgramCandidates(parsed.data.icalText);
+  if (candidates.length === 0) {
+    return { success: false, error: "Nem található importálható esemény az iCal fájlban" };
+  }
+
+  const indexes =
+    parsed.data.selectedIndexes ?? candidates.map((_, i) => i);
+  const selected = indexes
+    .filter((i) => i >= 0 && i < candidates.length)
+    .map((i) => candidates[i]!);
+
+  const participants = await prisma.tripParticipant.findMany({
+    where: { tripId: parsed.data.tripId },
+    select: { familyMemberId: true },
+  });
+  if (participants.length === 0) {
+    return { success: false, error: "Az utazáson nincs résztvevő" };
+  }
+
+  let created = 0;
+  for (const c of selected) {
+    await prisma.program.create({
+      data: {
+        tripId: parsed.data.tripId,
+        title: c.title,
+        date: parseDate(c.date),
+        startTime: c.startTime,
+        endTime: c.endTime,
+        location: c.location,
+        url: c.url ?? "",
+        participants: {
+          create: participants.map((p) => ({ familyMemberId: p.familyMemberId })),
+        },
+      },
+    });
+    created += 1;
+  }
+
+  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  return { success: true, data: { created } };
 }

@@ -10,12 +10,14 @@ import {
   ArrowRight,
   Plane,
   Sparkles,
+  LayoutTemplate,
 } from "lucide-react";
 import { formatDate } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
 import { JoinTripDialog } from "@/components/trips/join-trip-dialog";
 import { TripFormDrawer } from "@/components/trips/trip-form-drawer";
+import { CreateTripFromTemplateDialog } from "@/components/trips/create-trip-from-template-dialog";
 import type { TripListRow } from "@/lib/queries/trips";
 import type { FamilyMemberRow } from "@/lib/queries/family";
 import { cn } from "@/lib/utils";
@@ -142,20 +144,26 @@ export function TripsPage({
 }) {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [templateDialogTrip, setTemplateDialogTrip] = useState<TripListRow | null>(null);
 
   const grouped = useMemo(() => {
     const active: TripListRow[] = [];
     const upcoming: TripListRow[] = [];
     const past: TripListRow[] = [];
+    const templates: TripListRow[] = [];
 
     for (const trip of trips) {
+      if (trip.isTemplate) {
+        templates.push(trip);
+        continue;
+      }
       const status = tripStatus(trip);
       if (status === "active") active.push(trip);
       else if (status === "upcoming") upcoming.push(trip);
       else past.push(trip);
     }
 
-    return { active, upcoming, past };
+    return { active, upcoming, past, templates };
   }, [trips]);
 
   function handleSaved() {
@@ -253,11 +261,60 @@ export function TripsPage({
         </div>
       )}
 
+      {grouped.templates.length > 0 && (
+        <section className="space-y-3">
+          <div>
+            <h3 className="flex items-center gap-1.5 text-base font-semibold">
+              <LayoutTemplate className="h-4 w-4 text-primary" />
+              Sablonok
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Mentett utazás sablonok — hozz létre belőlük gyorsan új utazást.
+            </p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {grouped.templates.map((trip) => (
+              <article
+                key={trip.id}
+                className="flex items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-sm"
+              >
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" />
+                    {trip.destination}
+                  </p>
+                  <h4 className="truncate text-base font-semibold">{trip.title}</h4>
+                  <p className="text-xs text-muted-foreground">
+                    {trip._count.programs} program · {trip.participants.length} résztvevő
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="h-9 min-h-9 shrink-0"
+                  onClick={() => setTemplateDialogTrip(trip)}
+                >
+                  <Plus className="h-4 w-4" />
+                  Új utazás
+                </Button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       <TripFormDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         members={members}
         onSaved={handleSaved}
+      />
+      <CreateTripFromTemplateDialog
+        open={templateDialogTrip != null}
+        onOpenChange={(open) => {
+          if (!open) setTemplateDialogTrip(null);
+        }}
+        template={templateDialogTrip}
+        members={members}
       />
     </div>
   );

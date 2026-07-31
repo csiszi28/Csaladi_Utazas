@@ -14,12 +14,14 @@ import {
   Calendar,
   Plus,
   Camera,
+  FileText,
+  BookmarkPlus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDate } from "@csaladi-utazas/shared";
+import { formatDate, canEditTrip, normalizeCollaboratorRole, type TripRole } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
-import { deleteTrip } from "@/actions/trips";
+import { deleteTrip, saveTripAsTemplate } from "@/actions/trips";
 import { deleteProgram } from "@/actions/programs";
 import { deleteCost } from "@/actions/costs";
 import { uploadTripCover } from "@/actions/feature-pack";
@@ -400,7 +402,23 @@ export function TripDetailPage({
   }
 
   const isOwner = trip.userId === currentUserId;
+  const role: TripRole = isOwner
+    ? "OWNER"
+    : normalizeCollaboratorRole(
+        trip.collaborators.find((c) => c.user.id === currentUserId)?.role
+      );
+  const canEdit = canEditTrip(role);
   const countdownLabel = tripCountdownLabel(new Date(trip.startDate), new Date(trip.endDate));
+  const [templatePending, startTemplateTransition] = useTransition();
+  const initialDay = searchParams.get("day");
+
+  function handleSaveAsTemplate() {
+    startTemplateTransition(async () => {
+      const result = await saveTripAsTemplate({ tripId: trip.id });
+      if (!result.success) toast.error(result.error);
+      else toast.success("Sablon elmentve az Utazások listájában");
+    });
+  }
 
   function refresh() {
     router.refresh();
@@ -607,6 +625,29 @@ export function TripDetailPage({
                   <Copy className="h-4 w-4" />
                   Másolás
                 </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-9 min-h-[var(--touch-target)] border-0 bg-white/15 text-white hover:bg-white/25 sm:min-h-9"
+                  asChild
+                >
+                  <Link href={`/trips/${trip.id}/summary`}>
+                    <FileText className="h-4 w-4" />
+                    Összefoglaló
+                  </Link>
+                </Button>
+                {canEdit && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-9 min-h-[var(--touch-target)] border-0 bg-white/15 text-white hover:bg-white/25 sm:min-h-9"
+                    disabled={templatePending}
+                    onClick={handleSaveAsTemplate}
+                  >
+                    <BookmarkPlus className="h-4 w-4" />
+                    Mentés sablonként
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -639,6 +680,8 @@ export function TripDetailPage({
             documentsCount={localDocuments.filter((d) => d.category !== "PHOTO").length}
             programIdeasCount={generalIdeas.length}
             accommodationIdeasCount={accommodationIdeas.length}
+            canEdit={canEdit}
+            initialDay={initialDay}
             onNavigate={setActiveTab}
             onAddProgram={() => {
               setActiveTab("planning");
@@ -670,6 +713,7 @@ export function TripDetailPage({
             transports={trip.transports ?? []}
             participants={trip.participants.map((p) => p.familyMember)}
             costs={localCosts}
+            canEdit={canEdit}
             onRefresh={refresh}
             openSignal={transportOpenSignal}
           />
@@ -695,6 +739,7 @@ export function TripDetailPage({
             participants={trip.participants.map((p) => p.familyMember)}
             currentUserId={currentUserId}
             currentUserName={currentUserName}
+            canEdit={canEdit}
             onRefresh={refresh}
             onDeleteProgram={handleDeleteProgram}
             onConvertToProgram={handleConvertIdeaToProgram}
@@ -728,6 +773,7 @@ export function TripDetailPage({
             costs={localCosts}
             currentUserId={currentUserId}
             currentUserName={currentUserName}
+            canEdit={canEdit}
             onRefresh={refresh}
             onConvertToAccommodation={handleConvertIdeaToAccommodation}
             convertedIdeaIds={convertedIdeaIds}
@@ -747,6 +793,7 @@ export function TripDetailPage({
             programTitleById={programTitleById}
             accommodationTitleById={accommodationTitleById}
             participantNameById={participantNameById}
+            canEdit={canEdit}
             isPending={isPending}
             onAddCost={() => {
               setEditingCost(null);
@@ -798,21 +845,28 @@ export function TripDetailPage({
           </div>
           {docsSubTab === "docs" ? (
             <>
-              <DocumentChecklistPanel documents={localDocuments} participants={tripParticipants} />
-              <DocumentUpload
-                tripId={trip.id}
-                documents={localDocuments.filter((d) => d.category !== "PHOTO")}
-                participantOptions={tripParticipants}
-                programTitleById={programTitleById}
-                onDocumentUploaded={handleDocumentUploaded}
-                onDocumentDeleted={handleDocumentDeleted}
+              <DocumentChecklistPanel
+                documents={localDocuments}
+                participants={tripParticipants}
+                tripType={trip.tripType}
               />
+              {canEdit ? (
+                <DocumentUpload
+                  tripId={trip.id}
+                  documents={localDocuments.filter((d) => d.category !== "PHOTO")}
+                  participantOptions={tripParticipants}
+                  programTitleById={programTitleById}
+                  onDocumentUploaded={handleDocumentUploaded}
+                  onDocumentDeleted={handleDocumentDeleted}
+                />
+              ) : null}
             </>
           ) : null}
           {docsSubTab === "photos" ? (
             <PhotoGalleryPanel
               tripId={trip.id}
               documents={localDocuments.filter((d) => d.category === "PHOTO")}
+              canEdit={canEdit}
               onDocumentUploaded={handleDocumentUploaded}
               onDocumentDeleted={handleDocumentDeleted}
             />
@@ -822,6 +876,8 @@ export function TripDetailPage({
               tripId={trip.id}
               items={trip.packingItems ?? []}
               participants={tripParticipants}
+              tripType={trip.tripType}
+              canEdit={canEdit}
             />
           ) : null}
         </section>
@@ -838,9 +894,12 @@ export function TripDetailPage({
           <TripPeopleSection
             tripId={trip.id}
             isOwner={isOwner}
-            canEdit
+            canEdit={canEdit}
+            role={role}
             participants={trip.participants}
             familyMembers={members}
+            collaborators={trip.collaborators}
+            currentUserId={currentUserId}
           />
         </section>
       )}

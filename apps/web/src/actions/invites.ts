@@ -2,12 +2,11 @@
 
 import { prisma } from "@csaladi-utazas/database";
 import {
-  findAccessibleTrip,
   findOwnedTrip,
   generateInviteCode,
+  ensureUserFamilyMembersOnTrip,
 } from "@/lib/trip-access";
 import { requireUser } from "@/lib/auth";
-import { ensureUserFamilyMembersOnTrip } from "@/lib/trip-access";
 import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
 import type { ActionResult } from "./auth";
 
@@ -77,7 +76,7 @@ export async function joinTripWithInviteCode(code: string): Promise<ActionResult
 
   if (!existing) {
     await prisma.tripCollaborator.create({
-      data: { tripId: trip.id, userId: user.id },
+      data: { tripId: trip.id, userId: user.id, role: "EDITOR" },
     });
   }
 
