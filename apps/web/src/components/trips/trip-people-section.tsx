@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition, useEffect } from "react";
-import { Users } from "lucide-react";
+import { Trash2, Users } from "lucide-react";
 import { Monogram } from "@/components/monogram";
 import { TripInvitePanel } from "@/components/trips/trip-invite-panel";
 import { TripSectionHeading } from "@/components/trips/trip-detail-tabs";
@@ -15,7 +15,7 @@ import {
   type TripRole,
 } from "@csaladi-utazas/shared";
 import { setTripParticipants } from "@/actions/feature-pack";
-import { updateCollaboratorRole } from "@/actions/trips";
+import { removeCollaborator, updateCollaboratorRole } from "@/actions/trips";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogBody,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 interface TripPeopleSectionProps {
@@ -37,17 +45,20 @@ interface TripPeopleSectionProps {
   familyMembers: FamilyMemberRow[];
   collaborators: TripDetailRow["collaborators"];
   currentUserId: string;
+  tripTitle?: string;
 }
 
 function CollaboratorRow({
   collaborator,
   isOwner,
   onRoleChange,
+  onRemove,
   pending,
 }: {
   collaborator: TripDetailRow["collaborators"][number];
   isOwner: boolean;
   onRoleChange: (userId: string, role: "EDITOR" | "VIEWER") => void;
+  onRemove: (userId: string, name: string) => void;
   pending: boolean;
 }) {
   const role = normalizeCollaboratorRole(collaborator.role);
@@ -60,22 +71,38 @@ function CollaboratorRow({
         <p className="truncate text-xs text-muted-foreground">{collaborator.user.email}</p>
       </div>
       {isOwner ? (
-        <Select
-          value={role}
-          onValueChange={(value) => onRoleChange(collaborator.user.id, value as "EDITOR" | "VIEWER")}
-          disabled={pending}
-        >
-          <SelectTrigger className="h-9 w-36 shrink-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TRIP_COLLABORATOR_ROLES.map((r) => (
-              <SelectItem key={r} value={r}>
-                {TRIP_COLLABORATOR_ROLE_LABELS[r]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Select
+            value={role}
+            onValueChange={(value) =>
+              onRoleChange(collaborator.user.id, value as "EDITOR" | "VIEWER")
+            }
+            disabled={pending}
+          >
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TRIP_COLLABORATOR_ROLES.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {TRIP_COLLABORATOR_ROLE_LABELS[r]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-muted-foreground hover:text-destructive"
+            disabled={pending}
+            aria-label={`${collaborator.user.name} eltávolítása`}
+            title="Eltávolítás az utazásból"
+            onClick={() => onRemove(collaborator.user.id, collaborator.user.name)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       ) : (
         <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
           {TRIP_COLLABORATOR_ROLE_LABELS[role]}
@@ -94,10 +121,15 @@ export function TripPeopleSection({
   familyMembers,
   collaborators,
   currentUserId,
+  tripTitle,
 }: TripPeopleSectionProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [rolePending, startRoleTransition] = useTransition();
+  const [removePending, startRemoveTransition] = useTransition();
+  const [removeTarget, setRemoveTarget] = useState<{ userId: string; name: string } | null>(
+    null
+  );
   const [selected, setSelected] = useState(() =>
     new Set(participants.map((p) => p.familyMember.id))
   );
@@ -156,11 +188,32 @@ export function TripPeopleSection({
     });
   }
 
+  function handleRemoveRequest(userId: string, name: string) {
+    setRemoveTarget({ userId, name });
+  }
+
+  function handleRemoveConfirm() {
+    if (!removeTarget) return;
+    const { userId, name } = removeTarget;
+
+    startRemoveTransition(async () => {
+      const result = await removeCollaborator({ tripId, userId });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      setRemoveTarget(null);
+      toast.success(`${name} eltávolítva az utazásból`);
+      router.refresh();
+    });
+  }
+
   const dirty =
     selected.size !== participants.length ||
     participants.some((p) => !selected.has(p.familyMember.id));
 
   const otherCollaborators = collaborators.filter((c) => c.user.id !== currentUserId);
+  const actionPending = rolePending || removePending;
 
   return (
     <div className="space-y-6">
@@ -246,7 +299,7 @@ export function TripPeopleSection({
             title="Közreműködők"
             description={
               isOwner
-                ? "Kezeld a meghívott felhasználók szerepkörét"
+                ? "Kezeld a meghívott felhasználók szerepkörét, vagy távolítsd el őket"
                 : "Az utazáshoz csatlakozott felhasználók"
             }
           />
@@ -257,7 +310,8 @@ export function TripPeopleSection({
                 collaborator={collaborator}
                 isOwner={isOwner}
                 onRoleChange={handleRoleChange}
-                pending={rolePending}
+                onRemove={handleRemoveRequest}
+                pending={actionPending}
               />
             ))}
           </ul>
@@ -270,9 +324,63 @@ export function TripPeopleSection({
             title="Meghívó"
             description="Hívd meg a családtagokat az utazásba"
           />
-          <TripInvitePanel tripId={tripId} isOwner={isOwner} />
+          <TripInvitePanel tripId={tripId} isOwner={isOwner} tripTitle={tripTitle} />
         </section>
       )}
+
+      <Dialog
+        open={removeTarget != null}
+        onOpenChange={(open) => {
+          if (!open && !removePending) setRemoveTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" hideCloseButton={removePending}>
+          <DialogHeader>
+            <DialogTitle>Közreműködő eltávolítása</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Biztosan eltávolítod{" "}
+              <span className="font-medium text-foreground">{removeTarget?.name}</span>{" "}
+              közreműködőt
+              {tripTitle ? (
+                <>
+                  {" "}
+                  a(z) <span className="font-medium text-foreground">„{tripTitle}”</span>{" "}
+                  utazásból
+                </>
+              ) : (
+                " az utazásból"
+              )}
+              ?
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Elveszíti a hozzáférést, és erről értesítést kap. A résztvevő listát ez nem
+              módosítja automatikusan.
+            </p>
+          </DialogBody>
+          <DialogFooter className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-[var(--touch-target)] sm:min-h-9"
+              disabled={removePending}
+              onClick={() => setRemoveTarget(null)}
+            >
+              Mégse
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="min-h-[var(--touch-target)] sm:min-h-9"
+              disabled={removePending}
+              onClick={handleRemoveConfirm}
+            >
+              {removePending ? "Eltávolítás…" : "Eltávolítás"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

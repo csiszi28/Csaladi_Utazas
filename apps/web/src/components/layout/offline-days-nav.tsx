@@ -58,6 +58,9 @@ export function OfflineDaysNav({ onNavigate, compact }: OfflineDaysNavProps) {
             <span className="block truncate text-[11px] font-normal opacity-70">
               {snap.day}
               {snap.items.length > 0 ? ` · ${snap.items.length} tétel` : ""}
+              {snap.packing && snap.packing.length > 0
+                ? ` · ${snap.packing.filter((p) => !p.isPacked).length} csomag`
+                : ""}
             </span>
           </span>
           <span className="sr-only">

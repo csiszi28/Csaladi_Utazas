@@ -8,6 +8,11 @@ import {
 } from "@/lib/trip-access";
 import { requireUser } from "@/lib/auth";
 import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
+import {
+  buildTripInviteEmail,
+  isEmailConfigured,
+  sendTransactionalEmail,
+} from "@/lib/email";
 import type { ActionResult } from "./auth";
 
 export async function getTripInviteCode(tripId: string): Promise<ActionResult<{ code: string }>> {
@@ -87,4 +92,60 @@ export async function joinTripWithInviteCode(code: string): Promise<ActionResult
   invalidateTripsAndReports(user.id, trip.id);
   invalidateTripsAndReports(trip.userId, trip.id);
   return { success: true, data: { tripId: trip.id } };
+}
+
+export async function sendTripInviteEmail(data: {
+  tripId: string;
+  email: string;
+}): Promise<ActionResult<{ sent: boolean; fallbackMailto: boolean }>> {
+  const user = await requireUser();
+  const trip = await findOwnedTrip(data.tripId, user.id);
+
+  if (!trip) {
+    return { success: false, error: "Csak a tulajdonos küldhet meghívót" };
+  }
+
+  const email = data.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { success: false, error: "Érvénytelen e-mail cím" };
+  }
+
+  let code = trip.inviteCode;
+  if (!code) {
+    code = generateInviteCode();
+    await prisma.trip.update({
+      where: { id: data.tripId },
+      data: { inviteCode: code },
+    });
+  }
+
+  const mail = buildTripInviteEmail({
+    tripTitle: trip.title,
+    inviteCode: code,
+    inviterName: user.name,
+  });
+
+  if (!isEmailConfigured()) {
+    return { success: true, data: { sent: false, fallbackMailto: true } };
+  }
+
+  const result = await sendTransactionalEmail({
+    to: email,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
+  });
+
+  if (!result.ok) {
+    return {
+      success: false,
+      error:
+        result.reason === "invalid_recipient"
+          ? "Érvénytelen e-mail cím"
+          : result.detail ??
+            "Nem sikerült elküldeni az e-mailt. Próbáld a megosztást vagy a mailto linket.",
+    };
+  }
+
+  return { success: true, data: { sent: true, fallbackMailto: false } };
 }

@@ -24,6 +24,15 @@ import { cn } from "@/lib/utils";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import type { TripDetailTab } from "@/components/trips/trip-detail-tabs";
 import { OFFLINE_DAY_PREFIX } from "@/lib/offline-day";
+import {
+  prefetchOfflineDocuments,
+  writeOfflineDaySnapshot,
+  type OfflineDocItem,
+} from "@/lib/offline-snapshots";
+import {
+  DOCUMENT_CATEGORY_LABELS,
+  type DocumentCategory,
+} from "@csaladi-utazas/shared";
 
 const WEEKDAYS_SHORT = ["V", "H", "K", "Sze", "Cs", "P", "Szo"] as const;
 
@@ -122,25 +131,69 @@ export function TripItinerarySection({
         ? `${selectedIndex + 1}. nap`
         : selectedDay;
 
-  function saveOffline() {
-    try {
-      const payload = {
-        tripId: trip.id,
-        tripTitle: trip.title,
-        destination: trip.destination,
-        day: selectedDay,
-        items,
-        savedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(
-        `${OFFLINE_DAY_PREFIX}${trip.id}:${selectedDay}`,
-        JSON.stringify(payload)
-      );
-      setOfflineSaved(true);
-      toast.success("Nap elmentve offline");
-    } catch {
+  async function saveOffline() {
+    const packing = trip.packingItems.map((item) => ({
+      title: item.title,
+      quantity: item.quantity ?? 1,
+      isPacked: item.isPacked,
+      assigneeName: item.assignee?.name ?? null,
+    }));
+
+    const keyDocCategories = new Set([
+      "PASSPORT",
+      "INSURANCE",
+      "VOUCHER",
+      "TICKET",
+      "PROGRAM_TICKET",
+      "PROGRAM_BOOKING",
+      "PROGRAM_MAP",
+      "PROGRAM_INFO",
+    ]);
+
+    const documents: OfflineDocItem[] = trip.documents
+      .filter((doc) => keyDocCategories.has(doc.category) || doc.category === "OTHER")
+      .filter((doc) => doc.category !== "PHOTO")
+      .slice(0, 16)
+      .map((doc) => ({
+        id: doc.id,
+        fileName: doc.fileName,
+        category: doc.category,
+        categoryLabel:
+          DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category,
+        downloadPath: `/api/documents/${doc.id}/download`,
+      }));
+
+    const payload = {
+      tripId: trip.id,
+      tripTitle: trip.title,
+      destination: trip.destination,
+      day: selectedDay,
+      items: items.map((item) => ({
+        title: item.title,
+        time: item.time,
+        endTime: item.endTime ?? null,
+        kind: item.kind,
+        location: item.location ?? null,
+      })),
+      packing,
+      documents,
+      savedAt: new Date().toISOString(),
+    };
+
+    const ok = writeOfflineDaySnapshot(payload);
+    if (!ok) {
       toast.error("Nem sikerült menteni offline");
+      return;
     }
+
+    setOfflineSaved(true);
+    const cachedDocs = await prefetchOfflineDocuments(documents);
+    const packingLeft = packing.filter((p) => !p.isPacked).length;
+    toast.success(
+      cachedDocs > 0
+        ? `Napcsomag mentve · ${packingLeft} csomagolnivaló · ${cachedDocs} doksi cache`
+        : `Napcsomag mentve · ${packing.length} csomag · ${documents.length} doksi`
+    );
   }
 
   function shareDay() {
@@ -237,8 +290,8 @@ export function TripItinerarySection({
                 : "text-muted-foreground"
             )}
             onClick={saveOffline}
-            aria-label={offlineSaved ? "Mentve offline" : "Mentés offline"}
-            title={offlineSaved ? "Mentve offline" : "Mentés offline"}
+            aria-label={offlineSaved ? "Mentve offline" : "Napcsomag mentése offline"}
+            title={offlineSaved ? "Mentve offline" : "Napcsomag mentése offline"}
           >
             {offlineSaved ? (
               <WifiOff className="h-3.5 w-3.5" />
@@ -246,7 +299,7 @@ export function TripItinerarySection({
               <Download className="h-3.5 w-3.5" />
             )}
             <span className="hidden sm:inline">
-              {offlineSaved ? "Mentve" : "Offline"}
+              {offlineSaved ? "Mentve" : "Napcsomag"}
             </span>
           </Button>
         </div>

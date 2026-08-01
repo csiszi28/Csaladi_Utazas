@@ -435,6 +435,11 @@ export const updateCollaboratorRoleSchema = z.object({
   role: z.enum(["EDITOR", "VIEWER"]),
 });
 
+export const removeCollaboratorSchema = z.object({
+  tripId: z.string().uuid(),
+  userId: z.string().uuid(),
+});
+
 export const saveTripAsTemplateSchema = z.object({
   tripId: z.string().uuid(),
   title: z.string().min(1).max(200).optional(),
@@ -639,6 +644,7 @@ export const TRIP_ACTIVITY_TYPES = [
   "PACKING_UPDATED",
   "COVER_UPDATED",
   "IDEA_CREATED",
+  "COLLABORATOR_REMOVED",
 ] as const;
 
 export type TripActivityType = (typeof TRIP_ACTIVITY_TYPES)[number];

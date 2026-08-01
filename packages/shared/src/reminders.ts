@@ -4,7 +4,8 @@ export type ReminderKind =
   | "tomorrow_transport"
   | "open_settlement"
   | "idea_voting_deadline"
-  | "trip_starts_soon";
+  | "trip_starts_soon"
+  | "removed_from_trip";
 
 export interface AppReminder {
   key: string;
@@ -15,6 +16,33 @@ export interface AppReminder {
   body: string;
   dueAt: string;
   href: string;
+}
+
+export interface InboxNotificationInput {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  href?: string | null;
+  tripId?: string | null;
+  tripTitle?: string | null;
+  createdAt: Date | string;
+}
+
+/** Maps durable inbox rows into AppReminder shape (e.g. removed-from-trip). */
+export function mapInboxNotificationsToReminders(
+  notifications: InboxNotificationInput[]
+): AppReminder[] {
+  return notifications.map((n) => ({
+    key: `inbox:${n.id}`,
+    kind: (n.kind as ReminderKind) || "removed_from_trip",
+    tripId: n.tripId ?? "",
+    tripTitle: n.tripTitle ?? "",
+    title: n.title,
+    body: n.body,
+    dueAt: asDate(n.createdAt).toISOString(),
+    href: n.href ?? "/trips",
+  }));
 }
 
 export interface ReminderIdeaDeadline {

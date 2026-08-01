@@ -185,6 +185,8 @@ function activityVisual(type: string): { icon: LucideIcon; className: string } {
       return { icon: ImageIcon, className: "bg-violet-500/10 text-violet-700 dark:text-violet-300" };
     case "PARTICIPANTS_UPDATED":
       return { icon: Users, className: "bg-primary/10 text-primary" };
+    case "COLLABORATOR_REMOVED":
+      return { icon: Users, className: "bg-destructive/10 text-destructive" };
     case "SETTLEMENT_PAYMENT":
       return { icon: Wallet, className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" };
     case "PACKING_UPDATED":

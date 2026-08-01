@@ -7,6 +7,7 @@ import {
   fetchUnseenFamilyLinkProposalOutcomes,
 } from "@/lib/queries/family-links";
 import { fetchTripsList } from "@/lib/queries/trips";
+import { fetchCommandPaletteIndex } from "@/lib/queries/command-palette";
 
 export default async function DashboardRouteLayout({
   children,
@@ -26,12 +27,14 @@ export default async function DashboardRouteLayout({
   let incomingRequests: Awaited<ReturnType<typeof fetchPendingFamilyLinkRequests>> = [];
   let proposalOutcomes: Awaited<ReturnType<typeof fetchUnseenFamilyLinkProposalOutcomes>> = [];
   let tripCommands: { id: string; title: string; destination: string }[] = [];
+  let searchItems: Awaited<ReturnType<typeof fetchCommandPaletteIndex>> = [];
 
   try {
-    const [requests, outcomes, trips] = await Promise.all([
+    const [requests, outcomes, trips, palette] = await Promise.all([
       fetchPendingFamilyLinkRequests(),
       fetchUnseenFamilyLinkProposalOutcomes(),
       fetchTripsList(),
+      fetchCommandPaletteIndex(),
     ]);
     incomingRequests = requests;
     proposalOutcomes = outcomes;
@@ -42,12 +45,13 @@ export default async function DashboardRouteLayout({
         title: trip.title,
         destination: trip.destination,
       }));
+    searchItems = palette;
   } catch (err) {
     console.error("[DashboardLayout] fetch failed:", err);
   }
 
   return (
-    <DashboardLayout trips={tripCommands}>
+    <DashboardLayout trips={tripCommands} searchItems={searchItems}>
       <div className="mx-auto w-full max-w-5xl space-y-6">
         <FamilyLinkNotifications
           incomingRequests={incomingRequests}

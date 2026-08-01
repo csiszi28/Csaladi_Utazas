@@ -25,6 +25,7 @@ model User {
   tripActivities            TripActivity[]
   settlementPayments        SettlementPayment[]
   notificationDismissals    UserNotificationDismissal[]
+  inboxNotifications        UserInboxNotification[]
 
   @@map("users")
 }
@@ -407,4 +408,22 @@ model UserNotificationDismissal {
   @@unique([userId, reminderKey])
   @@index([userId])
   @@map("user_notification_dismissals")
+}
+
+model UserInboxNotification {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        String
+  title       String
+  body        String
+  href        String?
+  tripId      String?
+  tripTitle   String?
+  createdAt   DateTime  @default(now())
+  dismissedAt DateTime?
+
+  @@index([userId, dismissedAt])
+  @@index([userId, createdAt])
+  @@map("user_inbox_notifications")
 }

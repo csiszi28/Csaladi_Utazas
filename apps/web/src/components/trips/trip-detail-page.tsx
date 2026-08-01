@@ -34,6 +34,7 @@ import {
   type TripDetailTab,
 } from "@/components/trips/trip-detail-tabs";
 import type { DocumentItem } from "@/components/documents/document-upload";
+import { ViewerBanner } from "@/components/trips/viewer-banner";
 import { cn } from "@/lib/utils";
 
 function startOfDay(d: Date) {
@@ -690,6 +691,8 @@ export function TripDetailPage({
         }))}
       />
 
+      {!canEdit ? <ViewerBanner /> : null}
+
       <TripDetailTabs active={activeTab} onChange={setActiveTab} counts={tabCounts} />
 
       {visitedTabs.has("overview") && (
@@ -928,6 +931,7 @@ export function TripDetailPage({
             familyMembers={members}
             collaborators={trip.collaborators}
             currentUserId={currentUserId}
+            tripTitle={trip.title}
           />
         </section>
       )}

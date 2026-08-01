@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Bell, KeyRound, Palette, UserRound } from "lucide-react";
+import { Bell, KeyRound, Palette, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { updateAccountPassword, updateProfileName } from "@/actions/settings";
+import { deleteAccount, updateAccountPassword, updateProfileName } from "@/actions/settings";
 import { cn } from "@/lib/utils";
 
 interface SettingsPageProps {
@@ -32,6 +32,8 @@ export function SettingsPage({ user }: SettingsPageProps) {
   );
   const [namePending, startNameTransition] = useTransition();
   const [passwordPending, startPasswordTransition] = useTransition();
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deletePending, startDeleteTransition] = useTransition();
 
   function saveName(e: React.FormEvent) {
     e.preventDefault();
@@ -67,6 +69,19 @@ export function SettingsPage({ user }: SettingsPageProps) {
     setNotifPermission(permission);
     if (permission === "granted") toast.success("Értesítések engedélyezve");
     else if (permission === "denied") toast.error("Értesítések megtagadva");
+  }
+
+  function handleDeleteAccount(e: React.FormEvent) {
+    e.preventDefault();
+    startDeleteTransition(async () => {
+      const result = await deleteAccount(deleteConfirm);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Fiók törölve");
+      router.push(result.data.redirectTo);
+    });
   }
 
   return (
@@ -206,6 +221,34 @@ export function SettingsPage({ user }: SettingsPageProps) {
             </Button>
           ) : null}
         </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-destructive/30 bg-card p-4 shadow-sm sm:p-5">
+        <div className="flex items-center gap-2">
+          <Trash2 className="h-4 w-4 text-destructive" />
+          <h2 className="text-sm font-semibold text-destructive">Fiók törlése</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Véglegesen törli a profilodat. Előbb töröld a saját tulajdonú utazásaidat. A megerősítéshez
+          írd be: <span className="font-mono font-semibold text-foreground">TORLES</span>
+        </p>
+        <form onSubmit={handleDeleteAccount} className="space-y-3">
+          <Input
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder="TORLES"
+            className="min-h-[var(--touch-target)] font-mono"
+            autoComplete="off"
+          />
+          <Button
+            type="submit"
+            variant="destructive"
+            disabled={deletePending || deleteConfirm.trim().toUpperCase() !== "TORLES"}
+            className="min-h-[var(--touch-target)] w-full sm:w-auto"
+          >
+            Fiók végleges törlése
+          </Button>
+        </form>
       </section>
     </div>
   );

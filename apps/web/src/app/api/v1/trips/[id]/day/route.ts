@@ -1,11 +1,25 @@
 import { prisma } from "@csaladi-utazas/database";
 import {
   buildDayItinerary,
+  DOCUMENT_CATEGORY_LABELS,
   formatDate,
   listTripDays,
+  type DocumentCategory,
 } from "@csaladi-utazas/shared";
 import { jsonFail, jsonOk, withApiAuth } from "@/lib/api/handler";
 import { resolveTripRole, tripAccessFilter } from "@/lib/trip-access";
+
+const KEY_DOC_CATEGORIES = [
+  "PASSPORT",
+  "INSURANCE",
+  "VOUCHER",
+  "TICKET",
+  "PROGRAM_TICKET",
+  "PROGRAM_BOOKING",
+  "PROGRAM_MAP",
+  "PROGRAM_INFO",
+  "OTHER",
+] as const;
 
 export const GET = withApiAuth(async ({ userId, params, request }) => {
   const { id } = await params;
@@ -45,6 +59,28 @@ export const GET = withApiAuth(async ({ userId, params, request }) => {
           location: true,
         },
       },
+      packingItems: {
+        select: {
+          id: true,
+          title: true,
+          quantity: true,
+          isPacked: true,
+          assignee: { select: { name: true } },
+        },
+        orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+      },
+      documents: {
+        where: {
+          category: { in: [...KEY_DOC_CATEGORIES] },
+        },
+        select: {
+          id: true,
+          fileName: true,
+          category: true,
+        },
+        take: 24,
+        orderBy: { uploadedAt: "desc" },
+      },
     },
   });
 
@@ -78,6 +114,23 @@ export const GET = withApiAuth(async ({ userId, params, request }) => {
     day,
     days,
     items,
+    packing: trip.packingItems.map((item) => ({
+      id: item.id,
+      title: item.title,
+      quantity: item.quantity,
+      isPacked: item.isPacked,
+      assigneeName: item.assignee?.name ?? null,
+    })),
+    documents: trip.documents
+      .filter((doc) => doc.category !== "PHOTO")
+      .map((doc) => ({
+        id: doc.id,
+        fileName: doc.fileName,
+        category: doc.category,
+        categoryLabel:
+          DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category,
+        downloadPath: `/api/documents/${doc.id}/download`,
+      })),
     role,
   });
 });

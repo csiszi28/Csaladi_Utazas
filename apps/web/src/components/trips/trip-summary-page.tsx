@@ -36,24 +36,39 @@ export function TripSummaryPage({ trip, coverUrl, photos }: TripSummaryPageProps
     window.print();
   }
 
-  async function handleShare() {
-    if (canShare) {
-      try {
-        await navigator.share({ title: trip.title, url: shareUrl });
-      } catch {
-        // user cancelled the share sheet — no action needed
-      }
-      return;
-    }
-    await navigator.clipboard.writeText(shareUrl);
-    toast.success("Link a vágólapra másolva");
-  }
-
   const sortedPrograms = [...trip.programs].sort((a, b) => {
     const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
     if (dateDiff !== 0) return dateDiff;
     return (a.startTime ?? "").localeCompare(b.startTime ?? "");
   });
+
+  async function handleShare() {
+    const summaryLines = [
+      trip.title,
+      trip.destination,
+      `${formatDate(trip.startDate)} – ${formatDate(trip.endDate)}`,
+      trip.participants.length > 0
+        ? `Résztvevők: ${trip.participants.map((p) => p.familyMember.name).join(", ")}`
+        : null,
+      sortedPrograms.length > 0 ? `${sortedPrograms.length} program` : null,
+      shareUrl,
+    ].filter(Boolean) as string[];
+
+    if (canShare) {
+      try {
+        await navigator.share({
+          title: trip.title,
+          text: summaryLines.slice(0, -1).join("\n"),
+          url: shareUrl,
+        });
+      } catch {
+        // user cancelled the share sheet — no action needed
+      }
+      return;
+    }
+    await navigator.clipboard.writeText(summaryLines.join("\n"));
+    toast.success("Összefoglaló a vágólapra másolva");
+  }
 
   const validPhotos = photos.filter((p) => p.url);
 
@@ -73,7 +88,7 @@ export function TripSummaryPage({ trip, coverUrl, photos }: TripSummaryPageProps
             ) : (
               <Copy className="h-4 w-4" />
             )}
-            {canShare ? "Megosztás" : "Link másolása"}
+            {canShare ? "Megosztás" : "Másolás"}
           </Button>
           <Button size="sm" onClick={handlePrint}>
             <Printer className="h-4 w-4" />

@@ -68,3 +68,41 @@ export async function updateAccountPassword(data: {
 
   return { success: true, data: undefined, message: "Jelszó frissítve" };
 }
+
+export async function deleteAccount(
+  confirmation: string
+): Promise<ActionResult<{ redirectTo: string }>> {
+  const user = await requireUser();
+  if (confirmation.trim().toUpperCase() !== "TORLES") {
+    return {
+      success: false,
+      error: "A megerősítéshez írd be: TORLES",
+    };
+  }
+
+  const ownedTrips = await prisma.trip.count({ where: { userId: user.id } });
+  if (ownedTrips > 0) {
+    return {
+      success: false,
+      error:
+        "Előbb töröld vagy add át a saját tulajdonú utazásaidat (vagy töröld őket), mielőtt a fiókot törölnéd.",
+    };
+  }
+
+  const { createServiceClient } = await import("@/lib/supabase/server");
+  const admin = await createServiceClient();
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+  if (error) {
+    return {
+      success: false,
+      error: formatAuthError(error),
+    };
+  }
+
+  await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
+
+  const sessionClient = await createClient();
+  await sessionClient.auth.signOut();
+
+  return { success: true, data: { redirectTo: "/auth/login" } };
+}

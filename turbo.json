@@ -7,7 +7,9 @@
     "SUPABASE_SERVICE_ROLE_KEY",
     "DATABASE_URL",
     "DIRECT_URL",
-    "VERCEL_URL"
+    "VERCEL_URL",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL"
   ],
   "tasks": {
     "build": {
@@ -20,7 +22,9 @@
         "SUPABASE_SERVICE_ROLE_KEY",
         "DATABASE_URL",
         "DIRECT_URL",
-        "VERCEL_URL"
+        "VERCEL_URL",
+        "RESEND_API_KEY",
+        "RESEND_FROM_EMAIL"
       ]
     },
     "dev": {

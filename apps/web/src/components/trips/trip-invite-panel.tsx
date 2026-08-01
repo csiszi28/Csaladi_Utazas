@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Copy, Mail, RefreshCw, Share2 } from "lucide-react";
+import { Copy, Mail, RefreshCw, Share2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   getTripInviteCode,
   regenerateTripInviteCode,
+  sendTripInviteEmail,
 } from "@/actions/invites";
 
 export function TripInvitePanel({
@@ -21,7 +22,9 @@ export function TripInvitePanel({
   tripTitle?: string;
 }) {
   const [code, setCode] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [emailPending, startEmailTransition] = useTransition();
   const [canShare, setCanShare] = useState(false);
 
   useEffect(() => {
@@ -39,17 +42,19 @@ export function TripInvitePanel({
   if (!isOwner) return null;
 
   const inviteUrl =
-    code && typeof window !== "undefined" ? `${window.location.origin}/trips/join?code=${code}` : null;
+    code && typeof window !== "undefined"
+      ? `${window.location.origin}/trips/join?code=${code}`
+      : null;
 
   function handleCopyCode() {
     if (!code) return;
-    navigator.clipboard.writeText(code);
+    void navigator.clipboard.writeText(code);
     toast.success("Meghívó kód másolva");
   }
 
   function handleCopyLink() {
     if (!inviteUrl) return;
-    navigator.clipboard.writeText(inviteUrl);
+    void navigator.clipboard.writeText(inviteUrl);
     toast.success("Meghívó link másolva");
   }
 
@@ -77,6 +82,36 @@ export function TripInvitePanel({
     });
   }
 
+  function handleSendEmail(e: React.FormEvent) {
+    e.preventDefault();
+    const target = inviteEmail.trim();
+    if (!target) return;
+
+    startEmailTransition(async () => {
+      const result = await sendTripInviteEmail({ tripId, email: target });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+
+      if (result.data.sent) {
+        toast.success(`Meghívó elküldve: ${target}`);
+        setInviteEmail("");
+        return;
+      }
+
+      // No Resend key — open mailto as fallback
+      const subject = encodeURIComponent(
+        tripTitle ? `Csatlakozz: ${tripTitle}` : "Csatlakozz az utazáshoz"
+      );
+      const body = encodeURIComponent(
+        `Szia!\n\nCsatlakozz az utazáshoz a Családi Utazás appban ezen a linken:\n${inviteUrl ?? ""}\n\nVagy add meg ezt a kódot: ${code ?? ""}`
+      );
+      window.location.href = `mailto:${encodeURIComponent(target)}?subject=${subject}&body=${body}`;
+      toast.message("E-mail szolgáltató nincs beállítva — megnyílt a levelező");
+    });
+  }
+
   const mailSubject = encodeURIComponent(
     tripTitle ? `Csatlakozz: ${tripTitle}` : "Csatlakozz az utazáshoz"
   );
@@ -87,8 +122,8 @@ export function TripInvitePanel({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Add meg ezt a kódot a családtagoknak, vagy küldd el a linket — regisztrációkor automatikusan
-        összekapcsolódik és hozzáfér az utazásokhoz.
+        Add meg ezt a kódot a családtagoknak, vagy küldd el a linket — regisztrációkor
+        automatikusan összekapcsolódik és hozzáfér az utazásokhoz.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="flex-1 space-y-1">
@@ -170,6 +205,34 @@ export function TripInvitePanel({
           </div>
         </div>
       ) : null}
+
+      <form onSubmit={handleSendEmail} className="space-y-1.5 rounded-xl border bg-muted/20 p-3">
+        <Label htmlFor="invite-email">Meghívó e-mailben</Label>
+        <div className="flex flex-col gap-1.5 sm:flex-row">
+          <Input
+            id="invite-email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="családtag@email.hu"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            className="h-9 min-h-[var(--touch-target)] flex-1 sm:min-h-9"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            className="h-9 min-h-[var(--touch-target)] sm:min-h-9"
+            disabled={emailPending || !inviteEmail.trim() || !code}
+          >
+            <Send className="h-3.5 w-3.5" />
+            Küldés
+          </Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Ha van Resend kulcs a szerveren, azonnal kiküldjük; különben megnyílik a leveleződ.
+        </p>
+      </form>
     </div>
   );
 }

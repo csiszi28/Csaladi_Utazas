@@ -17,7 +17,7 @@ import {
 import { getUserReminders, dismissReminder } from "@/actions/feature-pack";
 import { cn } from "@/lib/utils";
 
-const NOTIFIED_SESSION_KEY = "fam-reminders-notified";
+const NOTIFIED_DAY_KEY = "fam-reminders-notified-day";
 
 export function RemindersBell({
   variant = "icon",
@@ -65,14 +65,18 @@ export function RemindersBell({
     if (typeof window === "undefined" || typeof Notification === "undefined") return;
     if (Notification.permission !== "granted") return;
 
-    const dedupeKey = visibleReminders
+    const dayKey = new Date().toISOString().slice(0, 10);
+    const dedupeKey = `${dayKey}:${visibleReminders
       .slice(0, 5)
       .map((r) => r.key)
-      .join(",");
-    const already = window.sessionStorage.getItem(NOTIFIED_SESSION_KEY);
-    if (already === dedupeKey) return;
+      .join(",")}`;
 
-    window.sessionStorage.setItem(NOTIFIED_SESSION_KEY, dedupeKey);
+    try {
+      if (window.localStorage.getItem(NOTIFIED_DAY_KEY) === dedupeKey) return;
+      window.localStorage.setItem(NOTIFIED_DAY_KEY, dedupeKey);
+    } catch {
+      return;
+    }
 
     const first = visibleReminders[0];
     const title =
@@ -85,11 +89,28 @@ export function RemindersBell({
             .map((r) => r.title)
             .join(" · ");
 
-    try {
-      new Notification(title, { body, tag: "fam-reminders" });
-    } catch {
-      // Some browsers block Notification construction — safe to ignore
+    async function showNotification() {
+      try {
+        const registration = await navigator.serviceWorker?.ready;
+        if (registration?.showNotification) {
+          await registration.showNotification(title, {
+            body,
+            tag: "fam-reminders",
+            data: { href: first.href },
+          });
+          return;
+        }
+      } catch {
+        /* fall through to page Notification */
+      }
+      try {
+        new Notification(title, { body, tag: "fam-reminders" });
+      } catch {
+        // Some browsers block Notification construction — safe to ignore
+      }
     }
+
+    void showNotification();
   }, [visibleReminders]);
 
   function handleDismiss(key: string) {

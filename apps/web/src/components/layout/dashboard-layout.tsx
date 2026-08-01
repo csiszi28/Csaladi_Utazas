@@ -14,13 +14,16 @@ import {
   CommandPalette,
   type CommandPaletteTrip,
 } from "@/components/search/command-palette";
+import type { CommandPaletteSearchItem } from "@/lib/queries/command-palette";
 
 export function DashboardLayout({
   children,
   trips = [],
+  searchItems = [],
 }: {
   children: React.ReactNode;
   trips?: CommandPaletteTrip[];
+  searchItems?: CommandPaletteSearchItem[];
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -123,7 +126,12 @@ export function DashboardLayout({
           </div>
         </div>
 
-        <CommandPalette trips={trips} open={searchOpen} onOpenChange={setSearchOpen} />
+        <CommandPalette
+          trips={trips}
+          searchItems={searchItems}
+          open={searchOpen}
+          onOpenChange={setSearchOpen}
+        />
       </DashboardShell>
     </ExchangeRatesProvider>
   );

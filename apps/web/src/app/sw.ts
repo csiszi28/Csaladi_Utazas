@@ -43,6 +43,24 @@ const serwist = new Serwist({
       }),
     },
     {
+      matcher({ url, sameOrigin }) {
+        return (
+          sameOrigin === true &&
+          /^\/api\/documents\/[^/]+\/download$/.test(url.pathname)
+        );
+      },
+      handler: new CacheFirst({
+        cacheName: "fam-offline-docs-v1",
+        plugins: [
+          new CacheableResponsePlugin({ statuses: [0, 200] }),
+          new ExpirationPlugin({
+            maxEntries: 40,
+            maxAgeSeconds: 60 * 60 * 24 * 14,
+          }),
+        ],
+      }),
+    },
+    {
       matcher({ url }) {
         return url.hostname.endsWith("tile.openstreetmap.org");
       },
@@ -72,3 +90,27 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const href =
+    typeof event.notification.data === "object" &&
+    event.notification.data !== null &&
+    "href" in event.notification.data &&
+    typeof (event.notification.data as { href?: unknown }).href === "string"
+      ? (event.notification.data as { href: string }).href
+      : "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client && "navigate" in client) {
+          void client.focus();
+          void (client as WindowClient).navigate(href);
+          return;
+        }
+      }
+      void self.clients.openWindow(href);
+    })
+  );
+});

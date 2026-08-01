@@ -343,6 +343,11 @@ export function PackingListPanel({
 
   return (
     <div className="space-y-4">
+      {!canEdit ? (
+        <p className="rounded-xl border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Néző módban a csomagolási lista nem szerkeszthető — kérj szerkesztő jogot a tulajdonostól.
+        </p>
+      ) : null}
       <div>
         <div className="mb-1 flex items-center justify-between text-sm">
           <span className="font-medium">Csomagolási lista</span>

@@ -296,4 +296,23 @@ describe("reminders-expansion", () => {
     expect(reminders.some((r) => r.kind === "trip_starts_soon")).toBe(true);
     expect(reminders.some((r) => r.kind === "idea_voting_deadline")).toBe(true);
   });
+
+  it("maps removed-from-trip inbox notifications", async () => {
+    const { mapInboxNotificationsToReminders } = await import("../reminders");
+    const mapped = mapInboxNotificationsToReminders([
+      {
+        id: "n1",
+        kind: "removed_from_trip",
+        title: "Eltávolítva az utazásból",
+        body: "Valaki eltávolított.",
+        href: "/trips",
+        tripId: "trip-1",
+        tripTitle: "Nyár",
+        createdAt: new Date(2026, 5, 24),
+      },
+    ]);
+    expect(mapped).toHaveLength(1);
+    expect(mapped[0]?.key).toBe("inbox:n1");
+    expect(mapped[0]?.kind).toBe("removed_from_trip");
+  });
 });

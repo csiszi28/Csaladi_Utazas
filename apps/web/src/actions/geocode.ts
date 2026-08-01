@@ -29,6 +29,43 @@ export type NearbyPlace = {
   lng: number;
 };
 
+type GeocodeCacheEntry = { hits: GeocodeHit[]; expiresAt: number };
+const geocodeMemoryCache = new Map<string, GeocodeCacheEntry>();
+const GEOCODE_TTL_MS = 1000 * 60 * 60 * 12;
+const GEOCODE_CACHE_MAX = 200;
+
+function normalizeGeocodeQuery(query: string) {
+  return query
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function readGeocodeCache(query: string, limit: number): GeocodeHit[] | null {
+  const key = `${normalizeGeocodeQuery(query)}::${limit}`;
+  const entry = geocodeMemoryCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    geocodeMemoryCache.delete(key);
+    return null;
+  }
+  return entry.hits;
+}
+
+function writeGeocodeCache(query: string, limit: number, hits: GeocodeHit[]) {
+  const key = `${normalizeGeocodeQuery(query)}::${limit}`;
+  if (geocodeMemoryCache.size >= GEOCODE_CACHE_MAX) {
+    const oldest = geocodeMemoryCache.keys().next().value;
+    if (oldest) geocodeMemoryCache.delete(oldest);
+  }
+  geocodeMemoryCache.set(key, {
+    hits,
+    expiresAt: Date.now() + GEOCODE_TTL_MS,
+  });
+}
+
 function pickOsmName(tags: Record<string, string> | undefined): string {
   if (!tags) return "Hely";
   return (
@@ -65,6 +102,9 @@ async function nominatimSearch(
   query: string,
   limit: number
 ): Promise<GeocodeHit[]> {
+  const cached = readGeocodeCache(query, limit);
+  if (cached) return cached;
+
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
@@ -90,11 +130,13 @@ async function nominatimSearch(
     namedetails?: Record<string, string>;
   }>;
 
-  return data.map((row) => ({
+  const hits = data.map((row) => ({
     lat: Number(row.lat),
     lng: Number(row.lon),
     displayName: pickNominatimDisplayName(row),
   }));
+  writeGeocodeCache(query, limit, hits);
+  return hits;
 }
 
 export async function searchLocations(

@@ -13,6 +13,7 @@ import {
   Users,
   WifiOff,
   X,
+  Ticket,
 } from "lucide-react";
 import {
   Dialog,
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { readOfflineDaySnapshots } from "@/lib/offline-snapshots";
+import type { CommandPaletteSearchItem } from "@/lib/queries/command-palette";
 
 export interface CommandPaletteTrip {
   id: string;
@@ -32,6 +34,7 @@ export interface CommandPaletteTrip {
 
 interface CommandPaletteProps {
   trips?: CommandPaletteTrip[];
+  searchItems?: CommandPaletteSearchItem[];
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -112,7 +115,12 @@ function normalize(value: string) {
     .toLowerCase();
 }
 
-export function CommandPalette({ trips = [], open: controlledOpen, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({
+  trips = [],
+  searchItems = [],
+  open: controlledOpen,
+  onOpenChange,
+}: CommandPaletteProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -156,6 +164,26 @@ export function CommandPalette({ trips = [], open: controlledOpen, onOpenChange 
       icon: <MapIcon className="h-4 w-4" />,
     }));
 
+    const deepItems: CommandItem[] = searchItems.map((item) => {
+      const icon =
+        item.group === "Dokumentumok" ? (
+          <Ticket className="h-4 w-4" />
+        ) : item.group === "Család" ? (
+          <Users className="h-4 w-4" />
+        ) : (
+          <Calendar className="h-4 w-4" />
+        );
+      return {
+        id: item.id,
+        label: item.label,
+        hint: item.hint,
+        href: item.href,
+        group: item.group,
+        keywords: item.keywords,
+        icon,
+      };
+    });
+
     const offlineHint =
       offlineCount > 0
         ? `${offlineCount} mentett nap`
@@ -166,16 +194,22 @@ export function CommandPalette({ trips = [], open: controlledOpen, onOpenChange 
         item.id === "nav-offline" ? { ...item, hint: offlineHint } : item
       ),
       ...tripItems,
+      ...deepItems,
     ];
 
     const q = normalize(query.trim());
-    if (!q) return all;
+    if (!q) {
+      // Without a query, keep the palette light: nav + trips only
+      return all.filter(
+        (item) => item.group === "Navigáció" || item.group === "Utazások"
+      );
+    }
 
     return all.filter((item) => {
       const hay = normalize(`${item.label} ${item.hint ?? ""} ${item.keywords ?? ""} ${item.group}`);
       return hay.includes(q);
     });
-  }, [trips, query, offlineCount]);
+  }, [trips, searchItems, query, offlineCount]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -234,7 +268,7 @@ export function CommandPalette({ trips = [], open: controlledOpen, onOpenChange 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder="Keresés: utazás, menü…"
+            placeholder="Keresés: utazás, program, jegy, család…"
             className="min-h-[var(--touch-target)] min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:min-h-10 sm:text-sm"
             aria-label="Parancs keresése"
           />

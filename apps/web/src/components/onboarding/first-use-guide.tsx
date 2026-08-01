@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Map, Users, Wallet, Sparkles } from "lucide-react";
+import { Check, Map, Users, FileText, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "fam-onboarding-dismissed-v1";
+const STORAGE_KEY = "fam-onboarding-dismissed-v2";
 
 interface FirstUseGuideProps {
   hasTrips: boolean;
@@ -32,12 +32,13 @@ const STEPS = [
     doneKey: "hasTrips" as const,
   },
   {
-    id: "budget",
-    title: "Költségvetés",
-    description: "Állíts be limitet az utazás szerkesztésénél",
-    href: "/trips",
-    icon: Wallet,
+    id: "docs",
+    title: "Dokumentumok",
+    description: "Tölts fel jegyet, útlevelet, vouchert",
+    href: "/documents",
+    icon: FileText,
     doneKey: "hasTrips" as const,
+    soft: true,
   },
 ] as const;
 
@@ -56,8 +57,8 @@ export function FirstUseGuide({
   });
 
   const flags = { hasTrips, hasFamilyMembers };
-  const doneCount = STEPS.filter((s) => flags[s.doneKey]).length;
-  const allDone = doneCount >= 2 && hasTrips;
+  const hardDone = Number(hasFamilyMembers) + Number(hasTrips);
+  const allDone = hardDone >= 2;
 
   if (dismissed || allDone) return null;
 
@@ -87,7 +88,7 @@ export function FirstUseGuide({
             Induljunk el együtt
           </h2>
           <p className="text-sm text-muted-foreground">
-            {doneCount}/{STEPS.length} kész · pár perc alatt használható a családi út szervező
+            {hardDone}/2 kötelező kész · utána jöhet a csomagolás és a meghívó
           </p>
         </div>
         <Button
@@ -103,7 +104,8 @@ export function FirstUseGuide({
 
       <div className="grid gap-2 border-t p-3 sm:grid-cols-3 sm:p-4">
         {STEPS.map((step, index) => {
-          const done = flags[step.doneKey];
+          const isSoft = "soft" in step && step.soft;
+          const done = !isSoft && flags[step.doneKey];
           const Icon = step.icon;
           return (
             <Link
@@ -118,17 +120,18 @@ export function FirstUseGuide({
             >
               <span
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold",
                   done
-                    ? "bg-emerald-500 text-white"
-                    : "bg-primary/10 text-primary"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                    : "bg-muted text-muted-foreground"
                 )}
               >
-                {done ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                {done ? <Check className="h-4 w-4" /> : index + 1}
               </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold">
-                  {index + 1}. {step.title}
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  {step.title}
                 </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
                   {step.description}

@@ -42,7 +42,7 @@ if (enginePath) {
 }
 
 /** Bump when Prisma schema fields change so HMR/dev doesn't keep a stale client. */
-const PRISMA_SCHEMA_VERSION = 2;
+const PRISMA_SCHEMA_VERSION = 4;
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

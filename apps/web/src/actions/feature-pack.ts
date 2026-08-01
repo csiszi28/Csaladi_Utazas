@@ -307,16 +307,24 @@ export async function dismissReminder(reminderKey: string): Promise<ActionResult
     return { success: false, error: "Érvénytelen értesítés" };
   }
 
+  const key = parsed.data.reminderKey;
+
+  if (key.startsWith("inbox:")) {
+    const inboxId = key.slice("inbox:".length);
+    const { dismissInboxNotification } = await import("@/lib/inbox-notifications");
+    await dismissInboxNotification(user.id, inboxId);
+  }
+
   await prisma.userNotificationDismissal.upsert({
     where: {
       userId_reminderKey: {
         userId: user.id,
-        reminderKey: parsed.data.reminderKey,
+        reminderKey: key,
       },
     },
     create: {
       userId: user.id,
-      reminderKey: parsed.data.reminderKey,
+      reminderKey: key,
     },
     update: { dismissedAt: new Date() },
   });
@@ -375,10 +383,15 @@ export async function uploadTripCover(formData: FormData): Promise<ActionResult>
 
 export async function getUserReminders() {
   const user = await requireUser();
-  const { buildReminders, buildTripSettlement, applySettlementPayments, DEFAULT_HUF_RATES } =
-    await import("@csaladi-utazas/shared");
+  const {
+    buildReminders,
+    buildTripSettlement,
+    applySettlementPayments,
+    DEFAULT_HUF_RATES,
+    mapInboxNotificationsToReminders,
+  } = await import("@csaladi-utazas/shared");
 
-  const [trips, dismissals] = await Promise.all([
+  const [trips, dismissals, inbox] = await Promise.all([
     prisma.trip.findMany({
       where: tripAccessFilter(user.id),
       include: {
@@ -409,6 +422,7 @@ export async function getUserReminders() {
       where: { userId: user.id },
       select: { reminderKey: true },
     }),
+    import("@/lib/inbox-notifications").then((m) => m.listActiveInboxNotifications(user.id)),
   ]);
 
   const tomorrow = new Date();
@@ -484,8 +498,13 @@ export async function getUserReminders() {
     };
   });
 
-  return buildReminders(
+  const computed = buildReminders(
     inputs,
     dismissals.map((d) => d.reminderKey)
+  );
+  const inboxReminders = mapInboxNotificationsToReminders(inbox);
+
+  return [...inboxReminders, ...computed].sort((a, b) =>
+    b.dueAt.localeCompare(a.dueAt)
   );
 }

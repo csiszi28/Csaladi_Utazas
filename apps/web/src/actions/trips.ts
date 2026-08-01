@@ -421,6 +421,67 @@ export async function updateCollaboratorRole(data: {
   return { success: true, data: undefined };
 }
 
+export async function removeCollaborator(data: {
+  tripId: string;
+  userId: string;
+}): Promise<ActionResult> {
+  const user = await requireUser();
+  const { removeCollaboratorSchema } = await import("@csaladi-utazas/shared");
+  const parsed = removeCollaboratorSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
+  }
+
+  const owned = await findOwnedTrip(parsed.data.tripId, user.id);
+  if (!owned) {
+    return { success: false, error: "Csak a tulajdonos távolíthat el közreműködőt" };
+  }
+
+  if (parsed.data.userId === user.id) {
+    return { success: false, error: "A tulajdonos nem távolítható el" };
+  }
+
+  const collab = await prisma.tripCollaborator.findFirst({
+    where: { tripId: parsed.data.tripId, userId: parsed.data.userId },
+    include: { user: { select: { id: true, name: true } } },
+  });
+  if (!collab) return { success: false, error: "Közreműködő nem található" };
+
+  try {
+    await prisma.tripCollaborator.delete({ where: { id: collab.id } });
+  } catch (error) {
+    console.error("[removeCollaborator] delete failed:", error);
+    return { success: false, error: "Nem sikerült eltávolítani a közreműködőt" };
+  }
+
+  const { createInboxNotification } = await import("@/lib/inbox-notifications");
+  await createInboxNotification({
+    userId: collab.userId,
+    kind: "removed_from_trip",
+    title: "Eltávolítva az utazásból",
+    body: `${user.name} eltávolított a(z) „${owned.title}” utazás közreműködői közül.`,
+    href: "/trips",
+    tripId: owned.id,
+    tripTitle: owned.title,
+  });
+
+  const { recordTripActivity } = await import("@/lib/trip-activity");
+  await recordTripActivity({
+    tripId: owned.id,
+    actorUserId: user.id,
+    type: "COLLABORATOR_REMOVED",
+    summary: `${collab.user.name} eltávolítva a közreműködők közül`,
+    meta: {
+      removedUserId: collab.userId,
+      removedUserName: collab.user.name,
+    },
+  });
+
+  invalidateTripsAndReports(user.id, owned.id);
+  invalidateTripsAndReports(collab.userId);
+  return { success: true, data: undefined };
+}
+
 export async function saveTripAsTemplate(data: {
   tripId: string;
   title?: string;
