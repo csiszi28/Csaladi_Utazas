@@ -41,7 +41,7 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full border-white/20 bg-card/95 shadow-xl backdrop-blur-sm">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Új jelszó beállítása</CardTitle>
         <CardDescription>Adj meg egy új jelszót a fiókodhoz</CardDescription>

@@ -12,8 +12,9 @@ import { DocumentTable } from "@/components/documents/document-table";
 import { DocumentViewer } from "@/components/documents/document-viewer";
 import type { DocumentItem } from "@/components/documents/document-upload";
 import type { DocumentsOverviewTrip } from "@/lib/queries/documents";
-import { getDocumentSignedUrl, deleteDocument } from "@/actions/documents";
-import { getCachedDocumentUrl, invalidateDocumentUrl } from "@/lib/document-url-cache";
+import { deleteDocument } from "@/actions/documents";
+import { invalidateDocumentUrl } from "@/lib/document-url-cache";
+import { downloadDocumentFile } from "@/lib/download-document";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,10 +28,6 @@ import { Button } from "@/components/ui/button";
 
 const ALL = "__all__";
 const TRIP_LEVEL = "__trip__";
-
-async function fetchSignedUrl(documentId: string) {
-  return getDocumentSignedUrl(documentId);
-}
 
 export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
   const [tripFilter, setTripFilter] = useState(ALL);
@@ -135,13 +132,10 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
     setViewerOpen(true);
   }
 
-  async function handleDownload(documentId: string) {
-    try {
-      const url = await getCachedDocumentUrl(fetchSignedUrl, documentId);
-      window.open(url, "_blank");
-    } catch (err) {
+  function handleDownload(documentId: string) {
+    void downloadDocumentFile(documentId).catch((err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Letöltési hiba");
-    }
+    });
   }
 
   function handleDelete(documentId: string) {

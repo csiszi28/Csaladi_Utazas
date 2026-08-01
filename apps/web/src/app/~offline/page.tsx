@@ -3,35 +3,17 @@
 import { useEffect, useState } from "react";
 import { WifiOff, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { OFFLINE_DAY_PREFIX } from "@/lib/offline-day";
-
-interface OfflineDaySnapshot {
-  tripId: string;
-  tripTitle: string;
-  destination: string;
-  day: string;
-  items: Array<{ title: string; time: string | null; kind: string }>;
-  savedAt: string;
-}
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  readOfflineDaySnapshots,
+  type OfflineDaySnapshot,
+} from "@/lib/offline-snapshots";
 
 export default function OfflinePage() {
   const [snapshots, setSnapshots] = useState<OfflineDaySnapshot[]>([]);
 
   useEffect(() => {
-    try {
-      const found: OfflineDaySnapshot[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (!key?.startsWith(OFFLINE_DAY_PREFIX)) continue;
-        const raw = localStorage.getItem(key);
-        if (!raw) continue;
-        found.push(JSON.parse(raw) as OfflineDaySnapshot);
-      }
-      found.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
-      setSnapshots(found.slice(0, 10));
-    } catch {
-      setSnapshots([]);
-    }
+    setSnapshots(readOfflineDaySnapshots(10));
   }, []);
 
   return (
@@ -55,7 +37,12 @@ export default function OfflinePage() {
               <div className="flex items-start gap-2">
                 <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{snap.tripTitle}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-semibold">{snap.tripTitle}</p>
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      Offline
+                    </span>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {snap.day} · {snap.destination}
                   </p>
@@ -78,9 +65,12 @@ export default function OfflinePage() {
           ))}
         </div>
       ) : (
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Még nincs mentett napi útiterv. Online módban az Áttekintés fülön mentsd el a napot.
-        </p>
+        <EmptyState
+          compact
+          title="Még nincs mentett napi útiterv"
+          description="Online módban az Áttekintés fülön mentsd el a napot."
+          className="w-full max-w-md border-0 bg-transparent px-0"
+        />
       )}
 
       <Button asChild className="min-h-[var(--touch-target)]">

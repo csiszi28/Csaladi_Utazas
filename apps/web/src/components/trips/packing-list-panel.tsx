@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   packingProgress,
   PACKING_PRESET_GROUPS,
@@ -8,7 +8,7 @@ import {
   isTripType,
   TRIP_TYPE_LABELS,
 } from "@csaladi-utazas/shared";
-import { ChevronDown, Minus, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, GripVertical, Minus, Plus, Sparkles, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,10 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import {
   createPackingItem,
   createPackingItemsBatch,
   deletePackingItem,
+  reorderPackingItems,
   updatePackingItem,
 } from "@/actions/feature-pack";
 import { toast } from "sonner";
@@ -42,6 +45,7 @@ interface PackingListPanelProps {
   participants: { id: string; name: string }[];
   tripType?: string | null;
   canEdit?: boolean;
+  currentFamilyMemberId?: string | null;
 }
 
 function normalizeItems(items: PackingItemRow[]): PackingItemRow[] {
@@ -51,12 +55,15 @@ function normalizeItems(items: PackingItemRow[]): PackingItemRow[] {
   }));
 }
 
+type PackingFilter = "all" | "mine" | "unpacked";
+
 export function PackingListPanel({
   tripId,
   items,
   participants,
   tripType,
   canEdit = true,
+  currentFamilyMemberId = null,
 }: PackingListPanelProps) {
   const [, startTransition] = useTransition();
   const [localItems, setLocalItems] = useState(() => normalizeItems(items));
@@ -66,10 +73,20 @@ export function PackingListPanel({
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [selectedPresets, setSelectedPresets] = useState<Record<string, number>>({});
   const [typeTemplatePending, startTypeTemplateTransition] = useTransition();
+  const [filter, setFilter] = useState<PackingFilter>("all");
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [justPackedId, setJustPackedId] = useState<string | null>(null);
+  const packedFlashRef = useRef<number | null>(null);
 
   useEffect(() => {
     setLocalItems(normalizeItems(items));
   }, [items]);
+
+  useEffect(() => {
+    return () => {
+      if (packedFlashRef.current) window.clearTimeout(packedFlashRef.current);
+    };
+  }, []);
 
   const progress = packingProgress(localItems);
   const assignee = assigneeId
@@ -79,6 +96,57 @@ export function PackingListPanel({
   const missingTypeExtras = typeExtras.filter(
     (name) => !localItems.some((item) => item.title.toLowerCase() === name.toLowerCase())
   );
+
+  const visibleItems = useMemo(() => {
+    return localItems.filter((item) => {
+      if (filter === "unpacked") return !item.isPacked;
+      if (filter === "mine") {
+        if (!currentFamilyMemberId) return false;
+        return item.assigneeFamilyMemberId === currentFamilyMemberId;
+      }
+      return true;
+    });
+  }, [localItems, filter, currentFamilyMemberId]);
+
+  const perPerson = useMemo(() => {
+    return participants
+      .map((person) => {
+        const rows = localItems.filter((item) => item.assigneeFamilyMemberId === person.id);
+        if (rows.length === 0) return null;
+        const packed = rows.filter((r) => r.isPacked).length;
+        return {
+          id: person.id,
+          name: person.name,
+          packed,
+          total: rows.length,
+          percent: Math.round((packed / rows.length) * 100),
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null);
+  }, [localItems, participants]);
+
+  function persistOrder(next: PackingItemRow[]) {
+    const orderedIds = next.filter((item) => !item.id.startsWith("temp-")).map((item) => item.id);
+    if (orderedIds.length === 0) return;
+    startTransition(async () => {
+      const result = await reorderPackingItems({ tripId, orderedIds });
+      if (!result.success) toast.error(result.error);
+    });
+  }
+
+  function moveItem(fromId: string, toId: string) {
+    if (fromId === toId) return;
+    setLocalItems((prev) => {
+      const fromIndex = prev.findIndex((item) => item.id === fromId);
+      const toIndex = prev.findIndex((item) => item.id === toId);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      persistOrder(next);
+      return next;
+    });
+  }
 
   function addTypeTemplate() {
     if (missingTypeExtras.length === 0) {
@@ -172,6 +240,11 @@ export function PackingListPanel({
     setLocalItems((prev) =>
       prev.map((row) => (row.id === item.id ? { ...row, isPacked: nextPacked } : row))
     );
+    if (nextPacked) {
+      setJustPackedId(item.id);
+      if (packedFlashRef.current) window.clearTimeout(packedFlashRef.current);
+      packedFlashRef.current = window.setTimeout(() => setJustPackedId(null), 650);
+    }
     startTransition(async () => {
       const result = await updatePackingItem({ id: item.id, isPacked: nextPacked });
       if (!result.success) {
@@ -262,22 +335,63 @@ export function PackingListPanel({
   }
 
   const selectedCount = Object.keys(selectedPresets).length;
+  const filters: { id: PackingFilter; label: string }[] = [
+    { id: "all", label: "Mind" },
+    { id: "unpacked", label: "Hátralévő" },
+    ...(currentFamilyMemberId ? [{ id: "mine" as const, label: "Csak az enyém" }] : []),
+  ];
 
   return (
     <div className="space-y-4">
       <div>
         <div className="mb-1 flex items-center justify-between text-sm">
           <span className="font-medium">Csomagolási lista</span>
-          <span className="text-muted-foreground">
-            {progress.packed}/{progress.total} · {progress.percent}%
+          <span className="tabular-nums text-muted-foreground">
+            {progress.packed}/{progress.total}
           </span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${progress.percent}%` }}
-          />
+        <ProgressBar value={progress.percent} size="md" tone="brand" showValue />
+      </div>
+
+      {perPerson.length > 0 ? (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {perPerson.map((person) => (
+            <div
+              key={person.id}
+              className="min-w-[8.5rem] shrink-0 rounded-xl border bg-muted/20 px-3 py-2"
+            >
+              <p className="truncate text-xs font-medium">{person.name}</p>
+              <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
+                {person.packed}/{person.total} · {person.percent}%
+              </p>
+              <ProgressBar
+                value={person.percent}
+                size="sm"
+                tone="success"
+                showValue={false}
+                className="mt-1.5"
+              />
+            </div>
+          ))}
         </div>
+      ) : null}
+
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+        {filters.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setFilter(item.id)}
+            className={cn(
+              "min-h-[var(--touch-target)] shrink-0 rounded-xl border px-3 text-sm font-medium transition-colors sm:min-h-9",
+              filter === item.id
+                ? "border-primary bg-primary text-primary-foreground"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted"
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       {canEdit && isTripType(tripType) && typeExtras.length > 0 ? (
@@ -296,154 +410,189 @@ export function PackingListPanel({
       ) : null}
 
       {canEdit ? (
-      <form onSubmit={handleAdd} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 shrink-0"
-            onClick={() => setQuantity((q) => clampQty(q - 1))}
-            aria-label="Kevesebb darab"
-          >
-            <Minus className="h-4 w-4" />
-          </Button>
+        <form onSubmit={handleAdd} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={() => setQuantity((q) => clampQty(q - 1))}
+              aria-label="Kevesebb darab"
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Input
+              type="number"
+              min={1}
+              max={99}
+              value={quantity}
+              onChange={(e) => setQuantity(clampQty(Number(e.target.value) || 1))}
+              className="h-10 w-14 text-center tabular-nums"
+              aria-label="Darabszám"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={() => setQuantity((q) => clampQty(q + 1))}
+              aria-label="Több darab"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
           <Input
-            type="number"
-            min={1}
-            max={99}
-            value={quantity}
-            onChange={(e) => setQuantity(clampQty(Number(e.target.value) || 1))}
-            className="h-10 w-14 text-center tabular-nums"
-            aria-label="Darabszám"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Új tétel…"
+            className="min-h-[var(--touch-target)] min-w-0 flex-1 sm:min-w-[12rem]"
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 shrink-0"
-            onClick={() => setQuantity((q) => clampQty(q + 1))}
-            aria-label="Több darab"
+          <Select
+            value={assigneeId || "__all"}
+            onValueChange={(v) => setAssigneeId(v === "__all" ? "" : v)}
           >
+            <SelectTrigger className="min-h-[var(--touch-target)] sm:w-40">
+              <SelectValue placeholder="Ki viszi?" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">Közös</SelectItem>
+              {participants.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button type="submit" disabled={!title.trim()} className="min-h-[var(--touch-target)]">
             <Plus className="h-4 w-4" />
+            Hozzáad
           </Button>
-        </div>
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Új tétel…"
-          className="min-h-[var(--touch-target)] min-w-0 flex-1 sm:min-w-[12rem]"
-        />
-        <Select value={assigneeId || "__all"} onValueChange={(v) => setAssigneeId(v === "__all" ? "" : v)}>
-          <SelectTrigger className="min-h-[var(--touch-target)] sm:w-40">
-            <SelectValue placeholder="Ki viszi?" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all">Közös</SelectItem>
-            {participants.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button type="submit" disabled={!title.trim()} className="min-h-[var(--touch-target)]">
-          <Plus className="h-4 w-4" />
-          Hozzáad
-        </Button>
-      </form>
+        </form>
       ) : null}
 
       {canEdit ? (
-      <div className="rounded-xl border">
-        <button
-          type="button"
-          onClick={() => setPresetsOpen((open) => !open)}
-          className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-medium"
-        >
-          <span>Gyorslista (sablonok)</span>
-          <ChevronDown
-            className={cn("h-4 w-4 text-muted-foreground transition-transform", presetsOpen && "rotate-180")}
-          />
-        </button>
-        {presetsOpen ? (
-          <div className="space-y-4 border-t px-3 py-3">
-            {PACKING_PRESET_GROUPS.map((group) => (
-              <div key={group.id} className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {group.label}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {group.items.map((name) => {
-                    const selected = selectedPresets[name] != null;
-                    return (
-                      <div key={name} className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => togglePreset(name)}
-                          className={cn(
-                            "rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
-                            selected
-                              ? "border-primary bg-primary/10 text-foreground"
-                              : "hover:bg-muted/60"
-                          )}
-                        >
-                          {name}
-                        </button>
-                        {selected ? (
-                          <Input
-                            type="number"
-                            min={1}
-                            max={99}
-                            value={selectedPresets[name]}
-                            onChange={(e) => setPresetQty(name, Number(e.target.value) || 1)}
-                            className="h-8 w-12 px-1 text-center text-xs tabular-nums"
-                            aria-label={`${name} darabszám`}
-                          />
-                        ) : null}
-                      </div>
-                    );
-                  })}
+        <div className="rounded-xl border">
+          <button
+            type="button"
+            onClick={() => setPresetsOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-medium"
+          >
+            <span>Gyorslista (sablonok)</span>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform",
+                presetsOpen && "rotate-180"
+              )}
+            />
+          </button>
+          {presetsOpen ? (
+            <div className="space-y-4 border-t px-3 py-3">
+              {PACKING_PRESET_GROUPS.map((group) => (
+                <div key={group.id} className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {group.items.map((name) => {
+                      const selected = selectedPresets[name] != null;
+                      return (
+                        <div key={name} className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => togglePreset(name)}
+                            className={cn(
+                              "rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
+                              selected
+                                ? "border-primary bg-primary/10 text-foreground"
+                                : "hover:bg-muted/60"
+                            )}
+                          >
+                            {name}
+                          </button>
+                          {selected ? (
+                            <Input
+                              type="number"
+                              min={1}
+                              max={99}
+                              value={selectedPresets[name]}
+                              onChange={(e) => setPresetQty(name, Number(e.target.value) || 1)}
+                              className="h-8 w-12 px-1 text-center text-xs tabular-nums"
+                              aria-label={`${name} darabszám`}
+                            />
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-            <Button
-              type="button"
-              disabled={selectedCount === 0}
-              onClick={addSelectedPresets}
-              className="w-full sm:w-auto"
-            >
-              {selectedCount > 0
-                ? `${selectedCount} kijelölt tétel hozzáadása`
-                : "Válassz tételeket"}
-            </Button>
-          </div>
-        ) : null}
-      </div>
+              ))}
+              <Button
+                type="button"
+                disabled={selectedCount === 0}
+                onClick={addSelectedPresets}
+                className="w-full sm:w-auto"
+              >
+                {selectedCount > 0
+                  ? `${selectedCount} kijelölt tétel hozzáadása`
+                  : "Válassz tételeket"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {localItems.length === 0 ? (
-        <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          Még nincs csomagolási tétel. Add hozzá kézzel, vagy válassz a gyorslistából.
+        <EmptyState
+          icon={Sparkles}
+          compact
+          title="Még nincs csomagolási tétel"
+          description="Add hozzá kézzel, vagy válassz a gyorslistából."
+        />
+      ) : visibleItems.length === 0 ? (
+        <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+          Nincs tétel ebben a szűrésben.
         </p>
       ) : (
         <ul className="space-y-2">
-          {localItems.map((item) => (
+          {visibleItems.map((item) => (
             <li
               key={item.id}
+              draggable={canEdit && !item.id.startsWith("temp-") && filter === "all"}
+              onDragStart={() => setDragId(item.id)}
+              onDragOver={(e) => {
+                if (!dragId || dragId === item.id) return;
+                e.preventDefault();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragId) moveItem(dragId, item.id);
+                setDragId(null);
+              }}
+              onDragEnd={() => setDragId(null)}
               className={cn(
-                "flex min-h-[var(--touch-target)] items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
-                item.isPacked && "border-transparent bg-muted/50"
+                "flex min-h-[var(--touch-target)] items-center gap-2 rounded-xl border px-2.5 py-2.5 transition-all duration-300 sm:gap-3 sm:px-3",
+                item.isPacked && "border-transparent bg-muted/50",
+                justPackedId === item.id && "packing-check-pop border-emerald-500/40 bg-emerald-500/10",
+                dragId === item.id && "opacity-60"
               )}
             >
+              {canEdit && filter === "all" ? (
+                <span
+                  className="hidden cursor-grab touch-none text-muted-foreground active:cursor-grabbing sm:inline-flex"
+                  aria-hidden
+                >
+                  <GripVertical className="h-4 w-4" />
+                </span>
+              ) : null}
               <button
                 type="button"
                 onClick={() => togglePacked(item)}
                 disabled={item.id.startsWith("temp-") || !canEdit}
                 className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 transition-colors",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 transition-all duration-200",
                   item.isPacked
-                    ? "border-primary bg-primary text-primary-foreground"
+                    ? "scale-100 border-primary bg-primary text-primary-foreground"
                     : "border-muted-foreground/35 hover:border-primary/60"
                 )}
                 aria-label={item.isPacked ? "Kicsomagolva" : "Becsomagolva"}
@@ -454,8 +603,9 @@ export function PackingListPanel({
                 <div className="flex flex-wrap items-center gap-2">
                   <p
                     className={cn(
-                      "text-[15px] font-medium leading-tight",
-                      item.isPacked && "text-muted-foreground line-through decoration-muted-foreground/60"
+                      "text-[15px] font-medium leading-tight transition-colors",
+                      item.isPacked &&
+                        "text-muted-foreground line-through decoration-muted-foreground/60"
                     )}
                   >
                     {item.title}
@@ -474,7 +624,10 @@ export function PackingListPanel({
                   ) : null}
                 </div>
                 {item.assignee?.name ? (
-                  <p className="truncate text-xs text-muted-foreground">{item.assignee.name}</p>
+                  <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                    <User className="h-3 w-3 shrink-0" />
+                    {item.assignee.name}
+                  </p>
                 ) : null}
               </div>
               {canEdit ? (
@@ -493,6 +646,12 @@ export function PackingListPanel({
           ))}
         </ul>
       )}
+
+      {canEdit && filter === "all" && localItems.length > 1 ? (
+        <p className="text-xs text-muted-foreground">
+          Asztalon: húzd át a sorokat a sorrendhez. Mobilon a szűrők és a checklist a fő eszköz.
+        </p>
+      ) : null}
     </div>
   );
 }

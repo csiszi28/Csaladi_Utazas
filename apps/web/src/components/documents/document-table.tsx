@@ -125,8 +125,8 @@ export function DocumentTable({
       </div>
 
       <div className="hidden overflow-hidden rounded-xl border sm:block">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[40rem] text-sm">
+        <div className="overflow-x-auto overscroll-x-contain [scrollbar-gutter:stable]">
+          <table className="w-full table-fixed text-sm sm:table-auto sm:min-w-[36rem]">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                 <th className="px-3 py-2.5 font-medium">Fájl</th>

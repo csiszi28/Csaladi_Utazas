@@ -26,6 +26,7 @@ import {
   prefetchDocumentUrls,
   invalidateDocumentUrl,
 } from "@/lib/document-url-cache";
+import { downloadDocumentFile } from "@/lib/download-document";
 
 export interface DocumentItem {
   id: string;
@@ -212,13 +213,10 @@ export function DocumentUpload({
     }
   }
 
-  async function handleDownload(documentId: string) {
-    try {
-      const url = await getCachedDocumentUrl(fetchSignedUrl, documentId);
-      window.open(url, "_blank");
-    } catch (err) {
+  function handleDownload(documentId: string) {
+    void downloadDocumentFile(documentId).catch((err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Letöltési hiba");
-    }
+    });
   }
 
   function openViewer(documentId?: string) {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BedDouble,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -22,9 +23,19 @@ import {
   type HufRateMap,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MonogramGroup } from "@/components/monogram";
 import { useHufRates } from "@/components/exchange-rates-provider";
 import { CalendarDayDrawer } from "./calendar-day-drawer";
+import { TodayFamilyWidget } from "./today-family-widget";
+import { FirstUseGuide } from "@/components/onboarding/first-use-guide";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS_SHORT = ["H", "K", "Sze", "Cs", "P", "Szo", "V"];
@@ -458,19 +469,37 @@ export function CalendarView({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileShowAllDays, setMobileShowAllDays] = useState(false);
+  const [tripFilterId, setTripFilterId] = useState<string>("all");
+  const [showPrograms, setShowPrograms] = useState(true);
+  const [showStays, setShowStays] = useState(true);
+  const [showCosts, setShowCosts] = useState(true);
 
   const rates = useHufRates();
   const days = useMemo(() => getDaysInMonth(year, month), [year, month]);
   const firstDayOfWeek = (days[0]?.getDay() + 6) % 7;
   const trailingBlanks = CALENDAR_ROWS * 7 - firstDayOfWeek - days.length;
 
+  const trips = useMemo(() => {
+    if (tripFilterId === "all") return allTrips;
+    return allTrips.filter((trip) => trip.id === tripFilterId);
+  }, [allTrips, tripFilterId]);
+
   const monthIndex = useMemo(() => {
     const map = new Map<string, DayData>();
     for (const day of days) {
-      map.set(dayKey(day), buildDayData(day, allTrips, rates));
+      const raw = buildDayData(day, trips, rates);
+      map.set(dayKey(day), {
+        ...raw,
+        dayPrograms: showPrograms ? raw.dayPrograms : [],
+        dayAccommodations: showStays ? raw.dayAccommodations : [],
+        dayTransports: showPrograms ? raw.dayTransports : raw.dayTransports,
+        dayCosts: showCosts ? raw.dayCosts : [],
+        totalCost: showCosts ? raw.totalCost : 0,
+        totalCostHuf: showCosts ? raw.totalCostHuf : 0,
+      });
     }
     return map;
-  }, [allTrips, days, rates]);
+  }, [trips, days, rates, showPrograms, showStays, showCosts]);
 
   const monthStats = useMemo(() => {
     let activeDays = 0;
@@ -530,8 +559,39 @@ export function CalendarView({
     setDrawerOpen(true);
   }
 
+  const contentToggles = [
+    {
+      id: "programs" as const,
+      label: "Programok",
+      icon: CalendarDays,
+      active: showPrograms,
+      onToggle: () => setShowPrograms((v) => !v),
+    },
+    {
+      id: "stays" as const,
+      label: "Szállás",
+      icon: BedDouble,
+      active: showStays,
+      onToggle: () => setShowStays((v) => !v),
+    },
+    {
+      id: "costs" as const,
+      label: "Költségek",
+      icon: Receipt,
+      active: showCosts,
+      onToggle: () => setShowCosts((v) => !v),
+    },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-8 sm:space-y-8">
+      <FirstUseGuide
+        hasTrips={allTrips.length > 0}
+        hasFamilyMembers={members.length > 0}
+      />
+
+      <TodayFamilyWidget trips={allTrips} />
+
       <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/8 via-card to-card p-4 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -564,8 +624,79 @@ export function CalendarView({
             onToday={goToToday}
           />
 
+          {allTrips.length > 0 ? (
+            <div className="space-y-3 border-t border-border/70 pt-4">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] sm:items-end">
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="calendar-trip-filter"
+                    className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    Utazás
+                  </label>
+                  <Select value={tripFilterId} onValueChange={setTripFilterId}>
+                    <SelectTrigger
+                      id="calendar-trip-filter"
+                      className="h-11 w-full rounded-xl border-border/80 bg-background/80 shadow-none"
+                    >
+                      <SelectValue placeholder="Utazás választása" />
+                    </SelectTrigger>
+                    <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                      <SelectItem value="all" className="py-2.5">
+                        Minden utazás
+                      </SelectItem>
+                      {allTrips.map((trip) => (
+                        <SelectItem key={trip.id} value={trip.id} className="py-2.5">
+                          {trip.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">Megjelenítés</p>
+                  <div
+                    className="grid grid-cols-3 gap-1 rounded-xl border border-border/80 bg-muted/35 p-1"
+                    role="group"
+                    aria-label="Naptár megjelenítés"
+                  >
+                    {contentToggles.map((toggle) => {
+                      const Icon = toggle.icon;
+                      return (
+                        <button
+                          key={toggle.id}
+                          type="button"
+                          onClick={toggle.onToggle}
+                          aria-pressed={toggle.active}
+                          className={cn(
+                            "flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-center transition-all sm:min-h-9 sm:flex-row sm:gap-1.5 sm:px-2",
+                            toggle.active
+                              ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              "h-3.5 w-3.5 shrink-0",
+                              toggle.active ? "text-primary" : "opacity-70"
+                            )}
+                          />
+                          <span className="text-[11px] font-medium leading-tight sm:text-xs">
+                            {toggle.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {(monthStats.tripCount > 0 || monthStats.programCount > 0) && (
-            <div className="flex flex-wrap gap-2 border-t pt-4">
+            <div className="flex flex-wrap gap-2 border-t border-border/70 pt-4">
               {monthStats.tripCount > 0 && (
                 <span className="rounded-full bg-background px-3 py-1 text-sm shadow-sm">
                   {monthStats.tripCount} utazás
@@ -592,13 +723,15 @@ export function CalendarView({
       </section>
 
       {allTrips.length === 0 ? (
-        <section className="rounded-2xl border border-dashed bg-muted/20 px-6 py-12 text-center">
-          <Sparkles className="mx-auto h-10 w-10 text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-semibold">Még nincs utazás a naptárban</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Hozz létre egy utazást, és itt látod majd a programokat naponta bontva.
-          </p>
-        </section>
+        <EmptyState
+          icon={Sparkles}
+          title="Még nincs utazás a naptárban"
+          description="Hozz létre egy utazást, és itt látod majd a programokat naponta bontva."
+        >
+          <Button asChild className="min-h-[var(--touch-target)]">
+            <a href="/trips">Utazások megnyitása</a>
+          </Button>
+        </EmptyState>
       ) : (
         <>
           <section className="space-y-3 md:hidden">
@@ -679,7 +812,7 @@ export function CalendarView({
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
           date={selectedDate}
-          trips={allTrips}
+          trips={trips}
           members={members}
           currentUserId={currentUserId}
           onSaved={() => router.refresh()}

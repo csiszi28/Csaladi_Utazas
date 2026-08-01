@@ -111,9 +111,9 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
         </Select>
       </div>
 
-      {/* Large screens: scrollable horizontal tabs (no shrink) */}
+      {/* Large screens: content-sized tabs, evenly spaced across the bar */}
       <nav
-        className="sticky top-0 z-10 hidden gap-1 overflow-x-auto rounded-xl border bg-background p-1 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] lg:flex [&::-webkit-scrollbar]:hidden"
+        className="sticky top-0 z-10 hidden w-full justify-between gap-1 rounded-xl border bg-background p-1 shadow-sm lg:flex"
         aria-label="Utazás szekciók"
       >
         {TABS.map((tab) => {
@@ -126,9 +126,9 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
               type="button"
               onClick={() => onChange(tab.id)}
               className={cn(
-                "flex min-h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
+                "flex min-h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
                 active === tab.id
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-sm ring-1 ring-border/60"
                   : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
               )}
             >

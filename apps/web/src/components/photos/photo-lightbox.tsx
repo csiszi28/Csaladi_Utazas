@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { downloadDocumentFile } from "@/lib/download-document";
 
 export interface PhotoLightboxItem {
   id: string;
@@ -102,16 +103,32 @@ export function PhotoLightbox({ items, index, onIndexChange }: PhotoLightboxProp
             </p>
           ) : null}
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon"
-          className="h-11 w-11 shrink-0"
-          onClick={() => onIndexChange(null)}
-          aria-label="Bezárás"
-        >
-          <X className="h-5 w-5" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="h-11 w-11"
+            onClick={() => {
+              void downloadDocumentFile(active.id);
+            }}
+            aria-label="Fotó letöltése"
+            title="Letöltés"
+            disabled={active.id.startsWith("temp-")}
+          >
+            <Download className="h-5 w-5" />
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="h-11 w-11"
+            onClick={() => onIndexChange(null)}
+            aria-label="Bezárás"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-14">

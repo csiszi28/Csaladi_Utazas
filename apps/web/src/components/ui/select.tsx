@@ -54,7 +54,7 @@ const SelectTrigger = React.forwardRef<
     <SelectPrimitive.Trigger
       ref={ref}
       className={cn(
-        "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:min-w-0 [&>span]:truncate",
         className
       )}
       onPointerDown={(event) => {
@@ -87,7 +87,8 @@ const SelectContent = React.forwardRef<
       data-select-content=""
       className={cn(
         "relative z-[70] min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
-        position === "popper" && "translate-y-1",
+        position === "popper" &&
+          "translate-y-1 md:w-[var(--radix-select-trigger-width)] md:min-w-[var(--radix-select-trigger-width)]",
         className
       )}
       position={position}
@@ -97,7 +98,11 @@ const SelectContent = React.forwardRef<
       }}
       {...props}
     >
-      <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
+      <SelectPrimitive.Viewport
+        className={cn("p-1", position === "popper" && "w-full md:min-w-[var(--radix-select-trigger-width)]")}
+      >
+        {children}
+      </SelectPrimitive.Viewport>
     </SelectPrimitive.Content>
   </SelectPrimitive.Portal>
 ));

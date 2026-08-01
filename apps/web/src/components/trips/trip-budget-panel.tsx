@@ -9,6 +9,8 @@ import {
   type HufRateMap,
 } from "@csaladi-utazas/shared";
 import { useHufRates } from "@/components/exchange-rates-provider";
+import { BudgetRing } from "@/components/ui/budget-ring";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { cn } from "@/lib/utils";
 
 interface TripBudgetPanelProps {
@@ -146,20 +148,50 @@ export function TripBudgetPanel({ trip }: TripBudgetPanelProps) {
 
   return (
     <div className="space-y-4">
+      {hasBudget ? (
+        <div className="flex flex-col gap-4 rounded-xl border bg-muted/20 p-4 sm:flex-row sm:items-center">
+          <BudgetRing
+            percent={summary.usagePercent ?? 0}
+            status={summary.status === "none" ? "none" : summary.status}
+            size="md"
+            label="Felhasználás"
+            sublabel={status.text}
+            className="justify-center sm:justify-start"
+          />
+          <div className="min-w-0 flex-1 space-y-1 text-center sm:text-left">
+            <p className="text-sm text-muted-foreground">Tényleges / limit</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {huf(summary.actualHuf)}
+              <span className="text-muted-foreground"> / {huf(summary.budgetHuf!)}</span>
+            </p>
+            {summary.remainingHuf != null ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  summary.remainingHuf < 0 ? "text-destructive" : "text-muted-foreground"
+                )}
+              >
+                Maradék: {huf(summary.remainingHuf)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border bg-muted/30 p-3">
+        <div className="rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-muted/40">
           <p className="text-xs font-medium text-muted-foreground">Becsült (ötletek)</p>
-          <p className="mt-1 text-lg font-semibold">{huf(summary.estimatedHuf)}</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{huf(summary.estimatedHuf)}</p>
         </div>
-        <div className="rounded-lg border bg-muted/30 p-3">
+        <div className="rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-muted/40">
           <p className="text-xs font-medium text-muted-foreground">Tényleges költség</p>
-          <p className="mt-1 text-lg font-semibold">{huf(summary.actualHuf)}</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{huf(summary.actualHuf)}</p>
         </div>
-        <div className="rounded-lg border bg-muted/30 p-3">
+        <div className="rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-muted/40">
           <p className="text-xs font-medium text-muted-foreground">
             {hasBudget ? "Költségvetés / maradék" : "Költségvetés"}
           </p>
-          <p className="mt-1 text-lg font-semibold">
+          <p className="mt-1 text-lg font-semibold tabular-nums">
             {hasBudget ? huf(summary.budgetHuf!) : "Nincs beállítva"}
           </p>
           {hasBudget && summary.remainingHuf != null && (
@@ -174,23 +206,20 @@ export function TripBudgetPanel({ trip }: TripBudgetPanelProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Felhasználás (tényleges)</span>
-            <span className={cn("font-medium", status.className)}>
-              {summary.usagePercent}% · {status.text}
-            </span>
+            <span className={cn("font-medium", status.className)}>{status.text}</span>
           </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all",
-                summary.status === "over"
-                  ? "bg-destructive"
-                  : summary.status === "warning"
-                    ? "bg-amber-500"
-                    : "bg-primary"
-              )}
-              style={{ width: `${Math.min(summary.usagePercent ?? 0, 100)}%` }}
-            />
-          </div>
+          <ProgressBar
+            value={summary.usagePercent ?? 0}
+            size="md"
+            showValue
+            tone={
+              summary.status === "over"
+                ? "danger"
+                : summary.status === "warning"
+                  ? "warning"
+                  : "brand"
+            }
+          />
           {summary.estimatedUsagePercent != null && summary.estimatedUsagePercent > (summary.usagePercent ?? 0) && (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <TrendingUp className="h-3.5 w-3.5" />

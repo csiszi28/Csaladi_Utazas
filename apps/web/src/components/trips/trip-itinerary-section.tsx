@@ -6,29 +6,36 @@ import {
   CalendarDays,
   Download,
   Plane,
+  Printer,
+  Share2,
   WifiOff,
 } from "lucide-react";
 import {
   buildDayItinerary,
   formatDate,
   listTripDays,
+  parseDate,
   type ItineraryItem,
 } from "@csaladi-utazas/shared";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import type { TripDetailTab } from "@/components/trips/trip-detail-tabs";
 import { OFFLINE_DAY_PREFIX } from "@/lib/offline-day";
 
+const WEEKDAYS_SHORT = ["V", "H", "K", "Sze", "Cs", "P", "Szo"] as const;
+
 function kindIcon(kind: ItineraryItem["kind"]) {
   switch (kind) {
     case "transport":
-      return <Plane className="h-4 w-4 shrink-0" />;
+      return <Plane className="h-3.5 w-3.5 shrink-0" />;
     case "accommodation_checkin":
     case "accommodation_checkout":
-      return <BedDouble className="h-4 w-4 shrink-0" />;
+      return <BedDouble className="h-3.5 w-3.5 shrink-0" />;
     default:
-      return <CalendarDays className="h-4 w-4 shrink-0" />;
+      return <CalendarDays className="h-3.5 w-3.5 shrink-0" />;
   }
 }
 
@@ -43,6 +50,14 @@ function kindLabel(kind: ItineraryItem["kind"]) {
     default:
       return "Program";
   }
+}
+
+function dayMeta(dayKey: string) {
+  const date = parseDate(dayKey);
+  return {
+    weekday: WEEKDAYS_SHORT[date.getDay()] ?? "",
+    dayNum: date.getDate(),
+  };
 }
 
 interface TripItinerarySectionProps {
@@ -99,6 +114,14 @@ export function TripItinerarySection({
     [selectedDay, trip.programs, trip.transports, trip.accommodations]
   );
 
+  const selectedIndex = days.indexOf(selectedDay);
+  const dayLabel =
+    selectedDay === todayKey
+      ? "Ma"
+      : selectedIndex >= 0
+        ? `${selectedIndex + 1}. nap`
+        : selectedDay;
+
   function saveOffline() {
     try {
       const payload = {
@@ -114,9 +137,41 @@ export function TripItinerarySection({
         JSON.stringify(payload)
       );
       setOfflineSaved(true);
+      toast.success("Nap elmentve offline");
     } catch {
-      /* ignore quota */
+      toast.error("Nem sikerült menteni offline");
     }
+  }
+
+  function shareDay() {
+    const lines = [
+      `${trip.title} — ${selectedDay}`,
+      trip.destination,
+      "",
+      ...items.map((item) => {
+        const time = item.time
+          ? `${item.time}${item.endTime ? `–${item.endTime}` : ""} · `
+          : "";
+        return `• ${time}${item.title}${item.location ? ` (${item.location})` : ""}`;
+      }),
+    ];
+    const text = lines.join("\n");
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      void navigator
+        .share({ title: `${trip.title} · ${selectedDay}`, text })
+        .catch(() => undefined);
+      return;
+    }
+
+    void navigator.clipboard.writeText(text).then(
+      () => toast.success("Napi útiterv a vágólapra másolva"),
+      () => toast.error("Nem sikerült másolni")
+    );
+  }
+
+  function printDay() {
+    window.print();
   }
 
   function onItemClick(item: ItineraryItem) {
@@ -126,77 +181,192 @@ export function TripItinerarySection({
   }
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-tight">Napi útiterv</h2>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="min-h-[var(--touch-target)] gap-1.5 sm:min-h-8"
-          onClick={saveOffline}
-        >
-          {offlineSaved ? (
-            <WifiOff className="h-3.5 w-3.5" />
-          ) : (
-            <Download className="h-3.5 w-3.5" />
-          )}
-          {offlineSaved ? "Mentve offline" : "Mentés offline"}
-        </Button>
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
+        <div className="min-w-0 space-y-1">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+            Útiterv
+          </p>
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+            <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
+              Napi útiterv
+            </h2>
+            <span className="text-sm text-muted-foreground">
+              {dayLabel}
+              <span className="mx-1.5 text-border">·</span>
+              <span className="tabular-nums">{selectedDay}</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-h-[var(--touch-target)] gap-1.5 text-muted-foreground sm:min-h-8"
+            onClick={shareDay}
+            disabled={items.length === 0}
+            aria-label="Megosztás"
+            title="Megosztás"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Megosztás</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-h-[var(--touch-target)] gap-1.5 text-muted-foreground sm:min-h-8"
+            onClick={printDay}
+            disabled={items.length === 0}
+            aria-label="Nyomtatás"
+            title="Nyomtatás"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Nyomtatás</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "min-h-[var(--touch-target)] gap-1.5 sm:min-h-8",
+              offlineSaved
+                ? "text-emerald-700 dark:text-emerald-300"
+                : "text-muted-foreground"
+            )}
+            onClick={saveOffline}
+            aria-label={offlineSaved ? "Mentve offline" : "Mentés offline"}
+            title={offlineSaved ? "Mentve offline" : "Mentés offline"}
+          >
+            {offlineSaved ? (
+              <WifiOff className="h-3.5 w-3.5" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {offlineSaved ? "Mentve" : "Offline"}
+            </span>
+          </Button>
+        </div>
       </div>
 
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {days.map((day) => {
-          const short = day.slice(5).replace(".", ".");
-          return (
-            <button
-              key={day}
-              type="button"
-              onClick={() => setSelectedDay(day)}
-              className={cn(
-                "min-h-[var(--touch-target)] shrink-0 rounded-xl border px-3 py-2 text-sm font-medium tabular-nums transition-colors sm:min-h-9",
-                selectedDay === day
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-muted/40 text-muted-foreground hover:bg-muted"
-              )}
-            >
-              {day === todayKey ? "Ma" : short}
-            </button>
-          );
-        })}
+      <div className="hidden print:block">
+        <h2 className="text-lg font-bold">
+          {trip.title} — {selectedDay}
+        </h2>
+        <p className="text-sm text-muted-foreground">{trip.destination}</p>
+      </div>
+
+      <div
+        role="tablist"
+        aria-label="Nap választása"
+        className="print:hidden"
+      >
+        <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {days.map((day) => {
+            const meta = dayMeta(day);
+            const isSelected = selectedDay === day;
+            const isToday = day === todayKey;
+            return (
+              <button
+                key={day}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => setSelectedDay(day)}
+                className={cn(
+                  "group relative flex min-w-[3.35rem] shrink-0 flex-col items-center gap-1 rounded-2xl px-2.5 py-2.5 transition-all duration-200",
+                  "min-h-[var(--touch-target)] touch-manipulation active:scale-[0.97] sm:min-h-0",
+                  isSelected
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/80 dark:bg-white/10 dark:ring-white/15"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                )}
+              >
+                <span
+                  className={cn(
+                    "text-[0.65rem] font-semibold uppercase tracking-[0.14em]",
+                    isSelected ? "text-[var(--brand-accent)]" : "text-muted-foreground/75"
+                  )}
+                >
+                  {isToday ? "Ma" : meta.weekday}
+                </span>
+                <span
+                  className={cn(
+                    "text-base font-semibold tabular-nums leading-none tracking-tight",
+                    isSelected && "text-foreground"
+                  )}
+                >
+                  {meta.dayNum}
+                </span>
+                {isSelected ? (
+                  <span
+                    aria-hidden
+                    className="absolute inset-x-3 bottom-1.5 h-0.5 rounded-full bg-[var(--brand-accent)] shadow-[0_0_8px_rgba(255,184,102,0.55)]"
+                  />
+                ) : isToday ? (
+                  <span
+                    aria-hidden
+                    className="absolute inset-x-4 bottom-1.5 h-0.5 rounded-full bg-[var(--brand-accent)]/40"
+                  />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        <div
+          aria-hidden
+          className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-border to-transparent"
+        />
       </div>
 
       {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-          Ezen a napon nincs program, szállás vagy közlekedés.
-          {canEdit ? " Adj hozzá elemeket a megfelelő fülön." : null}
-        </p>
+        <EmptyState
+          compact
+          title="Ezen a napon nincs program"
+          description={
+            canEdit
+              ? "Adj hozzá elemeket a Programok, Szállás vagy Közlekedés fülön."
+              : undefined
+          }
+        />
       ) : (
-        <ol className="relative space-y-0 border-l border-border/80 ml-3 pl-4">
-          {items.map((item) => (
-            <li key={item.id} className="relative pb-4 last:pb-0">
-              <span className="absolute -left-[1.35rem] top-1.5 flex h-5 w-5 items-center justify-center rounded-full border bg-card text-muted-foreground">
-                {kindIcon(item.kind)}
-              </span>
+        <ol className="relative space-y-2.5">
+          {items.map((item, index) => (
+            <li key={item.id} className="relative flex gap-3">
+              <div className="flex w-10 shrink-0 flex-col items-center pt-0.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-muted/70 text-muted-foreground ring-1 ring-border/70 dark:bg-white/8 dark:ring-white/10">
+                  {kindIcon(item.kind)}
+                </span>
+                {index < items.length - 1 ? (
+                  <span
+                    aria-hidden
+                    className="mt-2 w-px flex-1 bg-gradient-to-b from-border to-transparent"
+                  />
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => onItemClick(item)}
-                className="w-full rounded-xl border bg-muted/20 px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
+                className="min-w-0 flex-1 rounded-2xl border border-border/70 bg-card/60 px-3.5 py-3 text-left transition-all duration-200 hover:border-primary/25 hover:bg-card hover:shadow-sm active:scale-[0.99] print:border-0 print:bg-transparent print:p-0 print:shadow-none"
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="flex flex-wrap items-baseline justify-between gap-1.5">
+                  <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     {kindLabel(item.kind)}
                   </span>
                   {item.time ? (
-                    <span className="text-xs tabular-nums text-muted-foreground">
+                    <span className="text-xs font-medium tabular-nums text-muted-foreground">
                       {item.time}
                       {item.endTime ? `–${item.endTime}` : ""}
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-0.5 text-sm font-medium leading-snug">{item.title}</p>
+                <p className="mt-1 text-sm font-medium leading-snug tracking-tight">
+                  {item.title}
+                </p>
                 {item.location ? (
-                  <p className="mt-0.5 text-xs text-muted-foreground">{item.location}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.location}</p>
                 ) : null}
               </button>
             </li>

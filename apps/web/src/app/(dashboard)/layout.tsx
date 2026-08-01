@@ -6,6 +6,7 @@ import {
   fetchPendingFamilyLinkRequests,
   fetchUnseenFamilyLinkProposalOutcomes,
 } from "@/lib/queries/family-links";
+import { fetchTripsList } from "@/lib/queries/trips";
 
 export default async function DashboardRouteLayout({
   children,
@@ -24,18 +25,29 @@ export default async function DashboardRouteLayout({
 
   let incomingRequests: Awaited<ReturnType<typeof fetchPendingFamilyLinkRequests>> = [];
   let proposalOutcomes: Awaited<ReturnType<typeof fetchUnseenFamilyLinkProposalOutcomes>> = [];
+  let tripCommands: { id: string; title: string; destination: string }[] = [];
 
   try {
-    [incomingRequests, proposalOutcomes] = await Promise.all([
+    const [requests, outcomes, trips] = await Promise.all([
       fetchPendingFamilyLinkRequests(),
       fetchUnseenFamilyLinkProposalOutcomes(),
+      fetchTripsList(),
     ]);
+    incomingRequests = requests;
+    proposalOutcomes = outcomes;
+    tripCommands = trips
+      .filter((trip) => !trip.isTemplate)
+      .map((trip) => ({
+        id: trip.id,
+        title: trip.title,
+        destination: trip.destination,
+      }));
   } catch (err) {
-    console.error("[FamilyLinkNotifications] fetch failed:", err);
+    console.error("[DashboardLayout] fetch failed:", err);
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout trips={tripCommands}>
       <div className="mx-auto w-full max-w-5xl space-y-6">
         <FamilyLinkNotifications
           incomingRequests={incomingRequests}

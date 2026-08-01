@@ -120,14 +120,23 @@ export function RemindersBell({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-3 font-medium transition-colors touch-manipulation",
+          "group relative flex w-full items-center gap-3 rounded-2xl px-2.5 font-medium transition-[color,background-color,transform] duration-200 touch-manipulation",
           "text-sm min-h-[var(--touch-target)]",
-          "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-          "active:scale-[0.98] active:opacity-90"
+          "active:scale-[0.98]",
+          "text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground",
+          "dark:text-white/60 dark:hover:bg-white/8 dark:hover:text-white"
         )}
         aria-label={count > 0 ? `Emlékeztetők (${count})` : "Emlékeztetők"}
       >
-        <Bell className="h-4 w-4 shrink-0" />
+        <span
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
+            "bg-muted/70 text-muted-foreground group-hover:bg-background group-hover:text-foreground",
+            "dark:bg-white/8 dark:text-sky-100/80 dark:ring-1 dark:ring-white/10 dark:group-hover:bg-white/12 dark:group-hover:text-white"
+          )}
+        >
+          <Bell className="h-4 w-4" />
+        </span>
         <span className="min-w-0 flex-1 text-left">Emlékeztetők</span>
         {count > 0 ? (
           <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[0.65rem] font-semibold leading-none text-destructive-foreground">

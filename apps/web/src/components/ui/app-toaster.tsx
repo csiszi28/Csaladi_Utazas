@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Check, CircleAlert, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { Toaster, type ToasterProps } from "sonner";
+import { useTheme } from "@/components/theme-provider";
 
 const TOAST_EDGE_PADDING_PX = 12;
 
@@ -27,7 +29,22 @@ function readToastPosition(): NonNullable<ToasterProps["position"]> {
   return window.matchMedia("(max-width: 767px)").matches ? "top-center" : "top-right";
 }
 
+function ToastIcon({
+  children,
+  tone,
+}: {
+  children: ReactNode;
+  tone: "success" | "error" | "warning" | "info" | "neutral";
+}) {
+  return (
+    <span className={`app-toast-icon app-toast-icon--${tone}`} aria-hidden>
+      {children}
+    </span>
+  );
+}
+
 export function AppToaster() {
+  const { resolved } = useTheme();
   const [offset, setOffset] = useState(TOAST_EDGE_PADDING_PX);
   const [position, setPosition] = useState<NonNullable<ToasterProps["position"]>>("top-right");
 
@@ -59,15 +76,58 @@ export function AppToaster() {
 
   return (
     <Toaster
-      richColors
+      theme={resolved}
       position={position}
       offset={offset}
       mobileOffset={offset}
       expand
+      gap={10}
       visibleToasts={4}
+      closeButton
+      duration={3800}
+      className="app-toaster"
+      icons={{
+        success: (
+          <ToastIcon tone="success">
+            <Check strokeWidth={2.5} className="h-3.5 w-3.5" />
+          </ToastIcon>
+        ),
+        error: (
+          <ToastIcon tone="error">
+            <CircleAlert strokeWidth={2.25} className="h-3.5 w-3.5" />
+          </ToastIcon>
+        ),
+        warning: (
+          <ToastIcon tone="warning">
+            <TriangleAlert strokeWidth={2.25} className="h-3.5 w-3.5" />
+          </ToastIcon>
+        ),
+        info: (
+          <ToastIcon tone="info">
+            <Info strokeWidth={2.25} className="h-3.5 w-3.5" />
+          </ToastIcon>
+        ),
+        loading: (
+          <ToastIcon tone="neutral">
+            <LoaderCircle strokeWidth={2.25} className="h-3.5 w-3.5 animate-spin" />
+          </ToastIcon>
+        ),
+        close: <X strokeWidth={2.25} className="h-3.5 w-3.5" />,
+      }}
       toastOptions={{
         classNames: {
           toast: "app-toast",
+          title: "app-toast-title",
+          description: "app-toast-description",
+          actionButton: "app-toast-action",
+          cancelButton: "app-toast-cancel",
+          closeButton: "app-toast-close",
+          icon: "app-toast-icon-slot",
+          success: "app-toast--success",
+          error: "app-toast--error",
+          warning: "app-toast--warning",
+          info: "app-toast--info",
+          loading: "app-toast--loading",
         },
       }}
     />

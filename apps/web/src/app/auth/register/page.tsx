@@ -4,22 +4,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function RegisterPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Regisztráció</CardTitle>
-          <CardDescription>Hozd létre a családi fiókodat</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RegisterForm />
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Van már fiókod?{" "}
-            <Link href="/auth/login" className="text-primary hover:underline">
-              Bejelentkezés
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="w-full border-white/20 bg-card/95 shadow-xl backdrop-blur-sm">
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl">Regisztráció</CardTitle>
+        <CardDescription>Hozd létre a családi fiókodat</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <RegisterForm />
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          Van már fiókod?{" "}
+          <Link href="/auth/login" className="text-primary hover:underline">
+            Bejelentkezés
+          </Link>
+        </p>
+      </CardContent>
+    </Card>
   );
 }

@@ -20,6 +20,8 @@ import { TripFormDrawer } from "@/components/trips/trip-form-drawer";
 import { CreateTripFromTemplateDialog } from "@/components/trips/create-trip-from-template-dialog";
 import type { TripListRow } from "@/lib/queries/trips";
 import type { FamilyMemberRow } from "@/lib/queries/family";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FirstUseGuide } from "@/components/onboarding/first-use-guide";
 import { cn } from "@/lib/utils";
 
 function tripDateParts(date: Date | string) {
@@ -50,47 +52,78 @@ const STATUS_LABELS = {
   past: "Lezárult",
 } as const;
 
-const STATUS_STYLES = {
-  upcoming: "bg-primary/10 text-primary",
-  active: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
-  past: "bg-muted text-muted-foreground",
+const STATUS_ACCENT = {
+  upcoming: {
+    rail: "bg-[var(--brand-accent)]",
+    date: "from-[var(--brand-accent)]/20 via-[var(--brand-accent)]/8 to-transparent text-[#1a2744] dark:text-[#ffe0b0]",
+    badge: "text-[var(--brand-accent)]",
+    glow: "group-hover:shadow-[0_18px_40px_-24px_rgba(255,184,102,0.55)]",
+  },
+  active: {
+    rail: "bg-emerald-500",
+    date: "from-emerald-500/18 via-emerald-500/6 to-transparent text-emerald-900 dark:text-emerald-100",
+    badge: "text-emerald-700 dark:text-emerald-300",
+    glow: "group-hover:shadow-[0_18px_40px_-24px_rgba(16,185,129,0.45)]",
+  },
+  past: {
+    rail: "bg-muted-foreground/40",
+    date: "from-muted via-muted/40 to-transparent text-muted-foreground",
+    badge: "text-muted-foreground",
+    glow: "group-hover:shadow-[0_16px_36px_-24px_rgba(26,54,93,0.35)]",
+  },
 } as const;
 
 function TripCard({ trip }: { trip: TripListRow }) {
   const status = tripStatus(trip);
   const start = tripDateParts(trip.startDate);
-  const end = tripDateParts(trip.endDate);
+  const accent = STATUS_ACCENT[status];
+  const participantNames = trip.participants.map((p) => p.familyMember.name);
 
   return (
-    <article className="group relative overflow-hidden rounded-2xl border bg-card shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
-      <Link href={`/trips/${trip.id}`} className="absolute inset-0 z-0" aria-label={`${trip.title} részletei`} />
+    <article
+      className={cn(
+        "group relative overflow-hidden rounded-[1.35rem] border border-border/70 bg-card/90",
+        "shadow-sm transition-[border-color,box-shadow,transform] duration-300",
+        "hover:-translate-y-0.5 hover:border-primary/25",
+        accent.glow
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn("absolute inset-y-0 left-0 w-1 rounded-l-[1.35rem]", accent.rail)}
+      />
 
-      <div className="relative z-10 flex flex-col gap-4 p-4 sm:flex-row sm:items-stretch sm:p-5">
-        <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:justify-center sm:border-r sm:pr-5">
-          <div className="flex h-16 w-16 flex-col items-center justify-center rounded-xl bg-primary/10 text-primary sm:h-auto sm:w-20 sm:py-3">
-            <span className="text-[0.65rem] font-semibold uppercase tracking-wide">
-              {start.month}
-            </span>
-            <span className="text-2xl font-bold leading-none">{start.day}</span>
-            <span className="text-[0.65rem] text-primary/80">{start.year}</span>
-          </div>
+      <div className="relative flex gap-4 p-4 pl-5 sm:gap-5 sm:p-5 sm:pl-6">
+        <div
+          className={cn(
+            "flex h-[4.5rem] w-[3.75rem] shrink-0 flex-col items-center justify-center rounded-2xl bg-gradient-to-b sm:h-[5.25rem] sm:w-[4.25rem]",
+            accent.date
+          )}
+        >
+          <span className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] opacity-80">
+            {start.month}
+          </span>
+          <span className="font-display text-[1.7rem] font-bold leading-none tracking-tight sm:text-[1.85rem]">
+            {start.day}
+          </span>
+          <span className="mt-0.5 text-[0.65rem] tabular-nums opacity-70">{start.year}</span>
         </div>
 
         <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
-                <MapPin className="h-3.5 w-3.5 shrink-0" />
-                {trip.destination}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <p className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-primary/80" />
+                <span className="truncate">{trip.destination}</span>
               </p>
-              <h3 className="mt-0.5 text-lg font-bold tracking-tight group-hover:text-primary sm:text-xl">
+              <h3 className="font-display text-lg font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary sm:text-xl">
                 {trip.title}
               </h3>
             </div>
             <span
               className={cn(
-                "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                STATUS_STYLES[status]
+                "mt-0.5 shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.16em]",
+                accent.badge
               )}
             >
               {STATUS_LABELS[status]}
@@ -98,39 +131,45 @@ function TripCard({ trip }: { trip: TripListRow }) {
           </div>
 
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4 shrink-0" />
-            {formatDate(trip.startDate)} – {formatDate(trip.endDate)}
-            {start.year !== end.year && ` (${end.year})`}
+            <Calendar className="h-3.5 w-3.5 shrink-0 opacity-70" />
+            <span className="tabular-nums">
+              {formatDate(trip.startDate)} – {formatDate(trip.endDate)}
+            </span>
           </p>
 
-          <MonogramGroup names={trip.participants.map((p) => p.familyMember.name)} />
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <MonogramGroup names={participantNames} />
+              <p className="hidden text-xs text-muted-foreground sm:block">
+                <span className="tabular-nums">{trip._count.programs}</span> program
+                <span className="mx-1.5 text-border">·</span>
+                <span className="tabular-nums">{trip._count.costs}</span> költség
+                <span className="mx-1.5 text-border">·</span>
+                <span className="tabular-nums">{participantNames.length}</span> fő
+              </p>
+            </div>
 
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span className="rounded-full bg-muted px-2.5 py-1">
-              {trip._count.programs} program
-            </span>
-            <span className="rounded-full bg-muted px-2.5 py-1">
-              {trip._count.costs} költség
-            </span>
-            <span className="rounded-full bg-muted px-2.5 py-1">
-              {trip.participants.length} résztvevő
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-primary transition-transform duration-300 group-hover:translate-x-0.5">
+              Részletek
+              <ArrowRight className="h-4 w-4" />
             </span>
           </div>
+
+          <p className="text-xs text-muted-foreground sm:hidden">
+            <span className="tabular-nums">{trip._count.programs}</span> program
+            <span className="mx-1.5 text-border">·</span>
+            <span className="tabular-nums">{trip._count.costs}</span> költség
+            <span className="mx-1.5 text-border">·</span>
+            <span className="tabular-nums">{participantNames.length}</span> fő
+          </p>
         </div>
       </div>
 
-      <div className="relative z-10 border-t bg-muted/20 px-4 py-3 sm:px-5">
-        <Button
-          asChild
-          size="sm"
-          className="relative z-20 h-11 min-h-11 w-full text-base font-semibold"
-        >
-          <Link href={`/trips/${trip.id}`}>
-            Részletek
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-        </Button>
-      </div>
+      <Link
+        href={`/trips/${trip.id}`}
+        className="absolute inset-0 z-10"
+        aria-label={`${trip.title} részletei`}
+      />
     </article>
   );
 }
@@ -191,6 +230,8 @@ export function TripsPage({
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8 pb-8">
+      <FirstUseGuide hasTrips={trips.length > 0} hasFamilyMembers={members.length > 0} />
+
       <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/8 via-card to-card p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-2">
@@ -235,20 +276,20 @@ export function TripsPage({
       </section>
 
       {trips.length === 0 ? (
-        <section className="rounded-2xl border border-dashed bg-muted/20 px-6 py-12 text-center">
-          <Sparkles className="mx-auto h-10 w-10 text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-semibold">Még nincs utazásod</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Hozz létre egy új utazást, vagy csatlakozz meghívó kóddal.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Button onClick={() => setDrawerOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Első utazás létrehozása
-            </Button>
-            <JoinTripDialog />
-          </div>
-        </section>
+        <EmptyState
+          icon={Sparkles}
+          title="Még nincs utazásod"
+          description="Hozz létre egy új utazást, vagy csatlakozz meghívó kóddal."
+        >
+          <Button
+            className="min-h-[var(--touch-target)]"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Első utazás létrehozása
+          </Button>
+          <JoinTripDialog />
+        </EmptyState>
       ) : (
         <div className="space-y-8">
           {renderSection(

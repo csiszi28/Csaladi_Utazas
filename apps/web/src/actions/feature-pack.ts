@@ -120,6 +120,43 @@ export async function updatePackingItem(data: {
   return { success: true, data: undefined };
 }
 
+export async function reorderPackingItems(data: {
+  tripId: string;
+  orderedIds: string[];
+}): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!data.tripId || !Array.isArray(data.orderedIds) || data.orderedIds.length === 0) {
+    return { success: false, error: "Érvénytelen sorrend" };
+  }
+
+  const access = await requireTripEditor(data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
+  const existing = await prisma.packingItem.findMany({
+    where: { tripId: data.tripId },
+    select: { id: true },
+  });
+  const existingIds = new Set(existing.map((row) => row.id));
+  if (
+    data.orderedIds.length !== existingIds.size ||
+    data.orderedIds.some((id) => !existingIds.has(id))
+  ) {
+    return { success: false, error: "A lista megváltozott — frissítsd az oldalt" };
+  }
+
+  await prisma.$transaction(
+    data.orderedIds.map((id, index) =>
+      prisma.packingItem.update({
+        where: { id },
+        data: { sortOrder: index },
+      })
+    )
+  );
+
+  invalidateTripMutation(user.id, data.tripId);
+  return { success: true, data: undefined };
+}
+
 export async function deletePackingItem(id: string): Promise<ActionResult> {
   const user = await requireUser();
   const existing = await prisma.packingItem.findFirst({

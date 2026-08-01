@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import {
   Plus,
   Pencil,
@@ -113,6 +113,9 @@ export function TripAccommodationsSection({
   const [accommodationDrawerOpen, setAccommodationDrawerOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<AccommodationIdeaFormData | null>(null);
   const [editingAccommodation, setEditingAccommodation] = useState<AccommodationRow | null>(null);
+  const [decisionOverrides, setDecisionOverrides] = useState<Record<string, IdeaDecision>>({});
+  const [decisionPendingId, setDecisionPendingId] = useState<string | null>(null);
+  const [, startDecisionTransition] = useTransition();
 
   const deleteIdeaMutation = useDeleteTripIdea();
   const deleteAccommodationMutation = useDeleteAccommodation();
@@ -121,6 +124,14 @@ export function TripAccommodationsSection({
     () => ideas.filter((idea) => idea.category === "ACCOMMODATION"),
     [ideas]
   );
+
+  useEffect(() => {
+    setDecisionOverrides({});
+  }, [accommodationIdeas]);
+
+  function ideaDecision(idea: TripIdeaRow): IdeaDecision {
+    return decisionOverrides[idea.id] ?? ((idea.decision ?? "OPEN") as IdeaDecision);
+  }
 
   useEffect(() => {
     if (ideaOpenSignal > 0) {
@@ -156,10 +167,31 @@ export function TripAccommodationsSection({
     if (result.success) onRefresh();
   }
 
-  async function handleSetDecision(ideaId: string, decision: IdeaDecision) {
-    const result = await setIdeaDecision({ ideaId, decision });
-    if (!result.success) toast.error(result.error);
-    else onRefresh();
+  function handleSetDecision(ideaId: string, decision: IdeaDecision) {
+    const previous =
+      decisionOverrides[ideaId] ??
+      ((accommodationIdeas.find((idea) => idea.id === ideaId)?.decision ?? "OPEN") as IdeaDecision);
+
+    setDecisionOverrides((prev) => ({ ...prev, [ideaId]: decision }));
+    setDecisionPendingId(ideaId);
+
+    startDecisionTransition(async () => {
+      const result = await setIdeaDecision({ ideaId, decision });
+      setDecisionPendingId((current) => (current === ideaId ? null : current));
+      if (!result.success) {
+        setDecisionOverrides((prev) => ({ ...prev, [ideaId]: previous }));
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        decision === "ACCEPTED"
+          ? "Ötlet elfogadva"
+          : decision === "REJECTED"
+            ? "Ötlet elutasítva"
+            : "Döntés visszaállítva"
+      );
+      onRefresh();
+    });
   }
 
   const ideaOptions = accommodationIdeas.map((idea) => ({
@@ -215,6 +247,8 @@ export function TripAccommodationsSection({
             {accommodationIdeas.map((idea) => {
               const interestedNames = idea.interests.map((i) => i.familyMember.name);
               const isConverted = convertedIdeaIds.has(idea.id);
+              const decision = ideaDecision(idea);
+              const decisionBusy = decisionPendingId === idea.id;
 
               return (
                 <CollapsiblePanel
@@ -228,7 +262,7 @@ export function TripAccommodationsSection({
                           Szállásként rögzítve
                         </span>
                       )}
-                      <IdeaDecisionBadge decision={idea.decision} />
+                      <IdeaDecisionBadge decision={decision} />
                     </span>
                   }
                   subtitle={
@@ -342,33 +376,36 @@ export function TripAccommodationsSection({
                             Szállásként rögzítés
                           </Button>
                         )}
-                        {idea.decision !== "ACCEPTED" && (
+                        {decision !== "ACCEPTED" && (
                           <Button
                             size="sm"
                             variant="outline"
                             className="w-full sm:w-auto"
+                            disabled={decisionBusy}
                             onClick={() => handleSetDecision(idea.id, "ACCEPTED")}
                           >
                             <Check className="h-4 w-4" />
                             Elfogadás
                           </Button>
                         )}
-                        {idea.decision !== "REJECTED" && (
+                        {decision !== "REJECTED" && (
                           <Button
                             size="sm"
                             variant="outline"
                             className="w-full sm:w-auto"
+                            disabled={decisionBusy}
                             onClick={() => handleSetDecision(idea.id, "REJECTED")}
                           >
                             <X className="h-4 w-4" />
                             Elutasítás
                           </Button>
                         )}
-                        {idea.decision !== "OPEN" && (
+                        {decision !== "OPEN" && (
                           <Button
                             size="sm"
                             variant="ghost"
                             className="w-full sm:w-auto"
+                            disabled={decisionBusy}
                             onClick={() => handleSetDecision(idea.id, "OPEN")}
                           >
                             Visszaállítás

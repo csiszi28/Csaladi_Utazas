@@ -2,7 +2,7 @@
 
 import { prisma } from "@csaladi-utazas/database";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
+import { invalidateTripMutation, invalidateTripsAndReports } from "@/lib/revalidate-app-data";
 import {
   tripIdeaSchema,
   updateTripIdeaSchema,
@@ -342,6 +342,7 @@ export async function toggleIdeaInterest(data: {
     });
   }
 
+  invalidateTripMutation(user.id, idea.tripId);
   return { success: true, data: undefined };
 }
 
@@ -482,7 +483,7 @@ export async function setIdeaDecision(data: {
     data: { decision: parsed.data.decision },
   });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: idea.tripId,
     actorUserId: user.id,
     type: "IDEA_CREATED",
@@ -490,6 +491,6 @@ export async function setIdeaDecision(data: {
     meta: { ideaId: idea.id, decision: parsed.data.decision },
   });
 
-  invalidateTripsAndReports(user.id, idea.tripId);
+  invalidateTripMutation(user.id, idea.tripId);
   return { success: true, data: undefined };
 }

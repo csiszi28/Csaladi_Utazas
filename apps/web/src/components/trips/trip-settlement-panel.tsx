@@ -194,8 +194,33 @@ export function TripSettlementPanel({ tripId, tripTitle, trip }: TripSettlementP
       </div>
 
       {remainingTransfers.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-sm font-medium">Fennmaradó kiegyenlítések</p>
+          <div className="overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-max items-stretch gap-2 px-0.5">
+              {remainingTransfers.map((transfer, index) => (
+                <div
+                  key={`flow-${transfer.fromId}-${transfer.toId}-${index}`}
+                  className="flex items-center gap-2 rounded-2xl border bg-gradient-to-r from-rose-500/5 via-card to-emerald-500/5 px-3 py-2.5"
+                >
+                  <div className="min-w-[4.5rem] text-center">
+                    <p className="truncate text-xs font-semibold">{transfer.fromName}</p>
+                    <p className="text-[10px] text-muted-foreground">fizet</p>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5 px-1">
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-bold tabular-nums text-primary">
+                      {huf(transfer.amountHuf)}
+                    </span>
+                  </div>
+                  <div className="min-w-[4.5rem] text-center">
+                    <p className="truncate text-xs font-semibold">{transfer.toName}</p>
+                    <p className="text-[10px] text-muted-foreground">kap</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
           {remainingTransfers.map((transfer, index) => {
             const key = transferKey(transfer.fromId, transfer.toId);
             return (

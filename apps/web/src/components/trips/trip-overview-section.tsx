@@ -223,7 +223,7 @@ function ActivityFeed({
           ) : undefined
         }
       />
-      <ul className="overflow-hidden rounded-xl border">
+      <ul className="relative space-y-0 overflow-hidden rounded-xl border before:absolute before:bottom-4 before:left-[1.65rem] before:top-4 before:w-px before:bg-border/80 sm:before:left-[1.85rem]">
         {visible.map((a) => {
           const visual = activityVisual(a.type);
           const Icon = visual.icon;
@@ -231,9 +231,9 @@ function ActivityFeed({
           return (
             <li
               key={a.id}
-              className="flex gap-3 border-b px-3 py-3 last:border-b-0 sm:gap-3.5 sm:px-4"
+              className="relative flex gap-3 border-b px-3 py-3 last:border-b-0 sm:gap-3.5 sm:px-4"
             >
-              <Monogram name={a.actor.name} className="mt-0.5 shrink-0" />
+              <Monogram name={a.actor.name} className="relative z-[1] mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1 space-y-1.5">
                 <div className="flex items-start justify-between gap-2">
                   <p className="min-w-0 truncate text-sm font-medium leading-5">{a.actor.name}</p>
@@ -247,7 +247,7 @@ function ActivityFeed({
                 <div className="flex items-start gap-2">
                   <span
                     className={cn(
-                      "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                      "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-transform",
                       visual.className
                     )}
                     aria-hidden

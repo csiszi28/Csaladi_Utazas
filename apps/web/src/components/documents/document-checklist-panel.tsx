@@ -12,7 +12,7 @@ import {
   isTripType,
   type DocumentCategory,
 } from "@csaladi-utazas/shared";
-import { cn } from "@/lib/utils";
+import { ProgressBar } from "@/components/ui/progress-bar";
 
 interface DocumentChecklistPanelProps {
   documents: {
@@ -57,18 +57,15 @@ export function DocumentChecklistPanel({
         <p className="text-sm text-muted-foreground">
           Indulás előtti dokumentumok családtagonként
         </p>
-        <span className="text-sm font-medium">{percent}% kész (átlag)</span>
+        <span className="text-sm font-medium">Átlagos készültség</span>
       </div>
 
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn(
-            "h-full rounded-full transition-all",
-            percent === 100 ? "bg-emerald-500" : percent >= 50 ? "bg-primary" : "bg-amber-500"
-          )}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
+      <ProgressBar
+        value={percent}
+        size="md"
+        showValue
+        tone={percent === 100 ? "success" : percent >= 50 ? "brand" : "warning"}
+      />
 
       <div className="overflow-hidden rounded-xl border">
         <div className="overflow-x-auto">

@@ -33,29 +33,27 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <Card className="w-full border-white/20 bg-card/95 shadow-xl backdrop-blur-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Bejelentkezés</CardTitle>
-          <CardDescription>Családi Utazástervező</CardDescription>
+          <CardDescription>Jelentkezz be a családi fiókodba</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Suspense fallback={<p className="text-sm text-muted-foreground">Betöltés...</p>}>
-            <LoginForm />
-          </Suspense>
-          <div className="mt-4 space-y-2 text-center text-sm">
-            <Link href="/auth/forgot-password" className="text-primary hover:underline">
-              Elfelejtett jelszó
+      <CardContent>
+        <Suspense fallback={<p className="text-sm text-muted-foreground">Betöltés...</p>}>
+          <LoginForm />
+        </Suspense>
+        <div className="mt-4 space-y-2 text-center text-sm">
+          <Link href="/auth/forgot-password" className="text-primary hover:underline">
+            Elfelejtett jelszó
+          </Link>
+          <p className="text-muted-foreground">
+            Nincs fiókod?{" "}
+            <Link href="/auth/register" className="text-primary hover:underline">
+              Regisztráció
             </Link>
-            <p className="text-muted-foreground">
-              Nincs fiókod?{" "}
-              <Link href="/auth/register" className="text-primary hover:underline">
-                Regisztráció
-              </Link>
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

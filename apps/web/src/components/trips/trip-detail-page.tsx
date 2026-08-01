@@ -494,23 +494,40 @@ export function TripDetailPage({
   };
 
   const tripParticipants = trip.participants.map((p) => p.familyMember);
+  const currentFamilyMemberId =
+    trip.participants.find(
+      (p) =>
+        p.familyMember.linkedUserId === currentUserId ||
+        p.familyMember.userId === currentUserId
+    )?.familyMember.id ?? null;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 pb-8">
-      <section className="relative overflow-hidden rounded-2xl border shadow-sm">
+      <section className="relative overflow-hidden rounded-2xl border shadow-sm trip-hero-enter">
         <div
-          className="relative bg-gradient-to-br from-[#002045] via-[#1a365d] to-[#2a4a7a]"
+          className="relative min-h-[11.5rem] bg-gradient-to-br from-[#002045] via-[#1a365d] to-[#2a4a7a] sm:min-h-[13rem]"
           style={
             coverUrl
               ? {
-                  backgroundImage: `linear-gradient(to top, rgba(0,32,69,.88), rgba(26,54,93,.55)), url(${coverUrl})`,
+                  backgroundImage: `linear-gradient(to top, rgba(0,32,69,.9), rgba(26,54,93,.5)), url(${coverUrl})`,
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                 }
               : undefined
           }
         >
-          <div className="p-4 text-white sm:p-6">
+          <div
+            aria-hidden
+            className={cn(
+              "absolute inset-x-0 top-0 h-1",
+              countdownLabel === "Véget ért"
+                ? "bg-white/35"
+                : countdownLabel.includes("Ma")
+                  ? "bg-emerald-400"
+                  : "bg-[var(--brand-accent)]"
+            )}
+          />
+          <div className="relative p-4 text-white sm:p-6">
             <div className="mb-3 flex items-start justify-between gap-2">
               <Button
                 variant="ghost"
@@ -563,12 +580,21 @@ export function TripDetailPage({
                     {trip.title}
                   </h1>
                 </div>
-                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/85">
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-white/85">
                   <span className="inline-flex items-center gap-1.5">
                     <Calendar className="h-4 w-4 shrink-0" />
                     {formatDate(trip.startDate)} – {formatDate(trip.endDate)}
                   </span>
-                  <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold tracking-wide">
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide",
+                      countdownLabel === "Véget ért"
+                        ? "bg-white/20 text-white/90"
+                        : countdownLabel.includes("Ma") || countdownLabel.startsWith("Még")
+                          ? "bg-emerald-400/90 text-[#0b1e38]"
+                          : "bg-[var(--brand-accent)] text-[#1a2744]"
+                    )}
+                  >
                     {countdownLabel}
                   </span>
                 </p>
@@ -739,6 +765,7 @@ export function TripDetailPage({
             participants={trip.participants.map((p) => p.familyMember)}
             currentUserId={currentUserId}
             currentUserName={currentUserName}
+            currentFamilyMemberId={currentFamilyMemberId}
             canEdit={canEdit}
             onRefresh={refresh}
             onDeleteProgram={handleDeleteProgram}
@@ -878,6 +905,7 @@ export function TripDetailPage({
               participants={tripParticipants}
               tripType={trip.tripType}
               canEdit={canEdit}
+              currentFamilyMemberId={currentFamilyMemberId}
             />
           ) : null}
         </section>

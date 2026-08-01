@@ -129,6 +129,7 @@ export function TripFinancesSection({
               <CollapsiblePanel
                 key={cost.id}
                 defaultOpen={false}
+                className="cost-row-enter shadow-none"
                 title={cost.title}
                 subtitle={
                   <span className="flex flex-col gap-0.5">
@@ -173,7 +174,6 @@ export function TripFinancesSection({
                     </div>
                   ) : undefined
                 }
-                className="shadow-none"
               >
                 <dl className="grid gap-2 text-sm sm:grid-cols-2">
                   <div>

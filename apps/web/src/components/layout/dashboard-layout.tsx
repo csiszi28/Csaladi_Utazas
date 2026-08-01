@@ -1,17 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Menu } from "lucide-react";
-import { DesktopSidebar, SidebarNav } from "@/components/layout/sidebar";
+import { usePathname } from "next/navigation";
+import { Menu, Search } from "lucide-react";
+import { DesktopSidebar, MobileSidebarChrome, SidebarNav } from "@/components/layout/sidebar";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ExchangeRatesProvider } from "@/components/exchange-rates-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BRAND } from "@/lib/brand";
 import { RemindersBell } from "@/components/reminders/reminders-bell";
+import {
+  CommandPalette,
+  type CommandPaletteTrip,
+} from "@/components/search/command-palette";
 
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
+export function DashboardLayout({
+  children,
+  trips = [],
+}: {
+  children: React.ReactNode;
+  trips?: CommandPaletteTrip[];
+}) {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -24,12 +37,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMobileOpen(false);
-  }, [children]);
+  }, [pathname]);
 
   return (
     <ExchangeRatesProvider>
       <DashboardShell>
-        <div className="flex h-[100dvh] overflow-hidden bg-background">
+        <div className="app-canvas relative flex h-svh overflow-hidden">
           <DesktopSidebar />
 
           {mobileOpen && (
@@ -43,25 +56,25 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
           <aside
             className={cn(
-              "fixed top-0 left-0 z-50 flex h-[100svh] max-h-[100dvh] flex-col overflow-hidden border-r bg-card shadow-xl transition-transform duration-200 md:hidden",
+              "sidebar-rail fixed top-0 left-0 z-50 flex h-svh flex-col overflow-hidden shadow-2xl shadow-black/40 transition-transform duration-200 md:hidden",
               "pt-[env(safe-area-inset-top)]",
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}
             style={{ width: "min(var(--app-sidebar-width), 88vw)" }}
           >
-            <SidebarNav
-              mobileDrawer
-              showClose
-              onClose={() => setMobileOpen(false)}
-              onNavigate={() => setMobileOpen(false)}
-            />
+            <MobileSidebarChrome>
+              <SidebarNav
+                mobileDrawer
+                showClose
+                onClose={() => setMobileOpen(false)}
+                onNavigate={() => setMobileOpen(false)}
+              />
+            </MobileSidebarChrome>
           </aside>
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
-              <div
-                className="sticky top-0 z-20 flex items-center gap-3 bg-background px-[var(--app-content-padding)] pt-[max(var(--app-content-padding),env(safe-area-inset-top))] pb-2 md:hidden"
-              >
+          <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
+            <main className="app-main-scroll min-h-0 flex-1">
+              <div className="sticky top-0 z-20 flex items-center gap-2 bg-[color-mix(in_oklab,var(--background)_82%,transparent)] px-[var(--app-content-padding)] pt-[max(var(--app-content-padding),env(safe-area-inset-top))] pb-2 backdrop-blur-md md:hidden">
                 <Button
                   variant="outline"
                   size="icon"
@@ -76,14 +89,41 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     {BRAND.shortName}
                   </span>
                 </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setSearchOpen(true)}
+                  aria-label="Keresés"
+                  style={{ width: "var(--touch-target)", height: "var(--touch-target)" }}
+                >
+                  <Search className="h-5 w-5" />
+                </Button>
                 <RemindersBell />
               </div>
-              <div className="px-[var(--app-content-padding)] pb-[var(--app-content-padding)] md:p-[var(--app-content-padding)]">
-                {children}
+
+              <div className="flex items-start gap-3 px-[var(--app-content-padding)] pb-[var(--app-content-padding)] pt-[var(--app-content-padding)]">
+                <div className="min-w-0 flex-1">{children}</div>
+                <div className="hidden shrink-0 md:block">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-9 gap-2 text-muted-foreground"
+                    onClick={() => setSearchOpen(true)}
+                  >
+                    <Search className="h-4 w-4" />
+                    Keresés
+                    <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                      Ctrl K
+                    </kbd>
+                  </Button>
+                </div>
               </div>
             </main>
           </div>
         </div>
+
+        <CommandPalette trips={trips} open={searchOpen} onOpenChange={setSearchOpen} />
       </DashboardShell>
     </ExchangeRatesProvider>
   );

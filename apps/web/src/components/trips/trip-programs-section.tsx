@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 import {
   Plus,
   Pencil,
@@ -37,11 +37,15 @@ import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { CostChips } from "./cost-chips";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
 import { TripFilterChips, TripSectionHeading } from "./trip-detail-tabs";
+import { IdeaVoteBar } from "./idea-vote-bar";
+import { InlineProgramTitle, ProgramDayShift } from "./inline-program-edit";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 import { parseDate } from "@csaladi-utazas/shared";
 import { TripMapView, buildTripMapMarkers } from "./trip-map-view";
 import { GeocodeStatusBadge, resolveGeocodeStatus } from "./geocode-status";
+import { Sparkles } from "lucide-react";
 
 type TripIdeaRow = TripDetailRow["ideas"][number];
 type ProgramRow = TripDetailRow["programs"][number];
@@ -218,9 +222,10 @@ interface TripProgramsSectionProps {
   programs: ProgramRow[];
   costs: TripDetailRow["costs"];
   documents: TripDetailRow["documents"];
-  participants: { id: string; name: string }[];
+  participants: { id: string; name: string; linkedUserId?: string | null }[];
   currentUserId: string;
   currentUserName: string;
+  currentFamilyMemberId?: string | null;
   canEdit?: boolean;
   onRefresh: () => void;
   onDeleteProgram: (id: string) => void;
@@ -246,6 +251,7 @@ export function TripProgramsSection({
   participants,
   currentUserId,
   currentUserName,
+  currentFamilyMemberId = null,
   canEdit = true,
   onRefresh,
   onDeleteProgram,
@@ -266,8 +272,19 @@ export function TripProgramsSection({
   const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<TripIdeaFormData | null>(null);
   const [editingProgram, setEditingProgram] = useState<ProgramRow | null>(null);
+  const [decisionOverrides, setDecisionOverrides] = useState<Record<string, IdeaDecision>>({});
+  const [decisionPendingId, setDecisionPendingId] = useState<string | null>(null);
+  const [, startDecisionTransition] = useTransition();
 
   const deleteIdeaMutation = useDeleteTripIdea();
+
+  useEffect(() => {
+    setDecisionOverrides({});
+  }, [ideas]);
+
+  function ideaDecision(idea: TripIdeaRow): IdeaDecision {
+    return decisionOverrides[idea.id] ?? ((idea.decision ?? "OPEN") as IdeaDecision);
+  }
 
   const programTitleById = new Map(programs.map((p) => [p.id, p.title]));
   const programDocuments = documents.filter((d) => d.programId);
@@ -301,11 +318,39 @@ export function TripProgramsSection({
     if (result.success) onRefresh();
   }
 
-  async function handleSetDecision(ideaId: string, decision: IdeaDecision) {
-    const result = await setIdeaDecision({ ideaId, decision });
-    if (!result.success) toast.error(result.error);
-    else onRefresh();
+  function handleSetDecision(ideaId: string, decision: IdeaDecision) {
+    const previous =
+      decisionOverrides[ideaId] ??
+      ((ideas.find((idea) => idea.id === ideaId)?.decision ?? "OPEN") as IdeaDecision);
+
+    setDecisionOverrides((prev) => ({ ...prev, [ideaId]: decision }));
+    setDecisionPendingId(ideaId);
+
+    startDecisionTransition(async () => {
+      const result = await setIdeaDecision({ ideaId, decision });
+      setDecisionPendingId((current) => (current === ideaId ? null : current));
+      if (!result.success) {
+        setDecisionOverrides((prev) => ({ ...prev, [ideaId]: previous }));
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        decision === "ACCEPTED"
+          ? "Ötlet elfogadva"
+          : decision === "REJECTED"
+            ? "Ötlet elutasítva"
+            : "Döntés visszaállítva"
+      );
+      onRefresh();
+    });
   }
+
+  const myMemberId =
+    currentFamilyMemberId ??
+    participants.find((p) => p.linkedUserId === currentUserId)?.id ??
+    null;
+  const myMemberName =
+    participants.find((p) => p.id === myMemberId)?.name ?? currentUserName;
 
   const ideaOptions = ideas.map((idea) => ({
     id: idea.id,
@@ -357,8 +402,9 @@ export function TripProgramsSection({
 
           <div className="space-y-3">
             {ideas.map((idea) => {
-              const interestedNames = idea.interests.map((i) => i.familyMember.name);
               const isConverted = convertedIdeaIds.has(idea.id);
+              const decision = ideaDecision(idea);
+              const decisionBusy = decisionPendingId === idea.id;
 
               return (
                 <CollapsiblePanel
@@ -372,7 +418,7 @@ export function TripProgramsSection({
                           Programmá alakítva
                         </span>
                       )}
-                      <IdeaDecisionBadge decision={idea.decision} />
+                      <IdeaDecisionBadge decision={decision} />
                     </span>
                   }
                   subtitle={
@@ -466,14 +512,16 @@ export function TripProgramsSection({
                   }
                 >
                   <div className="space-y-3">
-                    {interestedNames.length > 0 ? (
-                      <div className="space-y-1.5">
-                        <p className="text-sm font-medium text-muted-foreground">Érdekli:</p>
-                        <MonogramGroup names={interestedNames} />
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Még senkit nem érdekel.</p>
-                    )}
+                    <IdeaVoteBar
+                      ideaId={idea.id}
+                      interests={idea.interests}
+                      participantCount={participants.length}
+                      voteDeadline={idea.voteDeadline}
+                      decision={decision}
+                      currentFamilyMemberId={myMemberId}
+                      currentFamilyMemberName={myMemberName}
+                      onChanged={onRefresh}
+                    />
 
                     <IdeaChatPanel
                       ideaId={idea.id}
@@ -488,40 +536,43 @@ export function TripProgramsSection({
                         {!isConverted && (
                           <Button
                             size="sm"
-                            className="w-full sm:w-auto"
+                            className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
                             onClick={() => onConvertToProgram(idea.id)}
                           >
                             <CalendarPlus className="h-4 w-4" />
                             Programmá alakítás
                           </Button>
                         )}
-                        {idea.decision !== "ACCEPTED" && (
+                        {decision !== "ACCEPTED" && (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="w-full sm:w-auto"
+                            className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
+                            disabled={decisionBusy}
                             onClick={() => handleSetDecision(idea.id, "ACCEPTED")}
                           >
                             <Check className="h-4 w-4" />
                             Elfogadás
                           </Button>
                         )}
-                        {idea.decision !== "REJECTED" && (
+                        {decision !== "REJECTED" && (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="w-full sm:w-auto"
+                            className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
+                            disabled={decisionBusy}
                             onClick={() => handleSetDecision(idea.id, "REJECTED")}
                           >
                             <X className="h-4 w-4" />
                             Elutasítás
                           </Button>
                         )}
-                        {idea.decision !== "OPEN" && (
+                        {decision !== "OPEN" && (
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="w-full sm:w-auto"
+                            className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
+                            disabled={decisionBusy}
                             onClick={() => handleSetDecision(idea.id, "OPEN")}
                           >
                             Visszaállítás
@@ -535,9 +586,12 @@ export function TripProgramsSection({
             })}
 
             {ideas.length === 0 && (
-              <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                Még nincsenek ötletek. Adj hozzá programjavaslatokat URL-lel és becsült költséggel.
-              </p>
+              <EmptyState
+                icon={Sparkles}
+                compact
+                title="Még nincsenek ötletek"
+                description="Adj hozzá programjavaslatokat URL-lel és becsült költséggel."
+              />
             )}
           </div>
         </section>
@@ -665,9 +719,7 @@ export function TripProgramsSection({
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarDays className="h-3.5 w-3.5 shrink-0" />
                           {programDateLabel(program.date)}
-                          <span>
-                            · {programTimeLabel(program)}
-                          </span>
+                          <span>· {programTimeLabel(program)}</span>
                         </span>
                         {program.location && (
                           <span className="inline-flex items-center gap-1">
@@ -723,15 +775,42 @@ export function TripProgramsSection({
                     </div>
                   }
                 >
-                  <MonogramGroup names={program.participants.map((p) => p.familyMember.name)} />
+                  <div className="space-y-3">
+                    {canEdit ? (
+                      <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+                        <p className="text-xs font-medium text-muted-foreground">Gyors szerkesztés</p>
+                        <InlineProgramTitle
+                          tripId={tripId}
+                          program={program}
+                          canEdit={canEdit}
+                          onSaved={onRefresh}
+                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Nap mozgatása</span>
+                          <ProgramDayShift
+                            tripId={tripId}
+                            program={program}
+                            tripStartDate={tripStartDate}
+                            tripEndDate={tripEndDate}
+                            canEdit={canEdit}
+                            onSaved={onRefresh}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                    <MonogramGroup names={program.participants.map((p) => p.familyMember.name)} />
+                  </div>
                 </CollapsiblePanel>
               );
             })}
 
             {programs.length === 0 && (
-              <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                Még nincsenek programok. Adj hozzá egyet, vagy alakíts ötletet programmá.
-              </p>
+              <EmptyState
+                icon={Sparkles}
+                compact
+                title="Még nincsenek programok"
+                description="Adj hozzá egyet, vagy alakíts ötletet programmá."
+              />
             )}
           </div>
           )}

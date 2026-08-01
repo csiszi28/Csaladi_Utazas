@@ -357,6 +357,7 @@ export function TripMapView({
   useEffect(() => {
     let cancelled = false;
     let resizeObserver: ResizeObserver | null = null;
+    let resizeRaf = 0;
 
     async function setup() {
       if (!containerRef.current) return;
@@ -400,7 +401,19 @@ export function TripMapView({
       requestAnimationFrame(invalidate);
       setTimeout(invalidate, 50);
       setTimeout(invalidate, 250);
-      resizeObserver = new ResizeObserver(() => invalidate());
+
+      let lastWidth = 0;
+      let lastHeight = 0;
+      resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        const { width, height } = entry.contentRect;
+        if (Math.abs(width - lastWidth) < 1 && Math.abs(height - lastHeight) < 1) return;
+        lastWidth = width;
+        lastHeight = height;
+        cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(invalidate);
+      });
       resizeObserver.observe(containerRef.current);
 
       setMapReady(true);
@@ -414,6 +427,7 @@ export function TripMapView({
 
     return () => {
       cancelled = true;
+      cancelAnimationFrame(resizeRaf);
       resizeObserver?.disconnect();
       mapRef.current?.remove();
       mapRef.current = null;
