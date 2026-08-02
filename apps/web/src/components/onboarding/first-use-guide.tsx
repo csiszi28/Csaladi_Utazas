@@ -114,7 +114,7 @@ export function FirstUseGuide({
               className={cn(
                 "flex min-h-[var(--touch-target)] items-start gap-3 rounded-xl border px-3 py-3 transition-all active:scale-[0.99]",
                 done
-                  ? "border-emerald-500/30 bg-emerald-500/5"
+                  ? "border-emerald-500/30 bg-emerald-500/5 dark:border-emerald-400/40 dark:bg-emerald-500/10"
                   : "bg-background/80 hover:border-primary/30 hover:bg-accent/40"
               )}
             >

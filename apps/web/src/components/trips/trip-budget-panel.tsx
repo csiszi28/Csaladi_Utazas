@@ -82,9 +82,9 @@ function statusLabel(status: ReturnType<typeof buildTripBudgetSummary>["status"]
     case "over":
       return { text: "Túllépve", className: "text-destructive" };
     case "warning":
-      return { text: "Közel a limithez", className: "text-amber-600" };
+      return { text: "Közel a limithez", className: "text-amber-600 dark:text-amber-400" };
     case "ok":
-      return { text: "Rendben", className: "text-emerald-600" };
+      return { text: "Rendben", className: "text-emerald-600 dark:text-emerald-400" };
     default:
       return { text: "Nincs limit", className: "text-muted-foreground" };
   }

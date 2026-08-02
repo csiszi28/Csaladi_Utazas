@@ -34,9 +34,8 @@ const navItems = [
 ];
 
 const navItemClass = cn(
-  "group relative flex w-full items-center gap-3 rounded-2xl px-2.5 font-medium transition-[color,background-color,transform] duration-200 touch-manipulation",
-  "text-sm min-h-[var(--touch-target)]",
-  "active:scale-[0.98]"
+  "group relative flex w-full items-center gap-3 rounded-2xl px-2.5 font-medium transition-colors duration-200 touch-manipulation",
+  "text-sm min-h-[var(--touch-target)]"
 );
 
 interface SidebarNavProps {
@@ -107,15 +106,15 @@ export function SidebarNav({ onNavigate, showClose, onClose, mobileDrawer }: Sid
         className={cn(
           navItemClass,
           pathname === "/settings" || pathname.startsWith("/settings/")
-            ? "sidebar-nav-active bg-primary text-primary-foreground shadow-sm shadow-primary/20 dark:bg-white/12 dark:text-white dark:shadow-[0_8px_28px_-12px_rgba(255,184,102,0.55)] dark:ring-1 dark:ring-white/15"
+            ? "sidebar-nav-active bg-primary text-primary-foreground dark:bg-white/12 dark:text-white"
             : "text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground dark:text-white/55 dark:hover:bg-white/8 dark:hover:text-white"
         )}
       >
         <span
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-[color,background-color,box-shadow] duration-200",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-200",
             pathname === "/settings" || pathname.startsWith("/settings/")
-              ? "bg-[var(--brand-accent)] text-[#1a2744] shadow-md shadow-orange-400/30"
+              ? "bg-[var(--brand-accent)] text-[#1a2744]"
               : "bg-muted/70 text-muted-foreground ring-1 ring-border group-hover:bg-background group-hover:text-foreground dark:bg-white/8 dark:text-white/70 dark:ring-white/10 dark:group-hover:bg-white/12 dark:group-hover:text-white"
           )}
         >
@@ -161,7 +160,7 @@ export function SidebarNav({ onNavigate, showClose, onClose, mobileDrawer }: Sid
               <h1 className="font-display text-base font-bold tracking-[0.22em] text-primary dark:text-white sm:text-lg">
                 {BRAND.shortName}
               </h1>
-              <p className="mt-0.5 truncate text-[0.65rem] font-medium uppercase tracking-[0.18em] text-muted-foreground dark:text-sky-100/55">
+              <p className="mt-0.5 truncate text-[0.65rem] font-medium uppercase tracking-[0.18em] text-muted-foreground dark:text-sky-100/70">
                 {BRAND.taglineHu}
               </p>
             </div>
@@ -187,11 +186,11 @@ export function SidebarNav({ onNavigate, showClose, onClose, mobileDrawer }: Sid
 
       <nav
         className={cn(
-          "relative flex-1 space-y-1.5 overflow-y-auto px-[var(--app-content-padding)] py-4",
+          "relative flex-1 space-y-1.5 overflow-x-hidden overflow-y-auto px-[var(--app-content-padding)] py-4 [scrollbar-gutter:stable]",
           mobileDrawer && "pb-[max(1rem,env(safe-area-inset-bottom))]"
         )}
       >
-        <p className="mb-2 px-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 dark:text-sky-100/40">
+        <p className="mb-2 px-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 dark:text-sky-100/65">
           Menü
         </p>
         {navItems.map((item) => {
@@ -206,21 +205,21 @@ export function SidebarNav({ onNavigate, showClose, onClose, mobileDrawer }: Sid
               className={cn(
                 navItemClass,
                 isActive
-                  ? "sidebar-nav-active bg-primary text-primary-foreground shadow-sm shadow-primary/20 dark:bg-white/12 dark:text-white dark:shadow-[0_8px_28px_-12px_rgba(255,184,102,0.55)] dark:ring-1 dark:ring-white/15"
+                  ? "sidebar-nav-active bg-primary text-primary-foreground dark:bg-white/12 dark:text-white"
                   : "text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground dark:text-white/60 dark:hover:bg-white/8 dark:hover:text-white"
               )}
             >
               {isActive ? (
                 <span
                   aria-hidden
-                  className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-[var(--brand-accent)] shadow-[0_0_12px_rgba(255,184,102,0.8)]"
+                  className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-[var(--brand-accent)]"
                 />
               ) : null}
               <span
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-[color,background-color,box-shadow] duration-200",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-200",
                   isActive
-                    ? "bg-[var(--brand-accent)] text-[#1a2744] shadow-md shadow-orange-400/30"
+                    ? "bg-[var(--brand-accent)] text-[#1a2744]"
                     : "bg-muted/70 text-muted-foreground ring-1 ring-border group-hover:bg-background group-hover:text-foreground dark:bg-white/8 dark:text-sky-100/80 dark:ring-white/10 dark:group-hover:bg-white/12 dark:group-hover:text-white"
                 )}
               >
@@ -230,7 +229,7 @@ export function SidebarNav({ onNavigate, showClose, onClose, mobileDrawer }: Sid
               {isActive ? (
                 <span
                   aria-hidden
-                  className="mr-1 h-1.5 w-1.5 rounded-full bg-[var(--brand-accent)] shadow-[0_0_8px_rgba(255,184,102,0.9)]"
+                  className="mr-1 h-1.5 w-1.5 rounded-full bg-[var(--brand-accent)]"
                 />
               ) : null}
             </Link>
@@ -319,7 +318,7 @@ function SidebarChrome({
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0 w-px bg-border dark:bg-gradient-to-b dark:from-transparent dark:via-sky-200/25 dark:to-transparent"
+        className="pointer-events-none absolute inset-y-0 right-0 w-px bg-border dark:bg-gradient-to-b dark:from-[rgba(255,184,102,0.35)] dark:via-sky-200/35 dark:to-[rgba(255,184,102,0.2)]"
       />
       {children}
     </>
@@ -329,10 +328,10 @@ function SidebarChrome({
 export function DesktopSidebar() {
   return (
     <aside
-      className="sidebar-rail relative hidden h-full shrink-0 flex-col overflow-hidden border-r border-border/80 dark:border-transparent md:flex"
+      className="sidebar-rail relative z-[2] hidden h-full shrink-0 flex-col overflow-hidden border-r border-border/80 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.35)] contain-paint dark:border-sky-200/20 dark:shadow-[6px_0_28px_-8px_rgba(0,0,0,0.55)] md:flex"
       style={{ width: "var(--app-sidebar-width)" }}
     >
-      <SidebarChrome inheritCanvas>
+      <SidebarChrome>
         <SidebarNav />
       </SidebarChrome>
     </aside>

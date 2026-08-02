@@ -246,7 +246,7 @@ export function TripItinerarySection({
             </h2>
             <span className="text-sm text-muted-foreground">
               {dayLabel}
-              <span className="mx-1.5 text-border">·</span>
+              <span className="mx-1.5 text-muted-foreground/50">·</span>
               <span className="tabular-nums">{selectedDay}</span>
             </span>
           </div>

@@ -105,10 +105,10 @@ export function ChartsGrid({
       <ChartSection title="Kategóriák összehasonlítása">
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={categoryData} margin={{ left: -12, right: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
               interval={0}
               angle={-20}
               textAnchor="end"
@@ -117,7 +117,7 @@ export function ChartsGrid({
             <YAxis
               tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
               width={36}
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
             />
             <Tooltip formatter={(value) => huf(Number(value ?? 0))} />
             <Bar dataKey="amount" fill="#3b5bdb" radius={[4, 4, 0, 0]} />
@@ -140,12 +140,12 @@ export function ReportsBarChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ left: -8 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="name" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
         <YAxis
           tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
           width={36}
-          tick={{ fontSize: 10 }}
+          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
         />
         <Tooltip formatter={(value) => huf(Number(value ?? 0))} />
         <Bar dataKey="összeg" fill={fill} radius={[4, 4, 0, 0]} />

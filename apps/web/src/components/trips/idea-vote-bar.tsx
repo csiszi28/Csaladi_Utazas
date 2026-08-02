@@ -17,7 +17,6 @@ interface IdeaVoteBarProps {
   interests: InterestRow[];
   participantCount: number;
   voteDeadline?: Date | string | null;
-  decision?: string | null;
   currentFamilyMemberId?: string | null;
   currentFamilyMemberName?: string | null;
   onChanged: () => void;
@@ -55,7 +54,6 @@ export function IdeaVoteBar({
   interests,
   participantCount,
   voteDeadline,
-  decision,
   currentFamilyMemberId,
   currentFamilyMemberName,
   onChanged,
@@ -90,7 +88,6 @@ export function IdeaVoteBar({
       ? Math.round((displayInterests.length / participantCount) * 100)
       : 0;
   const deadline = voteDeadline ? deadlineMeta(voteDeadline) : null;
-  const decided = decision === "ACCEPTED" || decision === "REJECTED";
 
   function toggle() {
     if (!currentFamilyMemberId) {
@@ -123,19 +120,6 @@ export function IdeaVoteBar({
 
   return (
     <div className={cn("space-y-3", className)}>
-      {decided ? (
-        <div
-          className={cn(
-            "rounded-xl border px-3 py-2 text-sm font-medium",
-            decision === "ACCEPTED"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
-              : "border-rose-500/30 bg-rose-500/10 text-rose-800 dark:text-rose-200"
-          )}
-        >
-          {decision === "ACCEPTED" ? "Döntés: elfogadva" : "Döntés: elutasítva"}
-        </div>
-      ) : null}
-
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="font-medium text-muted-foreground">Érdeklődés</span>
@@ -166,7 +150,7 @@ export function IdeaVoteBar({
         </p>
       ) : null}
 
-      {currentFamilyMemberId && !decided ? (
+      {currentFamilyMemberId ? (
         <Button
           type="button"
           variant={interested ? "default" : "outline"}

@@ -89,7 +89,7 @@ export function DocumentChecklistPanel({
                   <td key={item.category} className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
                       {item.uploaded ? (
-                        <Check className="h-4 w-4 text-emerald-600" />
+                        <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       ) : (
                         <Circle className="h-4 w-4 text-muted-foreground" />
                       )}

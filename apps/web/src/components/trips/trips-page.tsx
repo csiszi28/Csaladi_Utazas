@@ -55,19 +55,19 @@ const STATUS_LABELS = {
 const STATUS_ACCENT = {
   upcoming: {
     rail: "bg-[var(--brand-accent)]",
-    date: "from-[var(--brand-accent)]/20 via-[var(--brand-accent)]/8 to-transparent text-[#1a2744] dark:text-[#ffe0b0]",
+    date: "bg-[var(--brand-accent)] text-[#1a2744]",
     badge: "text-[var(--brand-accent)]",
     glow: "group-hover:shadow-[0_18px_40px_-24px_rgba(255,184,102,0.55)]",
   },
   active: {
     rail: "bg-emerald-500",
-    date: "from-emerald-500/18 via-emerald-500/6 to-transparent text-emerald-900 dark:text-emerald-100",
-    badge: "text-emerald-700 dark:text-emerald-300",
+    date: "bg-emerald-500 text-white",
+    badge: "text-emerald-600 dark:text-emerald-300",
     glow: "group-hover:shadow-[0_18px_40px_-24px_rgba(16,185,129,0.45)]",
   },
   past: {
     rail: "bg-muted-foreground/40",
-    date: "from-muted via-muted/40 to-transparent text-muted-foreground",
+    date: "bg-muted text-foreground",
     badge: "text-muted-foreground",
     glow: "group-hover:shadow-[0_16px_36px_-24px_rgba(26,54,93,0.35)]",
   },
@@ -96,7 +96,7 @@ function TripCard({ trip }: { trip: TripListRow }) {
       <div className="relative flex gap-4 p-4 pl-5 sm:gap-5 sm:p-5 sm:pl-6">
         <div
           className={cn(
-            "flex h-[4.5rem] w-[3.75rem] shrink-0 flex-col items-center justify-center rounded-2xl bg-gradient-to-b sm:h-[5.25rem] sm:w-[4.25rem]",
+            "flex h-[4.5rem] w-[3.75rem] shrink-0 flex-col items-center justify-center rounded-2xl sm:h-[5.25rem] sm:w-[4.25rem]",
             accent.date
           )}
         >
@@ -106,14 +106,14 @@ function TripCard({ trip }: { trip: TripListRow }) {
           <span className="font-display text-[1.7rem] font-bold leading-none tracking-tight sm:text-[1.85rem]">
             {start.day}
           </span>
-          <span className="mt-0.5 text-[0.65rem] tabular-nums opacity-70">{start.year}</span>
+          <span className="mt-0.5 text-[0.65rem] tabular-nums opacity-75">{start.year}</span>
         </div>
 
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <p className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-primary/80" />
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span className="truncate">{trip.destination}</span>
               </p>
               <h3 className="font-display text-lg font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary sm:text-xl">
@@ -131,7 +131,7 @@ function TripCard({ trip }: { trip: TripListRow }) {
           </div>
 
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Calendar className="h-3.5 w-3.5 shrink-0 opacity-70" />
+            <Calendar className="h-3.5 w-3.5 shrink-0" />
             <span className="tabular-nums">
               {formatDate(trip.startDate)} – {formatDate(trip.endDate)}
             </span>
@@ -142,9 +142,9 @@ function TripCard({ trip }: { trip: TripListRow }) {
               <MonogramGroup names={participantNames} />
               <p className="hidden text-xs text-muted-foreground sm:block">
                 <span className="tabular-nums">{trip._count.programs}</span> program
-                <span className="mx-1.5 text-border">·</span>
+                <span className="mx-1.5 text-muted-foreground/60">·</span>
                 <span className="tabular-nums">{trip._count.costs}</span> költség
-                <span className="mx-1.5 text-border">·</span>
+                <span className="mx-1.5 text-muted-foreground/60">·</span>
                 <span className="tabular-nums">{participantNames.length}</span> fő
               </p>
             </div>
@@ -157,9 +157,9 @@ function TripCard({ trip }: { trip: TripListRow }) {
 
           <p className="text-xs text-muted-foreground sm:hidden">
             <span className="tabular-nums">{trip._count.programs}</span> program
-            <span className="mx-1.5 text-border">·</span>
+            <span className="mx-1.5 text-muted-foreground/60">·</span>
             <span className="tabular-nums">{trip._count.costs}</span> költség
-            <span className="mx-1.5 text-border">·</span>
+            <span className="mx-1.5 text-muted-foreground/60">·</span>
             <span className="tabular-nums">{participantNames.length}</span> fő
           </p>
         </div>
@@ -258,7 +258,7 @@ export function TripsPage({
 
         {trips.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
-            <span className="rounded-full bg-background px-3 py-1 text-sm shadow-sm">
+            <span className="rounded-full bg-background px-3 py-1 text-sm text-foreground shadow-sm">
               {trips.length} utazás
             </span>
             {grouped.active.length > 0 && (
@@ -267,7 +267,7 @@ export function TripsPage({
               </span>
             )}
             {grouped.upcoming.length > 0 && (
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">
+              <span className="rounded-full bg-[var(--brand-accent)] px-3 py-1 text-sm font-medium text-[#1a2744]">
                 {grouped.upcoming.length} közelgő
               </span>
             )}

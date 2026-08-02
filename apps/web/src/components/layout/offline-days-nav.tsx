@@ -34,7 +34,7 @@ export function OfflineDaysNav({ onNavigate, compact }: OfflineDaysNavProps) {
 
   return (
     <div className={cn("space-y-1.5", compact && "pt-1")}>
-      <p className="px-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 dark:text-sky-100/40">
+      <p className="px-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 dark:text-sky-100/65">
         Offline
       </p>
       {snapshots.map((snap) => (
@@ -43,11 +43,10 @@ export function OfflineDaysNav({ onNavigate, compact }: OfflineDaysNavProps) {
           href={`/~offline`}
           onClick={onNavigate}
           className={cn(
-            "group relative flex w-full items-center gap-3 rounded-2xl px-2.5 font-medium transition-[color,background-color,transform] duration-200 touch-manipulation",
+            "group relative flex w-full items-center gap-3 rounded-2xl px-2.5 font-medium transition-colors duration-200 touch-manipulation",
             "min-h-[var(--touch-target)] text-sm",
             "text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground",
-            "dark:text-white/60 dark:hover:bg-white/8 dark:hover:text-white",
-            "active:scale-[0.98]"
+            "dark:text-white/60 dark:hover:bg-white/8 dark:hover:text-white"
           )}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/70 text-muted-foreground ring-1 ring-border dark:bg-white/8 dark:text-sky-100/80 dark:ring-white/10">

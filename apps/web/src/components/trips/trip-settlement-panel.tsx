@@ -310,7 +310,7 @@ export function TripSettlementPanel({ tripId, tripTitle, trip }: TripSettlementP
               className={cn(
                 "font-medium",
                 balance.balanceHuf > 0
-                  ? "text-emerald-600"
+                  ? "text-emerald-600 dark:text-emerald-400"
                   : balance.balanceHuf < 0
                     ? "text-destructive"
                     : "text-muted-foreground"

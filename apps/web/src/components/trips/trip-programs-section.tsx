@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus,
   Pencil,
@@ -10,25 +10,19 @@ import {
   CalendarPlus,
   CalendarDays,
   FileText,
-  Check,
-  X,
   Clock,
 } from "lucide-react";
 import {
   formatDate,
   COST_CATEGORY_LABELS,
-  IDEA_DECISION_LABELS,
   type CostCategory,
-  type IdeaDecision,
 } from "@csaladi-utazas/shared";
-import { toast } from "sonner";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
 import { DocumentUpload, type DocumentItem } from "@/components/documents/document-upload";
 import { useDeleteTripIdea } from "@/hooks/use-ideas";
-import { setIdeaDecision } from "@/actions/ideas";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import { IdeaFormDrawer, type TripIdeaFormData } from "./idea-form-drawer";
 import { ProgramFormDrawer } from "./program-form-drawer";
@@ -53,23 +47,6 @@ type ProgramFilter = "ideas" | "programs" | "documents";
 
 function programDateLabel(date: Date | string) {
   return formatDate(date);
-}
-
-function IdeaDecisionBadge({ decision }: { decision: string | null | undefined }) {
-  const value = (decision ?? "OPEN") as IdeaDecision;
-  if (value === "OPEN") return null;
-  return (
-    <span
-      className={cn(
-        "rounded-lg px-2 py-0.5 text-xs font-medium sm:text-sm",
-        value === "ACCEPTED"
-          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-          : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200"
-      )}
-    >
-      {IDEA_DECISION_LABELS[value]}
-    </span>
-  );
 }
 
 function programTimeLabel(program: {
@@ -272,19 +249,8 @@ export function TripProgramsSection({
   const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<TripIdeaFormData | null>(null);
   const [editingProgram, setEditingProgram] = useState<ProgramRow | null>(null);
-  const [decisionOverrides, setDecisionOverrides] = useState<Record<string, IdeaDecision>>({});
-  const [decisionPendingId, setDecisionPendingId] = useState<string | null>(null);
-  const [, startDecisionTransition] = useTransition();
 
   const deleteIdeaMutation = useDeleteTripIdea();
-
-  useEffect(() => {
-    setDecisionOverrides({});
-  }, [ideas]);
-
-  function ideaDecision(idea: TripIdeaRow): IdeaDecision {
-    return decisionOverrides[idea.id] ?? ((idea.decision ?? "OPEN") as IdeaDecision);
-  }
 
   const programTitleById = new Map(programs.map((p) => [p.id, p.title]));
   const programDocuments = documents.filter((d) => d.programId);
@@ -316,33 +282,6 @@ export function TripProgramsSection({
   async function handleDeleteIdea(id: string) {
     const result = await deleteIdeaMutation.mutateAsync(id);
     if (result.success) onRefresh();
-  }
-
-  function handleSetDecision(ideaId: string, decision: IdeaDecision) {
-    const previous =
-      decisionOverrides[ideaId] ??
-      ((ideas.find((idea) => idea.id === ideaId)?.decision ?? "OPEN") as IdeaDecision);
-
-    setDecisionOverrides((prev) => ({ ...prev, [ideaId]: decision }));
-    setDecisionPendingId(ideaId);
-
-    startDecisionTransition(async () => {
-      const result = await setIdeaDecision({ ideaId, decision });
-      setDecisionPendingId((current) => (current === ideaId ? null : current));
-      if (!result.success) {
-        setDecisionOverrides((prev) => ({ ...prev, [ideaId]: previous }));
-        toast.error(result.error);
-        return;
-      }
-      toast.success(
-        decision === "ACCEPTED"
-          ? "Ötlet elfogadva"
-          : decision === "REJECTED"
-            ? "Ötlet elutasítva"
-            : "Döntés visszaállítva"
-      );
-      onRefresh();
-    });
   }
 
   const myMemberId =
@@ -403,8 +342,6 @@ export function TripProgramsSection({
           <div className="space-y-3">
             {ideas.map((idea) => {
               const isConverted = convertedIdeaIds.has(idea.id);
-              const decision = ideaDecision(idea);
-              const decisionBusy = decisionPendingId === idea.id;
 
               return (
                 <CollapsiblePanel
@@ -418,7 +355,6 @@ export function TripProgramsSection({
                           Programmá alakítva
                         </span>
                       )}
-                      <IdeaDecisionBadge decision={decision} />
                     </span>
                   }
                   subtitle={
@@ -517,7 +453,6 @@ export function TripProgramsSection({
                       interests={idea.interests}
                       participantCount={participants.length}
                       voteDeadline={idea.voteDeadline}
-                      decision={decision}
                       currentFamilyMemberId={myMemberId}
                       currentFamilyMemberName={myMemberName}
                       onChanged={onRefresh}
@@ -531,54 +466,15 @@ export function TripProgramsSection({
                       currentUserName={currentUserName}
                     />
 
-                    {canEdit && (
-                      <div className="flex flex-wrap gap-2">
-                        {!isConverted && (
-                          <Button
-                            size="sm"
-                            className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
-                            onClick={() => onConvertToProgram(idea.id)}
-                          >
-                            <CalendarPlus className="h-4 w-4" />
-                            Programmá alakítás
-                          </Button>
-                        )}
-                        {decision !== "ACCEPTED" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
-                            disabled={decisionBusy}
-                            onClick={() => handleSetDecision(idea.id, "ACCEPTED")}
-                          >
-                            <Check className="h-4 w-4" />
-                            Elfogadás
-                          </Button>
-                        )}
-                        {decision !== "REJECTED" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
-                            disabled={decisionBusy}
-                            onClick={() => handleSetDecision(idea.id, "REJECTED")}
-                          >
-                            <X className="h-4 w-4" />
-                            Elutasítás
-                          </Button>
-                        )}
-                        {decision !== "OPEN" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
-                            disabled={decisionBusy}
-                            onClick={() => handleSetDecision(idea.id, "OPEN")}
-                          >
-                            Visszaállítás
-                          </Button>
-                        )}
-                      </div>
+                    {canEdit && !isConverted && (
+                      <Button
+                        size="sm"
+                        className="w-full min-h-[var(--touch-target)] sm:min-h-9 sm:w-auto"
+                        onClick={() => onConvertToProgram(idea.id)}
+                      >
+                        <CalendarPlus className="h-4 w-4" />
+                        Programmá alakítás
+                      </Button>
                     )}
                   </div>
                 </CollapsiblePanel>

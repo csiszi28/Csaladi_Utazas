@@ -198,7 +198,7 @@ export function IdeaChatPanel({
           onChange={(e) => handleNoteChange(e.target.value)}
           placeholder="Rövid összefoglaló, fontos infók…"
           rows={2}
-          className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[60px] w-full resize-y rounded-md border px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="border-input bg-card ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex max-h-40 min-h-[60px] w-full resize-none overflow-y-auto rounded-md border px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
         />
       </div>
 

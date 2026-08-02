@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useTransition } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Pencil,
@@ -9,19 +9,15 @@ import {
   BedDouble,
   MapPin,
   CalendarDays,
-  Check,
-  X,
   Clock,
 } from "lucide-react";
-import { formatDate, IDEA_DECISION_LABELS, type IdeaDecision } from "@csaladi-utazas/shared";
-import { toast } from "sonner";
+import { formatDate } from "@csaladi-utazas/shared";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
 import { useDeleteTripIdea } from "@/hooks/use-ideas";
 import { useDeleteAccommodation } from "@/hooks/use-accommodations";
-import { setIdeaDecision } from "@/actions/ideas";
 import { cn } from "@/lib/utils";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import {
@@ -61,23 +57,6 @@ interface TripAccommodationsSectionProps {
   onConvertIdeaHandled?: () => void;
 }
 
-function IdeaDecisionBadge({ decision }: { decision: string | null | undefined }) {
-  const value = (decision ?? "OPEN") as IdeaDecision;
-  if (value === "OPEN") return null;
-  return (
-    <span
-      className={cn(
-        "rounded-lg px-2 py-0.5 text-xs font-medium sm:text-sm",
-        value === "ACCEPTED"
-          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-          : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200"
-      )}
-    >
-      {IDEA_DECISION_LABELS[value]}
-    </span>
-  );
-}
-
 function stayNightLabel(checkIn: Date | string, checkOut: Date | string) {
   const start = new Date(checkIn);
   const end = new Date(checkOut);
@@ -113,9 +92,6 @@ export function TripAccommodationsSection({
   const [accommodationDrawerOpen, setAccommodationDrawerOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<AccommodationIdeaFormData | null>(null);
   const [editingAccommodation, setEditingAccommodation] = useState<AccommodationRow | null>(null);
-  const [decisionOverrides, setDecisionOverrides] = useState<Record<string, IdeaDecision>>({});
-  const [decisionPendingId, setDecisionPendingId] = useState<string | null>(null);
-  const [, startDecisionTransition] = useTransition();
 
   const deleteIdeaMutation = useDeleteTripIdea();
   const deleteAccommodationMutation = useDeleteAccommodation();
@@ -124,14 +100,6 @@ export function TripAccommodationsSection({
     () => ideas.filter((idea) => idea.category === "ACCOMMODATION"),
     [ideas]
   );
-
-  useEffect(() => {
-    setDecisionOverrides({});
-  }, [accommodationIdeas]);
-
-  function ideaDecision(idea: TripIdeaRow): IdeaDecision {
-    return decisionOverrides[idea.id] ?? ((idea.decision ?? "OPEN") as IdeaDecision);
-  }
 
   useEffect(() => {
     if (ideaOpenSignal > 0) {
@@ -165,33 +133,6 @@ export function TripAccommodationsSection({
   async function handleDeleteAccommodation(id: string) {
     const result = await deleteAccommodationMutation.mutateAsync(id);
     if (result.success) onRefresh();
-  }
-
-  function handleSetDecision(ideaId: string, decision: IdeaDecision) {
-    const previous =
-      decisionOverrides[ideaId] ??
-      ((accommodationIdeas.find((idea) => idea.id === ideaId)?.decision ?? "OPEN") as IdeaDecision);
-
-    setDecisionOverrides((prev) => ({ ...prev, [ideaId]: decision }));
-    setDecisionPendingId(ideaId);
-
-    startDecisionTransition(async () => {
-      const result = await setIdeaDecision({ ideaId, decision });
-      setDecisionPendingId((current) => (current === ideaId ? null : current));
-      if (!result.success) {
-        setDecisionOverrides((prev) => ({ ...prev, [ideaId]: previous }));
-        toast.error(result.error);
-        return;
-      }
-      toast.success(
-        decision === "ACCEPTED"
-          ? "Ötlet elfogadva"
-          : decision === "REJECTED"
-            ? "Ötlet elutasítva"
-            : "Döntés visszaállítva"
-      );
-      onRefresh();
-    });
   }
 
   const ideaOptions = accommodationIdeas.map((idea) => ({
@@ -247,8 +188,6 @@ export function TripAccommodationsSection({
             {accommodationIdeas.map((idea) => {
               const interestedNames = idea.interests.map((i) => i.familyMember.name);
               const isConverted = convertedIdeaIds.has(idea.id);
-              const decision = ideaDecision(idea);
-              const decisionBusy = decisionPendingId === idea.id;
 
               return (
                 <CollapsiblePanel
@@ -262,7 +201,6 @@ export function TripAccommodationsSection({
                           Szállásként rögzítve
                         </span>
                       )}
-                      <IdeaDecisionBadge decision={decision} />
                     </span>
                   }
                   subtitle={
@@ -364,54 +302,15 @@ export function TripAccommodationsSection({
                       currentUserName={currentUserName}
                     />
 
-                    {canEdit && (
-                      <div className="flex flex-wrap gap-2">
-                        {!isConverted && (
-                          <Button
-                            size="sm"
-                            className="w-full sm:w-auto"
-                            onClick={() => onConvertToAccommodation(idea.id)}
-                          >
-                            <BedDouble className="h-4 w-4" />
-                            Szállásként rögzítés
-                          </Button>
-                        )}
-                        {decision !== "ACCEPTED" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full sm:w-auto"
-                            disabled={decisionBusy}
-                            onClick={() => handleSetDecision(idea.id, "ACCEPTED")}
-                          >
-                            <Check className="h-4 w-4" />
-                            Elfogadás
-                          </Button>
-                        )}
-                        {decision !== "REJECTED" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full sm:w-auto"
-                            disabled={decisionBusy}
-                            onClick={() => handleSetDecision(idea.id, "REJECTED")}
-                          >
-                            <X className="h-4 w-4" />
-                            Elutasítás
-                          </Button>
-                        )}
-                        {decision !== "OPEN" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="w-full sm:w-auto"
-                            disabled={decisionBusy}
-                            onClick={() => handleSetDecision(idea.id, "OPEN")}
-                          >
-                            Visszaállítás
-                          </Button>
-                        )}
-                      </div>
+                    {canEdit && !isConverted && (
+                      <Button
+                        size="sm"
+                        className="w-full sm:w-auto"
+                        onClick={() => onConvertToAccommodation(idea.id)}
+                      >
+                        <BedDouble className="h-4 w-4" />
+                        Szállásként rögzítés
+                      </Button>
                     )}
                   </div>
                 </CollapsiblePanel>

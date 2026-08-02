@@ -141,9 +141,8 @@ export function RemindersBell({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "group relative flex w-full items-center gap-3 rounded-2xl px-2.5 font-medium transition-[color,background-color,transform] duration-200 touch-manipulation",
+          "group relative flex w-full items-center gap-3 rounded-2xl px-2.5 font-medium transition-colors duration-200 touch-manipulation",
           "text-sm min-h-[var(--touch-target)]",
-          "active:scale-[0.98]",
           "text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground",
           "dark:text-white/60 dark:hover:bg-white/8 dark:hover:text-white"
         )}

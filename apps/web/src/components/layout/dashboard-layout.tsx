@@ -59,7 +59,7 @@ export function DashboardLayout({
 
           <aside
             className={cn(
-              "sidebar-rail fixed top-0 left-0 z-50 flex h-svh flex-col overflow-hidden shadow-2xl shadow-black/40 transition-transform duration-200 md:hidden",
+              "sidebar-rail fixed top-0 left-0 z-50 flex h-svh flex-col overflow-hidden shadow-2xl shadow-black/40 transition-transform duration-200 contain-paint md:hidden",
               "pt-[env(safe-area-inset-top)]",
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}

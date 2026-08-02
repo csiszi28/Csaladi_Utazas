@@ -21,7 +21,8 @@ function resolveTone(value: number, tone: ProgressBarProps["tone"]) {
 
 const FILL = {
   brand: "from-[#ffb866] via-[#f0a050] to-[#e8923a]",
-  primary: "from-[#1a365d] via-[#2a4a7a] to-[#3d6bb3]",
+  primary:
+    "from-[#1a365d] via-[#2a4a7a] to-[#3d6bb3] dark:from-[#3d6bb3] dark:via-[#5a8fd4] dark:to-[#7eb0f0]",
   success: "from-emerald-500 via-emerald-400 to-teal-400",
   warning: "from-amber-500 via-orange-400 to-[#f0a050]",
   danger: "from-rose-500 via-rose-400 to-orange-400",

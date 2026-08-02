@@ -88,7 +88,7 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
         <Select value={active} onValueChange={(value) => onChange(value as TripDetailTab)}>
           <SelectTrigger
             id="trip-section-select"
-            className="h-12 w-full rounded-xl border bg-background px-3 text-base shadow-sm"
+            className="h-12 w-full rounded-xl border bg-card px-3 text-base shadow-sm"
           >
             <SelectValue placeholder="Szekció választása" />
           </SelectTrigger>
@@ -113,7 +113,7 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
 
       {/* Large screens: content-sized tabs, evenly spaced across the bar */}
       <nav
-        className="sticky top-0 z-10 hidden w-full justify-between gap-1 rounded-xl border bg-background p-1 shadow-sm lg:flex"
+        className="sticky top-0 z-10 hidden w-full justify-between gap-1 rounded-xl border bg-card p-1 shadow-sm lg:flex"
         aria-label="Utazás szekciók"
       >
         {TABS.map((tab) => {
@@ -128,8 +128,8 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
               className={cn(
                 "flex min-h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
                 active === tab.id
-                  ? "bg-card text-foreground shadow-sm ring-1 ring-border/60"
-                  : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
+                  ? "bg-secondary text-foreground shadow-sm ring-1 ring-border/60"
+                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
               )}
             >
               {tab.icon}
