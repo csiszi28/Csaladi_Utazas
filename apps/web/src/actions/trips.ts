@@ -188,8 +188,10 @@ export async function updateTrip(data: {
   });
   const preservedOtherIds = previous
     .map((p) => p.familyMemberId)
-    .filter((id) => !ownedSet.has(id));
-  const submittedOwnedIds = parsed.data.participantIds.filter((id) => ownedSet.has(id));
+    .filter((id: string) => !ownedSet.has(id));
+  const submittedOwnedIds = parsed.data.participantIds.filter((id: string) =>
+    ownedSet.has(id)
+  );
   const finalParticipantIds = [...new Set([...preservedOtherIds, ...submittedOwnedIds])];
 
   if (finalParticipantIds.length === 0) {

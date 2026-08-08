@@ -259,8 +259,10 @@ export async function setTripParticipants(data: {
   // Más háztartások résztvevőit megőrizzük — a picker csak a saját családtagokat küldi
   const preservedOtherIds = previous
     .map((p) => p.familyMemberId)
-    .filter((id) => !ownedSet.has(id));
-  const submittedOwnedIds = parsed.data.participantIds.filter((id) => ownedSet.has(id));
+    .filter((id: string) => !ownedSet.has(id));
+  const submittedOwnedIds = parsed.data.participantIds.filter((id: string) =>
+    ownedSet.has(id)
+  );
   const finalIds = [...new Set([...preservedOtherIds, ...submittedOwnedIds])];
 
   if (finalIds.length === 0) {
