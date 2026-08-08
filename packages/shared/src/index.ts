@@ -15,5 +15,6 @@ export * from "./url-preview";
 export * from "./api-response";
 export * from "./trip-roles";
 export * from "./trip-types";
+export * from "./trip-people";
 export * from "./itinerary";
 export * from "./idea-decision";

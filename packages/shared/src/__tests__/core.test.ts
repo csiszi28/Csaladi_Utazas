@@ -11,6 +11,7 @@ import {
   canManageCollaborators,
   normalizeCollaboratorRole,
 } from "../trip-roles";
+import { buildUniqueTripPeople } from "../trip-people";
 import { buildDayItinerary, listTripDays } from "../itinerary";
 import { parseIcalToProgramCandidates } from "../ical-import";
 import { buildReminders } from "../reminders";
@@ -314,5 +315,65 @@ describe("reminders-expansion", () => {
     expect(mapped).toHaveLength(1);
     expect(mapped[0]?.key).toBe("inbox:n1");
     expect(mapped[0]?.kind).toBe("removed_from_trip");
+  });
+});
+
+describe("trip-people", () => {
+  it("dedupes linked participant with collaborator and owner", () => {
+    const people = buildUniqueTripPeople({
+      participants: [
+        { familyMember: { id: "fm-1", name: "Anna", linkedUserId: "u-anna", userId: "u-owner" } },
+        { familyMember: { id: "fm-2", name: "Béla", linkedUserId: null, userId: "u-owner" } },
+        // ugyanaz a személy saját FM-ként is (duplikátum)
+        {
+          familyMember: {
+            id: "fm-anna-self",
+            name: "Anna",
+            linkedUserId: "u-anna",
+            userId: "u-anna",
+          },
+        },
+      ],
+      collaborators: [
+        { user: { id: "u-anna", name: "Anna", email: "anna@pelda.hu" }, role: "EDITOR" },
+        { user: { id: "u-cecil", name: "Cecil", email: "cecil@pelda.hu" }, role: "VIEWER" },
+      ],
+      owner: { id: "u-owner", name: "Dóra", email: "dora@pelda.hu" },
+    });
+
+    expect(people).toHaveLength(4);
+
+    const anna = people.find((p) => p.userId === "u-anna");
+    expect(anna?.isParticipant).toBe(true);
+    expect(anna?.isCollaborator).toBe(true);
+    expect(people.some((p) => p.name === "Cecil" && p.isCollaborator)).toBe(true);
+    expect(people.some((p) => p.name === "Dóra" && p.isOwner)).toBe(true);
+  });
+
+  it("marks collaborator as participant when own unlinked FM is on the trip", () => {
+    const people = buildUniqueTripPeople({
+      participants: [
+        {
+          familyMember: {
+            id: "fm-attila",
+            name: "Csiszár Attila",
+            linkedUserId: null,
+            userId: "u-attila",
+          },
+        },
+      ],
+      collaborators: [
+        {
+          user: { id: "u-attila", name: "Csiszár Attila", email: "attila@pelda.hu" },
+          role: "EDITOR",
+        },
+      ],
+      owner: { id: "u-owner", name: "Dóra", email: "dora@pelda.hu" },
+    });
+
+    expect(people).toHaveLength(2);
+    const attila = people.find((p) => p.userId === "u-attila");
+    expect(attila?.isParticipant).toBe(true);
+    expect(attila?.isCollaborator).toBe(true);
   });
 });

@@ -11,6 +11,7 @@ import {
   TRIP_COLLABORATOR_ROLES,
   TRIP_COLLABORATOR_ROLE_LABELS,
   TRIP_ROLE_LABELS,
+  buildUniqueTripPeople,
   normalizeCollaboratorRole,
   type TripRole,
 } from "@csaladi-utazas/shared";
@@ -44,71 +45,41 @@ interface TripPeopleSectionProps {
   participants: TripDetailRow["participants"];
   familyMembers: FamilyMemberRow[];
   collaborators: TripDetailRow["collaborators"];
+  owner: TripDetailRow["user"];
   currentUserId: string;
   tripTitle?: string;
 }
 
-function CollaboratorRow({
-  collaborator,
+function PersonRoleBadges({
   isOwner,
-  onRoleChange,
-  onRemove,
-  pending,
+  isCollaborator,
+  isParticipant,
+  collaboratorRole,
 }: {
-  collaborator: TripDetailRow["collaborators"][number];
   isOwner: boolean;
-  onRoleChange: (userId: string, role: "EDITOR" | "VIEWER") => void;
-  onRemove: (userId: string, name: string) => void;
-  pending: boolean;
+  isCollaborator: boolean;
+  isParticipant: boolean;
+  collaboratorRole?: string;
 }) {
-  const role = normalizeCollaboratorRole(collaborator.role);
+  const badges: string[] = [];
+  if (isOwner) badges.push("Tulajdonos");
+  else if (isCollaborator) {
+    badges.push(TRIP_COLLABORATOR_ROLE_LABELS[normalizeCollaboratorRole(collaboratorRole)]);
+  }
+  if (isParticipant) badges.push("Résztvevő");
+  if (badges.length === 0) badges.push("Az utazásban");
 
   return (
-    <li className="flex min-h-[var(--touch-target)] items-center gap-3 px-4 py-3">
-      <Monogram name={collaborator.user.name} size="md" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{collaborator.user.name}</p>
-        <p className="truncate text-xs text-muted-foreground">{collaborator.user.email}</p>
-      </div>
-      {isOwner ? (
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Select
-            value={role}
-            onValueChange={(value) =>
-              onRoleChange(collaborator.user.id, value as "EDITOR" | "VIEWER")
-            }
-            disabled={pending}
-          >
-            <SelectTrigger className="h-9 w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TRIP_COLLABORATOR_ROLES.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {TRIP_COLLABORATOR_ROLE_LABELS[r]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-destructive"
-            disabled={pending}
-            aria-label={`${collaborator.user.name} eltávolítása`}
-            title="Eltávolítás az utazásból"
-            onClick={() => onRemove(collaborator.user.id, collaborator.user.name)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ) : (
-        <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-          {TRIP_COLLABORATOR_ROLE_LABELS[role]}
+    <div className="mt-0.5 flex flex-wrap gap-1">
+      {badges.map((label) => (
+        <span
+          key={label}
+          className="rounded-md bg-muted px-1.5 py-0.5 text-[0.65rem] font-medium text-muted-foreground"
+        >
+          {label}
         </span>
-      )}
-    </li>
+      ))}
+    </div>
   );
 }
 
@@ -120,6 +91,7 @@ export function TripPeopleSection({
   participants,
   familyMembers,
   collaborators,
+  owner,
   currentUserId,
   tripTitle,
 }: TripPeopleSectionProps) {
@@ -138,6 +110,24 @@ export function TripPeopleSection({
     setSelected(new Set(participants.map((p) => p.familyMember.id)));
   }, [participants]);
 
+  const uniquePeople = useMemo(
+    () =>
+      buildUniqueTripPeople({
+        participants,
+        collaborators,
+        owner,
+      }),
+    [participants, collaborators, owner]
+  );
+
+  const manageableCollaborators = useMemo(
+    () =>
+      collaborators.filter(
+        (c) => c.user.id !== currentUserId && c.user.id !== owner.id
+      ),
+    [collaborators, currentUserId, owner.id]
+  );
+
   const linkedById = useMemo(() => {
     const map = new Map<string, boolean>();
     for (const p of participants) {
@@ -146,12 +136,21 @@ export function TripPeopleSection({
     return map;
   }, [participants]);
 
+  const ownSelectedCount = useMemo(
+    () => familyMembers.filter((m) => selected.has(m.id)).length,
+    [familyMembers, selected]
+  );
+
   function toggle(id: string) {
     if (!canEdit) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
-        if (next.size <= 1) {
+        const remainingOwn = familyMembers.filter((m) => m.id !== id && next.has(m.id)).length;
+        const othersOnTrip = participants.filter(
+          (p) => !familyMembers.some((m) => m.id === p.familyMember.id)
+        ).length;
+        if (remainingOwn + othersOnTrip < 1) {
           toast.error("Legalább egy résztvevő kötelező");
           return prev;
         }
@@ -167,7 +166,9 @@ export function TripPeopleSection({
     startTransition(async () => {
       const result = await setTripParticipants({
         tripId,
-        participantIds: Array.from(selected),
+        participantIds: Array.from(selected).filter((id) =>
+          familyMembers.some((m) => m.id === id)
+        ),
       });
       if (!result.success) toast.error(result.error);
       else {
@@ -208,11 +209,12 @@ export function TripPeopleSection({
     });
   }
 
-  const dirty =
-    selected.size !== participants.length ||
-    participants.some((p) => !selected.has(p.familyMember.id));
+  const dirty = familyMembers.some((m) => {
+    const wasOn = participants.some((p) => p.familyMember.id === m.id);
+    const isOn = selected.has(m.id);
+    return wasOn !== isOn;
+  });
 
-  const otherCollaborators = collaborators.filter((c) => c.user.id !== currentUserId);
   const actionPending = rolePending || removePending;
 
   return (
@@ -225,11 +227,55 @@ export function TripPeopleSection({
 
       <section className="space-y-4">
         <TripSectionHeading
-          title="Résztvevők"
+          title="Emberek az utazásban"
+          description={`${uniquePeople.length} fő — résztvevők és közreműködők, mindenki egyszer`}
+        />
+
+        {uniquePeople.length > 0 ? (
+          <ul className="divide-y rounded-xl border">
+            {uniquePeople.map((person) => (
+              <li
+                key={person.key}
+                className="flex min-h-[var(--touch-target)] items-center gap-3 px-4 py-3"
+              >
+                <Monogram name={person.name} size="md" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
+                    {person.name}
+                    {person.userId === currentUserId ? (
+                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                        (te)
+                      </span>
+                    ) : null}
+                  </p>
+                  {person.email ? (
+                    <p className="truncate text-xs text-muted-foreground">{person.email}</p>
+                  ) : null}
+                  <PersonRoleBadges
+                    isOwner={person.isOwner}
+                    isCollaborator={person.isCollaborator}
+                    isParticipant={person.isParticipant}
+                    collaboratorRole={person.collaboratorRole}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+            <Users className="mx-auto mb-2 h-5 w-5 opacity-50" />
+            Még nincsenek emberek az utazásban.
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <TripSectionHeading
+          title="Saját családtagok"
           description={
             canEdit
-              ? "Kapcsold be vagy ki a családtagokat az utazásban"
-              : "Az utazásban szereplő családtagok"
+              ? "Kapcsold be vagy ki a saját családtagjaidat az utazásban"
+              : "A te családtagjaid az utazásban"
           }
           action={
             canEdit && dirty ? (
@@ -278,6 +324,7 @@ export function TripPeopleSection({
                       <p className="truncate font-medium">{member.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {linked ? "Csatlakozott fiókkal" : "Nincs csatlakozott fiók"}
+                        {active ? null : " · nincs az utazásban"}
                       </p>
                     </div>
                   </button>
@@ -291,29 +338,72 @@ export function TripPeopleSection({
             Még nincsenek családtagok. Add hozzá őket a Család oldalon.
           </p>
         )}
+        {canEdit && ownSelectedCount === 0 && familyMembers.length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Ha egyik saját családtagod sincs bekapcsolva, a többiek résztvevői továbbra is
+            megmaradnak.
+          </p>
+        ) : null}
       </section>
 
-      {otherCollaborators.length > 0 && (
+      {isOwner && manageableCollaborators.length > 0 && (
         <section className="space-y-4">
           <TripSectionHeading
-            title="Közreműködők"
-            description={
-              isOwner
-                ? "Kezeld a meghívott felhasználók szerepkörét, vagy távolítsd el őket"
-                : "Az utazáshoz csatlakozott felhasználók"
-            }
+            title="Közreműködők kezelése"
+            description="Szerepkör módosítása vagy eltávolítás"
           />
           <ul className="divide-y rounded-xl border">
-            {otherCollaborators.map((collaborator) => (
-              <CollaboratorRow
-                key={collaborator.id}
-                collaborator={collaborator}
-                isOwner={isOwner}
-                onRoleChange={handleRoleChange}
-                onRemove={handleRemoveRequest}
-                pending={actionPending}
-              />
-            ))}
+            {manageableCollaborators.map((collaborator) => {
+              const collabRole = normalizeCollaboratorRole(collaborator.role);
+              return (
+                <li
+                  key={collaborator.id}
+                  className="flex min-h-[var(--touch-target)] items-center gap-3 px-4 py-3"
+                >
+                  <Monogram name={collaborator.user.name} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{collaborator.user.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {collaborator.user.email}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Select
+                      value={collabRole}
+                      onValueChange={(value) =>
+                        handleRoleChange(collaborator.user.id, value as "EDITOR" | "VIEWER")
+                      }
+                      disabled={actionPending}
+                    >
+                      <SelectTrigger className="h-9 w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TRIP_COLLABORATOR_ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {TRIP_COLLABORATOR_ROLE_LABELS[r]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                      disabled={actionPending}
+                      aria-label={`${collaborator.user.name} eltávolítása`}
+                      title="Eltávolítás az utazásból"
+                      onClick={() =>
+                        handleRemoveRequest(collaborator.user.id, collaborator.user.name)
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

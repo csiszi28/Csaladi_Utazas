@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,14 @@ export function AuthForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+  function togglePasswordVisibility(fieldName: string) {
+    setVisiblePasswords((prev) => ({
+      ...prev,
+      [fieldName]: !prev[fieldName],
+    }));
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -73,19 +82,53 @@ export function AuthForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {fields.map((field) => (
-        <div key={field.name} className="space-y-2">
-          <Label htmlFor={field.name}>{field.label}</Label>
-          <Input
-            id={field.name}
-            name={field.name}
-            type={field.type}
-            placeholder={field.placeholder}
-            required
-            disabled={isPending}
-          />
-        </div>
-      ))}
+      {fields.map((field) => {
+        const isPassword = field.type === "password";
+        const showPassword = Boolean(visiblePasswords[field.name]);
+
+        return (
+          <div key={field.name} className="space-y-2">
+            <Label htmlFor={field.name}>{field.label}</Label>
+            {isPassword ? (
+              <div className="relative">
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  type={showPassword ? "text" : "password"}
+                  placeholder={field.placeholder}
+                  required
+                  disabled={isPending}
+                  className="pr-10"
+                  autoComplete={field.name === "password" ? "current-password" : "new-password"}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => togglePasswordVisibility(field.name)}
+                  disabled={isPending}
+                  aria-label={showPassword ? "Jelszó elrejtése" : "Jelszó megjelenítése"}
+                  title={showPassword ? "Jelszó elrejtése" : "Jelszó megjelenítése"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Eye className="h-4 w-4" aria-hidden />
+                  )}
+                </button>
+              </div>
+            ) : (
+              <Input
+                id={field.name}
+                name={field.name}
+                type={field.type}
+                placeholder={field.placeholder}
+                required
+                disabled={isPending}
+              />
+            )}
+          </div>
+        );
+      })}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" className="w-full" disabled={isPending}>
         {isPending ? "Folyamatban..." : submitLabel}

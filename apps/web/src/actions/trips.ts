@@ -176,6 +176,26 @@ export async function updateTrip(data: {
     return { success: false, error: "Utazás nem található" };
   }
 
+  const ownedMembers = await prisma.familyMember.findMany({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+  const ownedSet = new Set(ownedMembers.map((m) => m.id));
+
+  const previous = await prisma.tripParticipant.findMany({
+    where: { tripId: parsed.data.id },
+    select: { familyMemberId: true },
+  });
+  const preservedOtherIds = previous
+    .map((p) => p.familyMemberId)
+    .filter((id) => !ownedSet.has(id));
+  const submittedOwnedIds = parsed.data.participantIds.filter((id) => ownedSet.has(id));
+  const finalParticipantIds = [...new Set([...preservedOtherIds, ...submittedOwnedIds])];
+
+  if (finalParticipantIds.length === 0) {
+    return { success: false, error: "Legalább egy résztvevő kötelező" };
+  }
+
   await prisma.$transaction([
     prisma.tripParticipant.deleteMany({ where: { tripId: parsed.data.id } }),
     prisma.trip.update({
@@ -189,7 +209,7 @@ export async function updateTrip(data: {
         budgetCurrency: parsed.data.budgetCurrency ?? "HUF",
         tripType: parsed.data.tripType ?? null,
         participants: {
-          create: parsed.data.participantIds.map((familyMemberId: string) => ({ familyMemberId })),
+          create: finalParticipantIds.map((familyMemberId: string) => ({ familyMemberId })),
         },
       },
     }),

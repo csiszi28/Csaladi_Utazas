@@ -242,14 +242,35 @@ export async function setTripParticipants(data: {
   const access = await requireTripEditor(parsed.data.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
 
+  const ownedMembers = await prisma.familyMember.findMany({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+  const ownedSet = new Set(ownedMembers.map((m) => m.id));
+
   const previous = await prisma.tripParticipant.findMany({
     where: { tripId: parsed.data.tripId },
-    select: { familyMemberId: true, familyMember: { select: { id: true, name: true } } },
+    select: {
+      familyMemberId: true,
+      familyMember: { select: { id: true, name: true, userId: true } },
+    },
   });
-  const previousIds = new Set(previous.map((p) => p.familyMemberId));
-  const nextIds = new Set(parsed.data.participantIds);
 
-  const addedIds = parsed.data.participantIds.filter((id) => !previousIds.has(id));
+  // Más háztartások résztvevőit megőrizzük — a picker csak a saját családtagokat küldi
+  const preservedOtherIds = previous
+    .map((p) => p.familyMemberId)
+    .filter((id) => !ownedSet.has(id));
+  const submittedOwnedIds = parsed.data.participantIds.filter((id) => ownedSet.has(id));
+  const finalIds = [...new Set([...preservedOtherIds, ...submittedOwnedIds])];
+
+  if (finalIds.length === 0) {
+    return { success: false, error: "Legalább egy résztvevő kötelező" };
+  }
+
+  const previousIds = new Set(previous.map((p) => p.familyMemberId));
+  const nextIds = new Set(finalIds);
+
+  const addedIds = finalIds.filter((id) => !previousIds.has(id));
   const removedIds = [...previousIds].filter((id) => !nextIds.has(id));
 
   const nameById = new Map(previous.map((p) => [p.familyMember.id, p.familyMember.name]));
@@ -269,7 +290,7 @@ export async function setTripParticipants(data: {
   await prisma.$transaction([
     prisma.tripParticipant.deleteMany({ where: { tripId: parsed.data.tripId } }),
     prisma.tripParticipant.createMany({
-      data: parsed.data.participantIds.map((familyMemberId) => ({
+      data: finalIds.map((familyMemberId) => ({
         tripId: parsed.data.tripId,
         familyMemberId,
       })),
@@ -291,7 +312,7 @@ export async function setTripParticipants(data: {
         removedIds,
         addedNames,
         removedNames,
-        participantCount: parsed.data.participantIds.length,
+        participantCount: finalIds.length,
       },
     });
   }

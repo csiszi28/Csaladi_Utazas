@@ -1,32 +1,49 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Check, CircleAlert, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { Toaster, type ToasterProps } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 
-const TOAST_EDGE_PADDING_PX = 12;
+const EDGE_PADDING_PX = 16;
 
-function readSafeTopInset(): number {
-  if (typeof window === "undefined") return TOAST_EDGE_PADDING_PX;
-
-  let safeTop = 0;
-
+function readCssEnvPx(property: string): number {
   const probe = document.createElement("div");
-  probe.style.cssText =
-    "position:fixed;top:0;left:0;padding-top:env(safe-area-inset-top);visibility:hidden;pointer-events:none";
+  probe.style.cssText = `position:fixed;top:0;left:0;padding:env(${property},0px);visibility:hidden;pointer-events:none`;
   document.body.appendChild(probe);
-  safeTop = Number.parseFloat(getComputedStyle(probe).paddingTop) || 0;
+  const value = Number.parseFloat(getComputedStyle(probe).paddingTop) || 0;
   probe.remove();
-
-  const visualTop = window.visualViewport ? Math.max(0, window.visualViewport.offsetTop) : 0;
-
-  return Math.round(Math.max(safeTop, visualTop) + TOAST_EDGE_PADDING_PX);
+  return value;
 }
 
-function readToastPosition(): NonNullable<ToasterProps["position"]> {
-  if (typeof window === "undefined") return "top-right";
-  return window.matchMedia("(max-width: 767px)").matches ? "top-center" : "top-right";
+/** Jobb felső sarok a látható viewporthoz (visualViewport + safe-area) igazítva. */
+function readTopRightOffset(): { top: number; right: number; maxWidthPx: number } {
+  if (typeof window === "undefined") {
+    return {
+      top: EDGE_PADDING_PX,
+      right: EDGE_PADDING_PX,
+      maxWidthPx: 360,
+    };
+  }
+
+  const safeTop = readCssEnvPx("safe-area-inset-top");
+  const safeRight = readCssEnvPx("safe-area-inset-right");
+
+  const vv = window.visualViewport;
+  const visualTop = vv ? Math.max(0, vv.offsetTop) : 0;
+  const visualRightGap = vv
+    ? Math.max(0, window.innerWidth - (vv.offsetLeft + vv.width))
+    : 0;
+  const visualWidth = vv?.width ?? window.innerWidth;
+
+  const top = Math.round(visualTop + safeTop + EDGE_PADDING_PX);
+  const right = Math.round(visualRightGap + safeRight + EDGE_PADDING_PX);
+  // Toast szélesség: elférjen a látható szélességben a jobb/bal margóval
+  const maxWidthPx = Math.round(
+    Math.min(360, Math.max(200, visualWidth - EDGE_PADDING_PX * 2 - safeRight))
+  );
+
+  return { top, right, maxWidthPx };
 }
 
 function ToastIcon({
@@ -45,12 +62,16 @@ function ToastIcon({
 
 export function AppToaster() {
   const { resolved } = useTheme();
-  const [offset, setOffset] = useState(TOAST_EDGE_PADDING_PX);
-  const [position, setPosition] = useState<NonNullable<ToasterProps["position"]>>("top-right");
+  const [offset, setOffset] = useState<NonNullable<ToasterProps["offset"]>>({
+    top: EDGE_PADDING_PX,
+    right: EDGE_PADDING_PX,
+  });
+  const [maxWidthPx, setMaxWidthPx] = useState(360);
 
   const updateLayout = useCallback(() => {
-    setOffset(readSafeTopInset());
-    setPosition(readToastPosition());
+    const { top, right, maxWidthPx: width } = readTopRightOffset();
+    setOffset({ top, right });
+    setMaxWidthPx(width);
   }, []);
 
   useEffect(() => {
@@ -62,22 +83,22 @@ export function AppToaster() {
     window.addEventListener("resize", updateLayout);
     window.addEventListener("orientationchange", updateLayout);
 
-    const mobileQuery = window.matchMedia("(max-width: 767px)");
-    mobileQuery.addEventListener("change", updateLayout);
-
     return () => {
       viewport?.removeEventListener("resize", updateLayout);
       viewport?.removeEventListener("scroll", updateLayout);
       window.removeEventListener("resize", updateLayout);
       window.removeEventListener("orientationchange", updateLayout);
-      mobileQuery.removeEventListener("change", updateLayout);
     };
   }, [updateLayout]);
+
+  const toasterStyle = {
+    "--width": `${maxWidthPx}px`,
+  } as CSSProperties;
 
   return (
     <Toaster
       theme={resolved}
-      position={position}
+      position="top-right"
       offset={offset}
       mobileOffset={offset}
       expand
@@ -86,6 +107,7 @@ export function AppToaster() {
       closeButton
       duration={3800}
       className="app-toaster"
+      style={toasterStyle}
       icons={{
         success: (
           <ToastIcon tone="success">

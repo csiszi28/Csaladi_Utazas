@@ -15,8 +15,14 @@ const listSelect = {
   inviteCode: true,
   tripType: true,
   isTemplate: true,
+  user: { select: { id: true, name: true, email: true } },
   participants: {
-    select: { familyMember: { select: { id: true, name: true } } },
+    select: {
+      familyMember: { select: { id: true, name: true, linkedUserId: true, userId: true } },
+    },
+  },
+  collaborators: {
+    select: { user: { select: { id: true, name: true, email: true } } },
   },
   _count: { select: { programs: true, costs: true } },
 } satisfies Prisma.TripSelect;
@@ -148,6 +154,7 @@ const calendarSelect = {
 export type CalendarTripRow = Prisma.TripGetPayload<{ select: typeof calendarSelect }>;
 
 const tripDetailInclude = {
+  user: { select: { id: true, name: true, email: true } },
   participants: { include: { familyMember: true } },
   collaborators: {
     include: { user: { select: { id: true, name: true, email: true } } },

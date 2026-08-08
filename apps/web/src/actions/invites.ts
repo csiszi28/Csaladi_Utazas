@@ -85,9 +85,10 @@ export async function joinTripWithInviteCode(code: string): Promise<ActionResult
     });
   }
 
-  await ensureUserFamilyMembersOnTrip(trip.id, user.id, user.name);
+  // Először linked profil claim, utána résztvevő sync — így elkerüljük a duplikált „saját” sort
   const { autoClaimMatchingProfile } = await import("@/actions/family");
   await autoClaimMatchingProfile(trip.id, user.id, user.name, user.email);
+  await ensureUserFamilyMembersOnTrip(trip.id, user.id, user.name);
 
   invalidateTripsAndReports(user.id, trip.id);
   invalidateTripsAndReports(trip.userId, trip.id);

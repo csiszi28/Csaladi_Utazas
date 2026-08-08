@@ -12,7 +12,7 @@ import {
   Sparkles,
   LayoutTemplate,
 } from "lucide-react";
-import { formatDate } from "@csaladi-utazas/shared";
+import { formatDate, uniqueTripPeopleNames } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
 import { JoinTripDialog } from "@/components/trips/join-trip-dialog";
@@ -77,7 +77,11 @@ function TripCard({ trip }: { trip: TripListRow }) {
   const status = tripStatus(trip);
   const start = tripDateParts(trip.startDate);
   const accent = STATUS_ACCENT[status];
-  const participantNames = trip.participants.map((p) => p.familyMember.name);
+  const participantNames = uniqueTripPeopleNames({
+    participants: trip.participants,
+    collaborators: trip.collaborators,
+    owner: trip.user,
+  });
 
   return (
     <article
@@ -326,7 +330,15 @@ export function TripsPage({
                   </p>
                   <h4 className="truncate text-base font-semibold">{trip.title}</h4>
                   <p className="text-xs text-muted-foreground">
-                    {trip._count.programs} program · {trip.participants.length} résztvevő
+                    {trip._count.programs} program ·{" "}
+                    {
+                      uniqueTripPeopleNames({
+                        participants: trip.participants,
+                        collaborators: trip.collaborators,
+                        owner: trip.user,
+                      }).length
+                    }{" "}
+                    résztvevő
                   </p>
                 </div>
                 <Button

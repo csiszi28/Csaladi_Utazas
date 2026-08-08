@@ -68,20 +68,42 @@ export async function ensureUserFamilyMembersOnTrip(
   userId: string,
   userName: string
 ) {
+  const alreadyRepresented = await prisma.tripParticipant.findFirst({
+    where: {
+      tripId,
+      familyMember: { linkedUserId: userId },
+    },
+    select: { familyMemberId: true },
+  });
+
   let members = await prisma.familyMember.findMany({
     where: { userId },
     orderBy: { name: "asc" },
   });
 
   if (members.length === 0) {
+    if (alreadyRepresented) return;
     members = [
       await prisma.familyMember.create({
-        data: { name: userName, userId },
+        data: { name: userName, userId, linkedUserId: userId },
       }),
     ];
   }
 
   for (const member of members) {
+    const isSelfProfile =
+      member.linkedUserId === userId ||
+      (!member.linkedUserId && member.name.trim().toLowerCase() === userName.trim().toLowerCase());
+
+    // Ha a felhasználó már szerepel linked profilként, ne duplikáljuk a saját FM-jét
+    if (
+      isSelfProfile &&
+      alreadyRepresented &&
+      alreadyRepresented.familyMemberId !== member.id
+    ) {
+      continue;
+    }
+
     await prisma.tripParticipant.upsert({
       where: {
         tripId_familyMemberId: { tripId, familyMemberId: member.id },

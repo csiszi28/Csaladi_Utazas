@@ -18,7 +18,7 @@ import {
   BookmarkPlus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDate, canEditTrip, normalizeCollaboratorRole, type TripRole } from "@csaladi-utazas/shared";
+import { formatDate, canEditTrip, normalizeCollaboratorRole, uniqueTripPeopleCount, uniqueTripPeopleNames, type TripRole } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
 import { deleteTrip, saveTripAsTemplate } from "@/actions/trips";
@@ -485,13 +485,23 @@ export function TripDetailPage({
     });
   }
 
+  const peopleNames = uniqueTripPeopleNames({
+    participants: trip.participants,
+    collaborators: trip.collaborators,
+    owner: trip.user,
+  });
+
   const tabCounts: Partial<Record<TripDetailTab, number>> = {
     transport: trip.transports?.length ?? 0,
     planning: generalIdeas.length + trip.programs.length,
     accommodations: accommodationIdeas.length + trip.accommodations.length,
     finances: localCosts.length,
     documents: localDocuments.length,
-    people: trip.participants.length,
+    people: uniqueTripPeopleCount({
+      participants: trip.participants,
+      collaborators: trip.collaborators,
+      owner: trip.user,
+    }),
   };
 
   const tripParticipants = trip.participants.map((p) => p.familyMember);
@@ -607,7 +617,7 @@ export function TripDetailPage({
                   aria-label="Résztvevők megtekintése"
                 >
                   <MonogramGroup
-                    names={trip.participants.map((p) => p.familyMember.name)}
+                    names={peopleNames}
                     className="[&_*]:ring-white/40"
                   />
                 </button>
@@ -930,6 +940,7 @@ export function TripDetailPage({
             participants={trip.participants}
             familyMembers={members}
             collaborators={trip.collaborators}
+            owner={trip.user}
             currentUserId={currentUserId}
             tripTitle={trip.title}
           />

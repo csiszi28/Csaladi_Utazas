@@ -415,15 +415,15 @@ html.app-splash-exiting body {
   opacity: 1;
 }
 
-[data-sonner-toaster][data-x-position="center"] {
-  left: 50% !important;
-  right: auto !important;
-  transform: translateX(-50%) !important;
+[data-sonner-toaster][data-x-position="right"] {
+  right: var(--offset-right, 1rem) !important;
+  left: auto !important;
+  box-sizing: border-box !important;
 }
 
 /* ─── App toasts (Sonner) ─── */
 [data-sonner-toaster].app-toaster {
-  --width: min(22.5rem, calc(100vw - 1.5rem));
+  --width: min(22.5rem, calc(100vw - 2rem));
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -449,7 +449,7 @@ html.app-splash-exiting body {
   align-items: flex-start !important;
   gap: 0.75rem !important;
   width: var(--width) !important;
-  max-width: min(22.5rem, calc(100vw - 1.5rem)) !important;
+  max-width: var(--width, min(22.5rem, calc(100vw - 2rem))) !important;
   padding: 0.875rem 1rem 0.875rem 0.95rem !important;
   overflow: hidden !important;
   border-radius: 1rem !important;
