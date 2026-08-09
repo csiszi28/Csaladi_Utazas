@@ -71,6 +71,31 @@ export function getNotificationPermission(): BrowserNotificationSupport {
   return Notification.permission;
 }
 
+/** iOS / iPadOS — push általában csak Főképernyőre mentett PWA-ból működik. */
+export function isIosLikeDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // iPadOS 13+ asztali UA-t jelenthet
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
+export function isStandaloneDisplayMode(): boolean {
+  if (typeof window === "undefined") return false;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  if (nav.standalone === true) return true;
+  return window.matchMedia("(display-mode: standalone)").matches;
+}
+
+export function getDeniedNotificationHelp(): string {
+  if (isIosLikeDevice()) {
+    return isStandaloneDisplayMode()
+      ? "Az értesítések le vannak tiltva. iPhone: Beállítások → Értesítések → Családi Utazás (vagy Safari) → Engedélyezés. Utána nyomd meg az „Ellenőrzés újra” gombot."
+      : "iPhone-on az értesítésekhez add az appot a Főképernyőre (Safari → Megosztás → Főképernyőhöz adás), nyisd meg onnan, majd engedélyezd az értesítéseket.";
+  }
+  return "A böngésző letiltotta az értesítéseket. Chrome: a címsor melletti lakat / info ikon → Értesítések → Engedélyezés. Utána nyomd meg az „Ellenőrzés újra” gombot.";
+}
+
 /** App-szintű preferencia: még granted jogosultság mellett is kikapcsolható. */
 export function getBrowserNotificationsEnabled(): boolean {
   if (typeof window === "undefined") return false;

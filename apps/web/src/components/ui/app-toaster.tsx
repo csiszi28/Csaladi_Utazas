@@ -136,16 +136,19 @@ export function AppToaster() {
     "--toast-offset-top": `${layout.offset.top}px`,
     "--toast-offset-right": `${layout.offset.right}px`,
     "--toast-offset-left": `${layout.offset.left}px`,
+    // Sonner mobil calc(100% - 2*offset) ne zsugorítsa össze a toastot
+    "--mobile-offset-left": "0px",
+    "--mobile-offset-right": "0px",
   } as CSSProperties;
 
   return (
     <Toaster
       theme={resolved}
       position={layout.position}
-      offset={layout.offset}
-      mobileOffset={layout.offset}
+      offset={layout.offset.top}
+      mobileOffset={layout.offset.top}
       expand
-      gap={10}
+      gap={8}
       visibleToasts={4}
       closeButton
       duration={3800}

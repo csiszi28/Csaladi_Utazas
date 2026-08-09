@@ -14,8 +14,11 @@ import {
   NOTIFICATION_CATEGORY_LABELS,
   NOTIFICATION_PREF_CHANGE_EVENT,
   getBrowserNotificationsEnabled,
+  getDeniedNotificationHelp,
   getNotificationCategories,
   getNotificationPermission,
+  isIosLikeDevice,
+  isStandaloneDisplayMode,
   setNotificationCategory,
   syncNotificationPreferencesToServer,
   type BrowserNotificationSupport,
@@ -26,6 +29,7 @@ import {
   disablePushNotifications,
   enablePushNotifications,
   getVapidPublicKey,
+  refreshNotificationPermissionState,
   syncPushSubscriptionIfEnabled,
 } from "@/lib/push-client";
 import { Switch } from "@/components/ui/switch";
@@ -52,6 +56,8 @@ export function SettingsPage({ user }: SettingsPageProps) {
   const [categories, setCategories] = useState<NotificationCategoryMap>(() =>
     getNotificationCategories()
   );
+  const [notifBusy, setNotifBusy] = useState(false);
+  const [optimisticMasterOn, setOptimisticMasterOn] = useState<boolean | null>(null);
   const [namePending, startNameTransition] = useTransition();
   const [passwordPending, startPasswordTransition] = useTransition();
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -101,37 +107,72 @@ export function SettingsPage({ user }: SettingsPageProps) {
   }
 
   async function enableNotifications() {
-    const result = await enablePushNotifications();
-    setNotifPermission(result.permission);
-    setNotifEnabled(getBrowserNotificationsEnabled());
-    setCategories(getNotificationCategories());
-    if (result.permission === "granted") {
-      toast.success("Értesítések bekapcsolva");
-      void syncNotificationPreferencesToServer();
-    } else if (result.permission === "denied") {
-      toast.error("A böngésző letiltotta az értesítéseket");
-    } else if (result.permission === "unsupported") {
-      toast.message("Ez a böngésző nem támogatja az értesítéseket");
+    setNotifBusy(true);
+    setOptimisticMasterOn(true);
+    try {
+      const result = await enablePushNotifications();
+      setNotifPermission(result.permission);
+      setNotifEnabled(getBrowserNotificationsEnabled());
+      setCategories(getNotificationCategories());
+
+      if (result.permission === "granted") {
+        toast.success(result.message ?? "Értesítések bekapcsolva");
+        void syncNotificationPreferencesToServer();
+        void syncPushSubscriptionIfEnabled();
+      } else if (result.permission === "denied") {
+        toast.error(result.message ?? getDeniedNotificationHelp(), { duration: 8000 });
+      } else if (result.permission === "unsupported") {
+        toast.message(result.message ?? "Ez a böngésző nem támogatja az értesítéseket");
+      } else if (result.message) {
+        toast.message(result.message, { duration: 7000 });
+      }
+    } finally {
+      setOptimisticMasterOn(null);
+      setNotifBusy(false);
     }
   }
 
   async function toggleNotifications(next: boolean) {
+    if (notifBusy) return;
+
     if (next) {
-      if (notifPermission !== "granted") {
-        await enableNotifications();
+      // Már tiltva a böngészőben — ne hívjunk feleslegesen requestPermission-t
+      if (getNotificationPermission() === "denied") {
+        setNotifPermission("denied");
+        toast.error(getDeniedNotificationHelp(), { duration: 8000 });
         return;
       }
-      await enablePushNotifications();
+      await enableNotifications();
+      return;
+    }
+
+    // Azonnali UI — a push leiratkozás háttérben megy
+    setOptimisticMasterOn(false);
+    setNotifEnabled(false);
+    toast.success("Értesítések kikapcsolva");
+    void disablePushNotifications().finally(() => {
+      setOptimisticMasterOn(null);
       setNotifEnabled(getBrowserNotificationsEnabled());
-      setCategories(getNotificationCategories());
-      toast.success("Értesítések bekapcsolva");
+    });
+  }
+
+  function recheckPermission() {
+    const state = refreshNotificationPermissionState();
+    setNotifPermission(state.permission);
+    setNotifEnabled(state.enabled);
+    setCategories(getNotificationCategories());
+
+    if (state.permission === "granted") {
+      toast.success("Értesítések újra elérhetők");
+      void syncPushSubscriptionIfEnabled();
       void syncNotificationPreferencesToServer();
       return;
     }
-    await disablePushNotifications();
-    setNotifEnabled(false);
-    void syncNotificationPreferencesToServer();
-    toast.success("Értesítések kikapcsolva");
+    if (state.permission === "denied") {
+      toast.message(getDeniedNotificationHelp(), { duration: 8000 });
+      return;
+    }
+    toast.message("Még nincs böngésző-engedély — kapcsold be a kapcsolóval.");
   }
 
   function toggleCategory(category: NotificationCategory, enabled: boolean) {
@@ -139,8 +180,10 @@ export function SettingsPage({ user }: SettingsPageProps) {
     setCategories(getNotificationCategories());
   }
 
-  const masterOn = notifPermission === "granted" && notifEnabled;
+  const masterOn =
+    optimisticMasterOn ?? (notifPermission === "granted" && notifEnabled);
   const pushReady = Boolean(getVapidPublicKey());
+  const showIosInstallHint = isIosLikeDevice() && !isStandaloneDisplayMode();
 
   function handleDeleteAccount(e: React.FormEvent) {
     e.preventDefault();
@@ -309,26 +352,56 @@ export function SettingsPage({ user }: SettingsPageProps) {
               <p className="text-sm font-medium">Push értesítések</p>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {notifPermission === "denied"
-                  ? "A böngésző tiltja — engedd az oldal beállításaiban."
+                  ? "A böngésző tiltja — a rendszerbeállításokban kell újraengedélyezni."
                   : notifPermission === "unsupported"
                     ? "Ezen az eszközön nem elérhető."
-                    : pushReady
-                      ? "Akkor is, ha épp nem használod az appot."
-                      : "Böngésző értesítések az emlékeztetőkről."}
+                    : showIosInstallHint
+                      ? "iPhone-on a Főképernyőre mentett appból működik megbízhatóan."
+                      : pushReady
+                        ? "Akkor is, ha épp nem használod az appot."
+                        : "Böngésző értesítések az emlékeztetőkről."}
               </p>
             </div>
-            {notifPermission === "unsupported" || notifPermission === "denied" ? (
+            {notifPermission === "unsupported" ? (
               <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[0.65rem] font-medium text-muted-foreground">
-                {notifPermission === "denied" ? "Tiltva" : "Nem elérhető"}
+                Nem elérhető
+              </span>
+            ) : notifPermission === "denied" ? (
+              <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-1 text-[0.65rem] font-medium text-destructive">
+                Böngésző tiltja
               </span>
             ) : (
               <Switch
                 checked={masterOn}
+                disabled={notifBusy}
                 onCheckedChange={(checked) => void toggleNotifications(checked)}
                 aria-label="Push értesítések"
               />
             )}
           </div>
+
+          {notifPermission === "denied" ? (
+            <div className="space-y-3 px-4 py-3 sm:px-5">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {getDeniedNotificationHelp()}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-[var(--touch-target)] w-full sm:min-h-9 sm:w-auto"
+                onClick={recheckPermission}
+              >
+                Ellenőrzés újra
+              </Button>
+            </div>
+          ) : null}
+
+          {showIosInstallHint && notifPermission !== "denied" ? (
+            <p className="border-b px-4 py-3 text-xs leading-relaxed text-muted-foreground sm:px-5">
+              Safari → Megosztás → Főképernyőhöz adás, majd nyisd meg az ikonról, és kapcsold be az
+              értesítéseket.
+            </p>
+          ) : null}
 
           {masterOn ? (
             <div className="divide-y">
@@ -348,6 +421,7 @@ export function SettingsPage({ user }: SettingsPageProps) {
                     </div>
                     <Switch
                       checked={categories[key]}
+                      disabled={notifBusy}
                       onCheckedChange={(checked) => toggleCategory(key, checked)}
                       aria-label={meta.title}
                     />
@@ -355,10 +429,11 @@ export function SettingsPage({ user }: SettingsPageProps) {
                 );
               })}
             </div>
-          ) : notifPermission === "default" ? (
+          ) : notifPermission === "default" ||
+            (notifPermission === "granted" && !notifEnabled) ? (
             <p className="px-4 py-3 text-xs text-muted-foreground sm:px-5">
               Kapcsold be, majd válaszd ki, miről szeretnél üzenetet — alapból mindegyik be van
-              kapcsolva.
+              kapcsolva. A böngésző ablakában válaszd az „Engedélyezés” opciót.
             </p>
           ) : null}
         </section>

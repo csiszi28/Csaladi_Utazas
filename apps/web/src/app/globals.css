@@ -415,29 +415,44 @@ html.app-splash-exiting body {
   opacity: 1;
 }
 
-/* Mobil: középre, de a viewport inseteken belül (ne lógjon ki) */
+/* Mobil / desktop: a toasternek mindig legyen explicit szélessége
+   (az absolute toastok nem tartják ki a konténert). */
 [data-sonner-toaster][data-x-position="center"] {
-  left: var(--toast-offset-left, max(1rem, env(safe-area-inset-left, 0px))) !important;
-  right: var(--toast-offset-right, max(1rem, env(safe-area-inset-right, 0px))) !important;
-  width: auto !important;
-  max-width: none !important;
-  transform: none !important;
-  display: flex !important;
-  justify-content: center !important;
+  left: 50% !important;
+  right: auto !important;
+  width: var(--width) !important;
+  max-width: calc(
+    100dvw - var(--toast-offset-left, 1rem) - var(--toast-offset-right, 1rem)
+  ) !important;
+  transform: translateX(-50%) !important;
   box-sizing: border-box !important;
+  top: var(--toast-offset-top, 1rem) !important;
 }
 
 [data-sonner-toaster][data-x-position="right"] {
   right: var(--toast-offset-right, max(1rem, env(safe-area-inset-right, 0px))) !important;
   left: auto !important;
-  width: auto !important;
+  width: var(--width) !important;
   max-width: calc(100dvw - 2rem) !important;
   box-sizing: border-box !important;
+  top: var(--toast-offset-top, 1rem) !important;
+}
+
+@media (max-width: 600px) {
+  /* Sonner alapból: width = 100% - 2*offset — nálunk az offset a viewport inset,
+     ezért a toast szélességét a toaster --width változójára kötjük. */
+  [data-sonner-toaster].app-toaster [data-sonner-toast] {
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
 }
 
 /* ─── App toasts (Sonner) ─── */
 [data-sonner-toaster].app-toaster {
   --width: min(22.5rem, calc(100dvw - 2rem));
+  --gap: 8px;
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -458,14 +473,14 @@ html.app-splash-exiting body {
   --info-border: transparent;
   --info-text: inherit;
 
-  position: relative;
+  position: absolute;
   display: flex !important;
   align-items: center !important;
   gap: 0.75rem !important;
-  width: min(var(--width), 100%) !important;
-  max-width: min(var(--width, 22.5rem), 100%) !important;
+  width: 100% !important;
+  max-width: 100% !important;
   /* Jobb oldalon hely a close gombnak — ne takarja a szöveget */
-  padding: 0.85rem 2.5rem 0.85rem 0.95rem !important;
+  padding: 0.75rem 2.35rem 0.75rem 0.9rem !important;
   overflow: hidden !important;
   border-radius: 1rem !important;
   border: 1px solid rgba(26, 54, 93, 0.12) !important;
@@ -474,10 +489,12 @@ html.app-splash-exiting body {
   color: #1a2744 !important;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.7) inset,
-    0 10px 28px -12px rgba(26, 54, 93, 0.35),
-    0 2px 8px rgba(26, 54, 93, 0.08) !important;
+    0 8px 20px -12px rgba(26, 54, 93, 0.32),
+    0 1px 4px rgba(26, 54, 93, 0.06) !important;
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  /* Sonner height animáció ne nyújtsa szét a tartalmat */
+  height: auto !important;
 }
 
 .dark [data-sonner-toast].app-toast {

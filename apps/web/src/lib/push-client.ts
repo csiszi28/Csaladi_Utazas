@@ -3,6 +3,10 @@
 import {
   canShowBrowserNotifications,
   getBrowserNotificationsEnabled,
+  getDeniedNotificationHelp,
+  getNotificationPermission,
+  isIosLikeDevice,
+  isStandaloneDisplayMode,
   setBrowserNotificationsEnabled,
   syncNotificationPreferencesToServer,
 } from "@/lib/notification-prefs";
@@ -32,6 +36,13 @@ export function getVapidPublicKey(): string | null {
   return key || null;
 }
 
+export type EnablePushResult = {
+  permission: NotificationPermission | "unsupported";
+  subscribed: boolean;
+  /** Emberi üzenet a UI-nak (tiltás / iOS útmutató). */
+  message?: string;
+};
+
 async function postSubscription(subscription: PushSubscription): Promise<boolean> {
   const json = subscription.toJSON();
   if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
@@ -56,23 +67,80 @@ async function deleteSubscription(endpoint?: string): Promise<void> {
   }).catch(() => undefined);
 }
 
+async function waitForServiceWorker(
+  timeoutMs = 8000
+): Promise<ServiceWorkerRegistration | null> {
+  if (!("serviceWorker" in navigator)) return null;
+  try {
+    const ready = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => {
+        window.setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+    return ready;
+  } catch {
+    return null;
+  }
+}
+
+/** Invalidálja a függőben lévő disable cleanupot (gyors ki/be kapcsolás). */
+let pushLifecycleToken = 0;
+
 /** Engedély + Web Push feliratkozás (ha VAPID be van állítva). */
-export async function enablePushNotifications(): Promise<{
-  permission: NotificationPermission | "unsupported";
-  subscribed: boolean;
-}> {
-  if (typeof Notification === "undefined") {
-    return { permission: "unsupported", subscribed: false };
+export async function enablePushNotifications(): Promise<EnablePushResult> {
+  pushLifecycleToken += 1;
+
+  if (typeof window === "undefined" || typeof Notification === "undefined") {
+    return {
+      permission: "unsupported",
+      subscribed: false,
+      message: "Ez a böngésző nem támogatja az értesítéseket.",
+    };
   }
 
-  const permission =
-    Notification.permission === "granted"
-      ? "granted"
-      : await Notification.requestPermission();
+  // iOS: nem-PWA-ból gyakran nem működik / azonnal tiltásnak tűnik
+  if (isIosLikeDevice() && !isStandaloneDisplayMode()) {
+    return {
+      permission: getNotificationPermission(),
+      subscribed: false,
+      message: getDeniedNotificationHelp(),
+    };
+  }
+
+  // Már tiltva a böngészőben — requestPermission nem hoz fel új dialógust
+  if (Notification.permission === "denied") {
+    setBrowserNotificationsEnabled(false);
+    return {
+      permission: "denied",
+      subscribed: false,
+      message: getDeniedNotificationHelp(),
+    };
+  }
+
+  let permission: NotificationPermission = Notification.permission;
+  if (permission !== "granted") {
+    try {
+      permission = await Notification.requestPermission();
+    } catch {
+      return {
+        permission: getNotificationPermission(),
+        subscribed: false,
+        message: "Nem sikerült az értesítési engedélyt bekérni. Próbáld újra.",
+      };
+    }
+  }
 
   if (permission !== "granted") {
     setBrowserNotificationsEnabled(false);
-    return { permission, subscribed: false };
+    return {
+      permission,
+      subscribed: false,
+      message:
+        permission === "denied"
+          ? getDeniedNotificationHelp()
+          : "Nem engedélyezted az értesítéseket. Bármikor újra megpróbálhatod.",
+    };
   }
 
   setBrowserNotificationsEnabled(true);
@@ -80,11 +148,21 @@ export async function enablePushNotifications(): Promise<{
 
   const vapid = getVapidPublicKey();
   if (!vapid || !isPushClientSupported()) {
+    // Böngésző-értesítés (foreground) így is mehet
     return { permission, subscribed: false };
   }
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await waitForServiceWorker();
+    if (!registration?.pushManager) {
+      return {
+        permission,
+        subscribed: false,
+        message:
+          "Az értesítések bekapcsolva. A háttér-pushhoz frissítsd az oldalt, vagy nyisd meg újra az appot.",
+      };
+    }
+
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
@@ -96,23 +174,37 @@ export async function enablePushNotifications(): Promise<{
     return { permission, subscribed: ok };
   } catch (error) {
     console.error("[enablePushNotifications]", error);
-    return { permission, subscribed: false };
+    // Engedély megvan — ne állítsuk vissza tiltottra, ha csak a subscribe bukott
+    return {
+      permission,
+      subscribed: false,
+      message:
+        "Az értesítések engedélyezve. A háttér-küldéshez próbáld újra később, vagy frissítsd az oldalt.",
+    };
   }
 }
 
-/** App-szintű kikapcsolás + push leiratkozás. */
-export async function disablePushNotifications(): Promise<void> {
-  setBrowserNotificationsEnabled(false);
-  void syncNotificationPreferencesToServer().catch(() => undefined);
-
-  if (!isPushClientSupported()) return;
+/** Háttérben: SW unsubscribe + szerver DELETE (UI ne várjon rá). */
+async function cleanupPushSubscriptionInBackground(token: number): Promise<void> {
+  if (!isPushClientSupported()) {
+    if (token !== pushLifecycleToken) return;
+    await deleteSubscription();
+    return;
+  }
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await waitForServiceWorker(2500);
+    if (token !== pushLifecycleToken) return;
+    if (!registration) {
+      await deleteSubscription();
+      return;
+    }
     const subscription = await registration.pushManager.getSubscription();
+    if (token !== pushLifecycleToken) return;
     if (subscription) {
       const endpoint = subscription.endpoint;
       await subscription.unsubscribe().catch(() => undefined);
+      if (token !== pushLifecycleToken) return;
       await deleteSubscription(endpoint);
     } else {
       await deleteSubscription();
@@ -122,6 +214,17 @@ export async function disablePushNotifications(): Promise<void> {
   }
 }
 
+/**
+ * App-szintű kikapcsolás — azonnal (localStorage + preferencia sync),
+ * a push leiratkozás háttérben fut, hogy a kapcsoló ne várjon.
+ */
+export async function disablePushNotifications(): Promise<void> {
+  const token = ++pushLifecycleToken;
+  setBrowserNotificationsEnabled(false);
+  void syncNotificationPreferencesToServer().catch(() => undefined);
+  void cleanupPushSubscriptionInBackground(token);
+}
+
 /** Ha már granted + enabled, frissíti / létrehozza a push feliratkozást. */
 export async function syncPushSubscriptionIfEnabled(): Promise<void> {
   if (!canShowBrowserNotifications()) return;
@@ -129,7 +232,9 @@ export async function syncPushSubscriptionIfEnabled(): Promise<void> {
   if (!getBrowserNotificationsEnabled()) return;
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await waitForServiceWorker();
+    if (!registration?.pushManager) return;
+
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
@@ -141,4 +246,22 @@ export async function syncPushSubscriptionIfEnabled(): Promise<void> {
   } catch {
     /* silent — push opcionális */
   }
+}
+
+/** Újraolvassa a böngésző engedélyét (pl. rendszerbeállítás után). */
+export function refreshNotificationPermissionState(): {
+  permission: ReturnType<typeof getNotificationPermission>;
+  enabled: boolean;
+} {
+  const permission = getNotificationPermission();
+  if (permission === "granted") {
+    // Ha a user a böngészőben újraengedélyezte, az app kapcsolót is visszakapcsoljuk
+    if (!getBrowserNotificationsEnabled()) {
+      setBrowserNotificationsEnabled(true);
+    }
+  }
+  return {
+    permission,
+    enabled: getBrowserNotificationsEnabled(),
+  };
 }

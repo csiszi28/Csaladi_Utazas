@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Bell, Check, ChevronRight, X } from "lucide-react";
+import { toast } from "sonner";
 import type { AppReminder } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,7 @@ import {
   NOTIFICATION_PREF_CHANGE_EVENT,
   canShowBrowserNotifications,
   getBrowserNotificationsEnabled,
+  getDeniedNotificationHelp,
   getNotificationPermission,
   isNotificationCategoryEnabled,
   type BrowserNotificationSupport,
@@ -54,14 +56,24 @@ export function RemindersBell({
   }, [open]);
 
   async function enableNotifications() {
+    if (getNotificationPermission() === "denied") {
+      setNotifyPermission("denied");
+      toast.error(getDeniedNotificationHelp(), { duration: 8000 });
+      return;
+    }
     const result = await enablePushNotifications();
     setNotifyPermission(result.permission);
     setNotifyEnabled(getBrowserNotificationsEnabled());
+    if (result.permission === "granted") {
+      toast.success(result.message ?? "Értesítések bekapcsolva");
+    } else if (result.message) {
+      toast.message(result.message, { duration: 8000 });
+    }
   }
 
   async function disableNotifications() {
-    await disablePushNotifications();
     setNotifyEnabled(false);
+    void disablePushNotifications();
   }
 
   const { data: reminders = [] } = useQuery({
@@ -233,6 +245,15 @@ export function RemindersBell({
                 </span>
                 <span className="shrink-0 text-xs font-medium text-primary">Bekapcsol</span>
               </button>
+            ) : null}
+
+            {notifyPermission === "denied" ? (
+              <div className="space-y-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5">
+                <p className="text-sm font-medium text-foreground">Értesítések tiltva</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {getDeniedNotificationHelp()}
+                </p>
+              </div>
             ) : null}
 
             {notifyPermission === "granted" && notifyEnabled ? (
