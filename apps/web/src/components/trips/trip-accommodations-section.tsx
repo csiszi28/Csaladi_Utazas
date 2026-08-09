@@ -18,7 +18,6 @@ import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { MonogramGroup } from "@/components/monogram";
 import { useDeleteTripIdea } from "@/hooks/use-ideas";
 import { useDeleteAccommodation } from "@/hooks/use-accommodations";
-import { cn } from "@/lib/utils";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import {
   AccommodationIdeaFormDrawer,
@@ -30,6 +29,7 @@ import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { CostChips } from "./cost-chips";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
 import { TripFilterChips, TripSectionHeading } from "./trip-detail-tabs";
+import { TripSubviewNav } from "./trip-subview-nav";
 import { TripMapView, buildTripMapMarkers } from "./trip-map-view";
 import { GeocodeStatusBadge, resolveGeocodeStatus } from "./geocode-status";
 type TripIdeaRow = TripDetailRow["ideas"][number];
@@ -332,47 +332,30 @@ export function TripAccommodationsSection({
             title="Foglalások"
             description="Tényleges szállások be- és kijelentkezési dátummal"
             action={
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex rounded-lg border p-0.5">
-                  <button
-                    type="button"
-                    className={cn(
-                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
-                      bookingView === "list"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground"
-                    )}
-                    onClick={() => setBookingView("list")}
-                  >
-                    Lista
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
-                      bookingView === "map"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground"
-                    )}
-                    onClick={() => setBookingView("map")}
-                  >
-                    Térkép
-                  </button>
-                </div>
-                {canEdit ? (
-                  <Button
-                    className={TRIP_SECTION_BTN_CLASS}
-                    onClick={() => {
-                      setEditingAccommodation(null);
-                      setAccommodationDrawerOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Új szállás
-                  </Button>
-                ) : null}
-              </div>
+              canEdit ? (
+                <Button
+                  className={`${TRIP_SECTION_BTN_CLASS} w-full sm:w-auto`}
+                  onClick={() => {
+                    setEditingAccommodation(null);
+                    setAccommodationDrawerOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="sm:hidden">Új</span>
+                  <span className="hidden sm:inline">Új szállás</span>
+                </Button>
+              ) : null
             }
+          />
+
+          <TripSubviewNav
+            ariaLabel="Szállás nézet"
+            active={bookingView}
+            onChange={(id) => setBookingView(id as "list" | "map")}
+            items={[
+              { id: "list", label: "Lista", shortLabel: "Lista", count: accommodations.length },
+              { id: "map", label: "Térkép", shortLabel: "Térkép" },
+            ]}
           />
 
           {bookingView === "map" ? (

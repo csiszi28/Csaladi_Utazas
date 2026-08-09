@@ -355,6 +355,42 @@ export async function dismissReminder(reminderKey: string): Promise<ActionResult
   return { success: true, data: undefined };
 }
 
+export async function dismissAllReminders(reminderKeys: string[]): Promise<ActionResult> {
+  const user = await requireUser();
+  const keys = reminderKeys
+    .map((k) => dismissReminderSchema.safeParse({ reminderKey: k }))
+    .filter((p): p is { success: true; data: { reminderKey: string } } => p.success)
+    .map((p) => p.data.reminderKey);
+
+  if (keys.length === 0) {
+    return { success: false, error: "Nincs törölhető emlékeztető" };
+  }
+
+  for (const key of keys) {
+    if (key.startsWith("inbox:")) {
+      const inboxId = key.slice("inbox:".length);
+      const { dismissInboxNotification } = await import("@/lib/inbox-notifications");
+      await dismissInboxNotification(user.id, inboxId);
+    }
+
+    await prisma.userNotificationDismissal.upsert({
+      where: {
+        userId_reminderKey: {
+          userId: user.id,
+          reminderKey: key,
+        },
+      },
+      create: {
+        userId: user.id,
+        reminderKey: key,
+      },
+      update: { dismissedAt: new Date() },
+    });
+  }
+
+  return { success: true, data: undefined };
+}
+
 export async function uploadTripCover(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const tripId = String(formData.get("tripId") ?? "");

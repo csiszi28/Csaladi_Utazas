@@ -15,7 +15,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 
 export type TripDetailTab =
@@ -78,6 +77,9 @@ interface TripDetailTabsProps {
 }
 
 export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps) {
+  const activeTab = TABS.find((tab) => tab.id === active) ?? TABS[0];
+  const activeCount = counts[active];
+
   return (
     <>
       {/* Mobile + narrow tablet: select — 7 tabs don't fit */}
@@ -88,9 +90,17 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
         <Select value={active} onValueChange={(value) => onChange(value as TripDetailTab)}>
           <SelectTrigger
             id="trip-section-select"
-            className="h-12 w-full rounded-xl border bg-card px-3 text-base shadow-sm"
+            className="h-12 w-full rounded-xl border bg-card px-3 text-base shadow-sm [&>span]:line-clamp-none [&>span]:flex [&>span]:w-full [&>span]:items-center"
           >
-            <SelectValue placeholder="Szekció választása" />
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="shrink-0 text-muted-foreground">{activeTab.icon}</span>
+              <span className="truncate font-medium">{activeTab.label}</span>
+              {activeCount != null ? (
+                <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold tabular-nums text-primary">
+                  {activeCount}
+                </span>
+              ) : null}
+            </span>
           </SelectTrigger>
           <SelectContent className="w-[var(--radix-select-trigger-width)]">
             {TABS.map((tab) => {
@@ -100,9 +110,11 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
                   <span className="flex items-center gap-2">
                     {tab.icon}
                     <span>{tab.label}</span>
-                    {count != null && (
-                      <span className="text-xs tabular-nums text-muted-foreground">({count})</span>
-                    )}
+                    {count != null ? (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                        {count}
+                      </span>
+                    ) : null}
                   </span>
                 </SelectItem>
               );
@@ -137,7 +149,7 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
               {showCount && (
                 <span
                   className={cn(
-                    "shrink-0 rounded-full px-1.5 py-0.5 text-xs tabular-nums",
+                    "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
                     active === tab.id
                       ? "bg-primary/10 text-primary"
                       : "bg-muted text-muted-foreground"
@@ -164,14 +176,18 @@ export function TripSectionHeading({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-2 sm:gap-3">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <div className="min-w-0">
         <h3 className="text-base font-semibold tracking-tight">{title}</h3>
         {description ? (
           <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{description}</p>
         ) : null}
       </div>
-      {action && <div className="flex shrink-0 items-center gap-2 self-center">{action}</div>}
+      {action ? (
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:shrink-0 sm:items-end">
+          {action}
+        </div>
+      ) : null}
     </div>
   );
 }

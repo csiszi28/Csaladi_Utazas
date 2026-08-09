@@ -1,20 +1,71 @@
 const DATE_FORMAT_REGEX = /^(\d{4})\.(\d{2})\.(\d{2})$/;
+const ISO_DAY_REGEX = /^(\d{4})-(\d{2})-(\d{2})/;
 
-export function formatDate(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}.${month}.${day}`;
+function calendarPartsFromDate(d: Date): { year: number; month: number; day: number } {
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    day: d.getDate(),
+  };
 }
 
-export function parseDate(dateStr: string): Date {
-  const match = DATE_FORMAT_REGEX.exec(dateStr);
-  if (!match) {
-    throw new Error(`Invalid date format: ${dateStr}. Expected YYYY.MM.DD`);
+function formatParts(year: number, month: number, day: number): string {
+  return `${year}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * Naptári dátum → YYYY.MM.DD.
+ * Fogad Date-et, YYYY.MM.DD-t, YYYY-MM-DD-t és ISO datetime stringet is.
+ */
+export function formatDate(date: Date | string): string {
+  if (typeof date === "string") {
+    const dotted = DATE_FORMAT_REGEX.exec(date.trim());
+    if (dotted) return dotted[0];
+
+    const isoDay = ISO_DAY_REGEX.exec(date.trim());
+    if (isoDay) {
+      return formatParts(Number(isoDay[1]), Number(isoDay[2]), Number(isoDay[3]));
+    }
   }
-  const [, year, month, day] = match;
-  return new Date(Number(year), Number(month) - 1, Number(day));
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) {
+    return formatParts(1970, 1, 1);
+  }
+  const { year, month, day } = calendarPartsFromDate(d);
+  return formatParts(year, month, day);
+}
+
+/**
+ * YYYY.MM.DD / YYYY-MM-DD / ISO / Date → helyi naptári Date (éjfél).
+ * Nem dob hibát ismert formátumokra; ismeretlennél Invalid Date helyett safe fallback.
+ */
+export function parseDate(dateStr: string | Date): Date {
+  if (dateStr instanceof Date) {
+    if (Number.isNaN(dateStr.getTime())) {
+      return new Date(1970, 0, 1);
+    }
+    return new Date(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
+  }
+
+  const raw = dateStr.trim();
+  const dotted = DATE_FORMAT_REGEX.exec(raw);
+  if (dotted) {
+    const [, year, month, day] = dotted;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const isoDay = ISO_DAY_REGEX.exec(raw);
+  if (isoDay) {
+    return new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]));
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  throw new Error(`Invalid date format: ${dateStr}. Expected YYYY.MM.DD`);
 }
 
 export function formatTime(time: string | null | undefined): string {

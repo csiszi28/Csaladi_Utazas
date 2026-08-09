@@ -90,31 +90,31 @@ export function TripTransportsSection({
       <TripSectionHeading
         title="Közlekedés"
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <TripSubviewNav
-              ariaLabel="Közlekedés nézet"
-              active={view}
-              onChange={(id) => setView(id as "list" | "map")}
-              items={[
-                { id: "list", label: "Lista", shortLabel: "Lista", count: transports.length },
-                { id: "map", label: "Térkép", shortLabel: "Térkép", count: transports.length },
-              ]}
-            />
-            {canEdit ? (
-              <Button
-                type="button"
-                className={TRIP_SECTION_BTN_CLASS}
-                onClick={() => {
-                  setEditing(null);
-                  setDrawerOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Új közlekedés
-              </Button>
-            ) : null}
-          </div>
+          canEdit ? (
+            <Button
+              type="button"
+              className={`${TRIP_SECTION_BTN_CLASS} w-full sm:w-auto`}
+              onClick={() => {
+                setEditing(null);
+                setDrawerOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="sm:hidden">Új</span>
+              <span className="hidden sm:inline">Új közlekedés</span>
+            </Button>
+          ) : null
         }
+      />
+
+      <TripSubviewNav
+        ariaLabel="Közlekedés nézet"
+        active={view}
+        onChange={(id) => setView(id as "list" | "map")}
+        items={[
+          { id: "list", label: "Lista", shortLabel: "Lista", count: transports.length },
+          { id: "map", label: "Térkép", shortLabel: "Térkép" },
+        ]}
       />
 
       {view === "map" ? (

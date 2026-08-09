@@ -31,6 +31,7 @@ import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { CostChips } from "./cost-chips";
 import { TRIP_SECTION_BTN_CLASS } from "./trip-section-styles";
 import { TripFilterChips, TripSectionHeading } from "./trip-detail-tabs";
+import { TripSubviewNav } from "./trip-subview-nav";
 import { IdeaVoteBar } from "./idea-vote-bar";
 import { InlineProgramTitle, ProgramDayShift } from "./inline-program-edit";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -77,8 +78,8 @@ function ProgramTimeline({
   onEdit: (program: ProgramRow) => void;
 }) {
   const days = useMemo(() => {
-    const start = parseDate(tripStartDate);
-    const end = parseDate(tripEndDate);
+    const start = parseDate(formatDate(tripStartDate));
+    const end = parseDate(formatDate(tripEndDate));
     const result: Date[] = [];
     const cursor = new Date(start);
     cursor.setHours(0, 0, 0, 0);
@@ -499,59 +500,31 @@ export function TripProgramsSection({
             title="Programok"
             description="Napi programok időponttal és résztvevőkkel"
             action={
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex rounded-lg border p-0.5">
-                  <button
-                    type="button"
-                    className={cn(
-                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
-                      listMode === "list"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground"
-                    )}
-                    onClick={() => setListMode("list")}
-                  >
-                    Lista
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
-                      listMode === "timeline"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground"
-                    )}
-                    onClick={() => setListMode("timeline")}
-                  >
-                    Idővonal
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "min-h-9 rounded-md px-2.5 text-xs font-medium sm:text-sm",
-                      listMode === "map"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground"
-                    )}
-                    onClick={() => setListMode("map")}
-                  >
-                    Térkép
-                  </button>
-                </div>
-                {canEdit ? (
-                  <Button
-                    className={TRIP_SECTION_BTN_CLASS}
-                    onClick={() => {
-                      setEditingProgram(null);
-                      setProgramDrawerOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Új program
-                  </Button>
-                ) : null}
-              </div>
+              canEdit ? (
+                <Button
+                  className={`${TRIP_SECTION_BTN_CLASS} w-full sm:w-auto`}
+                  onClick={() => {
+                    setEditingProgram(null);
+                    setProgramDrawerOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="sm:hidden">Új</span>
+                  <span className="hidden sm:inline">Új program</span>
+                </Button>
+              ) : null
             }
+          />
+
+          <TripSubviewNav
+            ariaLabel="Program nézet"
+            active={listMode}
+            onChange={(id) => setListMode(id as "list" | "timeline" | "map")}
+            items={[
+              { id: "list", label: "Lista", shortLabel: "Lista", count: programs.length },
+              { id: "timeline", label: "Idővonal", shortLabel: "Idővonal" },
+              { id: "map", label: "Térkép", shortLabel: "Térkép" },
+            ]}
           />
 
           {listMode === "map" ? (

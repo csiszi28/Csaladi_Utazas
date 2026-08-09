@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Bell, Check, ChevronRight, X } from "lucide-react";
+import { Bell, Check, ChevronRight, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { AppReminder } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
@@ -15,23 +15,58 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
-import { getUserReminders, dismissReminder } from "@/actions/feature-pack";
+import { dismissReminder, dismissAllReminders, getUserReminders } from "@/actions/feature-pack";
 import {
   NOTIFICATION_PREF_CHANGE_EVENT,
   canShowBrowserNotifications,
   getBrowserNotificationsEnabled,
-  getDeniedNotificationHelp,
   getNotificationPermission,
   isNotificationCategoryEnabled,
   type BrowserNotificationSupport,
 } from "@/lib/notification-prefs";
-import {
-  disablePushNotifications,
-  enablePushNotifications,
-} from "@/lib/push-client";
+import { enablePushNotifications } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 
 const NOTIFIED_DAY_KEY = "fam-reminders-notified-day";
+const SEEN_KEYS_STORAGE = "fam-reminders-seen-keys";
+const PUSH_PROMPT_DISMISSED_KEY = "fam-reminders-push-prompt-dismissed";
+
+function readSeenKeys(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(SEEN_KEYS_STORAGE);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((k): k is string => typeof k === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeSeenKeys(keys: Set<string>) {
+  try {
+    window.localStorage.setItem(SEEN_KEYS_STORAGE, JSON.stringify([...keys]));
+  } catch {
+    /* ignore */
+  }
+}
+
+function isPushPromptDismissed(): boolean {
+  try {
+    return window.localStorage.getItem(PUSH_PROMPT_DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function dismissPushPrompt() {
+  try {
+    window.localStorage.setItem(PUSH_PROMPT_DISMISSED_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
 
 export function RemindersBell({
   variant = "icon",
@@ -42,38 +77,37 @@ export function RemindersBell({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [dismissing, setDismissing] = useState<Set<string>>(new Set());
+  const [seenKeys, setSeenKeys] = useState<Set<string>>(() => new Set());
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
   const [notifyPermission, setNotifyPermission] = useState<BrowserNotificationSupport>("default");
-  const [notifyEnabled, setNotifyEnabled] = useState(false);
 
   useEffect(() => {
     function sync() {
       setNotifyPermission(getNotificationPermission());
-      setNotifyEnabled(getBrowserNotificationsEnabled());
+      setSeenKeys(readSeenKeys());
+      const enabled = getBrowserNotificationsEnabled();
+      const permission = getNotificationPermission();
+      setShowPushPrompt(
+        !isPushPromptDismissed() &&
+          permission === "default" &&
+          !enabled
+      );
     }
     sync();
     window.addEventListener(NOTIFICATION_PREF_CHANGE_EVENT, sync);
     return () => window.removeEventListener(NOTIFICATION_PREF_CHANGE_EVENT, sync);
-  }, [open]);
+  }, []);
 
   async function enableNotifications() {
-    if (getNotificationPermission() === "denied") {
-      setNotifyPermission("denied");
-      toast.error(getDeniedNotificationHelp(), { duration: 8000 });
-      return;
-    }
     const result = await enablePushNotifications();
     setNotifyPermission(result.permission);
-    setNotifyEnabled(getBrowserNotificationsEnabled());
     if (result.permission === "granted") {
+      dismissPushPrompt();
+      setShowPushPrompt(false);
       toast.success(result.message ?? "Értesítések bekapcsolva");
     } else if (result.message) {
       toast.message(result.message, { duration: 8000 });
     }
-  }
-
-  async function disableNotifications() {
-    setNotifyEnabled(false);
-    void disablePushNotifications();
   }
 
   const { data: reminders = [] } = useQuery({
@@ -88,6 +122,28 @@ export function RemindersBell({
     () => reminders.filter((r) => !dismissing.has(r.key)),
     [reminders, dismissing]
   );
+
+  const unreadCount = useMemo(
+    () => visibleReminders.filter((r) => !seenKeys.has(r.key)).length,
+    [visibleReminders, seenKeys]
+  );
+
+  function markKeysSeen(keys: string[]) {
+    if (keys.length === 0) return;
+    setSeenKeys((prev) => {
+      const next = new Set(prev);
+      for (const key of keys) next.add(key);
+      writeSeenKeys(next);
+      return next;
+    });
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (nextOpen) {
+      markKeysSeen(visibleReminders.map((r) => r.key));
+    }
+  }
 
   useEffect(() => {
     if (visibleReminders.length === 0) return;
@@ -130,12 +186,12 @@ export function RemindersBell({
           return;
         }
       } catch {
-        /* fall through to page Notification */
+        /* fall through */
       }
       try {
         new Notification(title, { body, tag: "fam-reminders" });
       } catch {
-        // Some browsers block Notification construction — safe to ignore
+        /* ignore */
       }
     }
 
@@ -144,6 +200,7 @@ export function RemindersBell({
 
   function handleDismiss(key: string) {
     setDismissing((prev) => new Set(prev).add(key));
+    markKeysSeen([key]);
     void dismissReminder(key).then((result) => {
       if (!result.success) {
         setDismissing((prev) => {
@@ -157,25 +214,51 @@ export function RemindersBell({
     });
   }
 
+  function handleMarkAllRead() {
+    markKeysSeen(visibleReminders.map((r) => r.key));
+    toast.success("Összes olvasottnak jelölve");
+  }
+
+  function handleDeleteAll() {
+    const keys = visibleReminders.map((r) => r.key);
+    if (keys.length === 0) return;
+    setDismissing((prev) => {
+      const next = new Set(prev);
+      for (const key of keys) next.add(key);
+      return next;
+    });
+    markKeysSeen(keys);
+    void dismissAllReminders(keys).then((result) => {
+      if (!result.success) {
+        setDismissing(new Set());
+        toast.error(result.error ?? "Nem sikerült törölni");
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      toast.success("Emlékeztetők törölve");
+    });
+  }
+
   function handleNavigate(reminder: AppReminder) {
+    markKeysSeen([reminder.key]);
     setOpen(false);
     router.push(reminder.href);
   }
 
-  const count = visibleReminders.length;
+  const badgeCount = unreadCount;
 
   const trigger =
     variant === "nav" ? (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => handleOpenChange(true)}
         className={cn(
           "group relative flex w-full items-center gap-3 rounded-2xl px-2.5 font-medium transition-colors duration-200 touch-manipulation",
           "text-sm min-h-[var(--touch-target)]",
           "text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground",
           "dark:text-white/60 dark:hover:bg-white/8 dark:hover:text-white"
         )}
-        aria-label={count > 0 ? `Emlékeztetők (${count})` : "Emlékeztetők"}
+        aria-label={badgeCount > 0 ? `Emlékeztetők (${badgeCount})` : "Emlékeztetők"}
       >
         <span
           className={cn(
@@ -187,9 +270,9 @@ export function RemindersBell({
           <Bell className="h-4 w-4" />
         </span>
         <span className="min-w-0 flex-1 text-left">Emlékeztetők</span>
-        {count > 0 ? (
+        {badgeCount > 0 ? (
           <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[0.65rem] font-semibold leading-none text-destructive-foreground">
-            {count > 9 ? "9+" : count}
+            {badgeCount > 9 ? "9+" : badgeCount}
           </span>
         ) : null}
       </button>
@@ -199,14 +282,14 @@ export function RemindersBell({
         variant="ghost"
         size="icon"
         style={{ width: "var(--touch-target)", height: "var(--touch-target)" }}
-        aria-label={count > 0 ? `Értesítések (${count})` : "Értesítések"}
+        aria-label={badgeCount > 0 ? `Értesítések (${badgeCount})` : "Értesítések"}
         className="relative"
-        onClick={() => setOpen(true)}
+        onClick={() => handleOpenChange(true)}
       >
         <Bell className="h-4 w-4" />
-        {count > 0 && (
+        {badgeCount > 0 && (
           <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[0.6rem] font-semibold leading-none text-destructive-foreground">
-            {count > 9 ? "9+" : count}
+            {badgeCount > 9 ? "9+" : badgeCount}
           </span>
         )}
       </Button>
@@ -216,62 +299,46 @@ export function RemindersBell({
     <>
       {trigger}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Emlékeztetők</DialogTitle>
             <p className="mt-0.5 text-sm font-normal text-muted-foreground">
-              {count > 0
-                ? `${count} tennivaló vár rád az utazásaidnál`
+              {visibleReminders.length > 0
+                ? `${visibleReminders.length} tennivaló az utazásaidnál`
                 : "Nincs új emlékeztető"}
             </p>
           </DialogHeader>
 
           <DialogBody className="space-y-3">
-            {notifyPermission === "default" ||
-            (notifyPermission === "granted" && !notifyEnabled) ? (
-              <button
-                type="button"
-                onClick={() => void enableNotifications()}
-                className="flex w-full items-center justify-between gap-3 rounded-xl border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/50"
-              >
-                <span className="min-w-0">
+            {showPushPrompt && notifyPermission === "default" ? (
+              <div className="flex items-start gap-2 rounded-xl border bg-muted/30 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => void enableNotifications()}
+                  className="min-w-0 flex-1 text-left"
+                >
                   <span className="block text-sm font-medium text-foreground">
                     Értesítések bekapcsolása
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    Figyelmeztetés emlékeztetőkről, akár háttérben is
+                    Háttérben is jelez, ha van teendő
                   </span>
-                </span>
-                <span className="shrink-0 text-xs font-medium text-primary">Bekapcsol</span>
-              </button>
-            ) : null}
-
-            {notifyPermission === "denied" ? (
-              <div className="space-y-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5">
-                <p className="text-sm font-medium text-foreground">Értesítések tiltva</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  {getDeniedNotificationHelp()}
-                </p>
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  aria-label="Ne jelenjen meg újra"
+                  onClick={() => {
+                    dismissPushPrompt();
+                    setShowPushPrompt(false);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-            ) : null}
-
-            {notifyPermission === "granted" && notifyEnabled ? (
-              <button
-                type="button"
-                onClick={() => void disableNotifications()}
-                className="flex w-full items-center justify-between gap-3 rounded-xl border border-dashed px-3 py-2 text-left transition-colors hover:bg-muted/40"
-              >
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-foreground">
-                    Értesítések bekapcsolva
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    Koppints a kikapcsoláshoz
-                  </span>
-                </span>
-                <span className="shrink-0 text-xs font-medium text-muted-foreground">Ki</span>
-              </button>
             ) : null}
 
             {visibleReminders.length === 0 ? (
@@ -280,58 +347,75 @@ export function RemindersBell({
               </p>
             ) : (
               <ul className="space-y-2">
-                {visibleReminders.map((reminder) => (
-                  <li
-                    key={reminder.key}
-                    className="flex items-start gap-2 rounded-xl border bg-card px-3 py-2.5"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleNavigate(reminder)}
-                      className="min-w-0 flex-1 text-left"
+                {visibleReminders.map((reminder) => {
+                  const unread = !seenKeys.has(reminder.key);
+                  return (
+                    <li
+                      key={reminder.key}
+                      className={cn(
+                        "flex items-start gap-2 rounded-xl border bg-card px-3 py-2.5",
+                        unread && "border-primary/25 bg-primary/[0.03]"
+                      )}
                     >
-                      <span className="flex items-center gap-1 text-sm font-medium">
-                        {reminder.title}
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      </span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {reminder.body}
-                      </span>
-                    </button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      aria-label="Elrejtés"
-                      onClick={() => handleDismiss(reminder.key)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
+                      <button
+                        type="button"
+                        onClick={() => handleNavigate(reminder)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <span className="flex items-center gap-1 text-sm font-medium">
+                          {reminder.title}
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {reminder.body}
+                        </span>
+                      </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                        aria-label="Törlés"
+                        onClick={() => handleDismiss(reminder.key)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </DialogBody>
 
-          <DialogFooter className="grid grid-cols-1 sm:grid-cols-[1fr_auto]">
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between">
             {visibleReminders.length > 0 ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-[var(--touch-target)] w-full sm:min-h-9"
-                onClick={() => visibleReminders.forEach((r) => handleDismiss(r.key))}
-              >
-                <Check className="h-4 w-4" />
-                Összes elrejtése
-              </Button>
+              <div className="flex w-full flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-[var(--touch-target)] w-full sm:min-h-9"
+                  onClick={handleMarkAllRead}
+                >
+                  <Check className="h-4 w-4" />
+                  Összes olvasott
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-[var(--touch-target)] w-full text-destructive hover:bg-destructive/10 hover:text-destructive sm:min-h-9"
+                  onClick={handleDeleteAll}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Összes törlése
+                </Button>
+              </div>
             ) : (
               <span />
             )}
             <Button
               type="button"
               className="min-h-[var(--touch-target)] w-full sm:min-h-9 sm:w-auto"
-              onClick={() => setOpen(false)}
+              onClick={() => handleOpenChange(false)}
             >
               Bezárás
             </Button>

@@ -86,7 +86,7 @@ function useDatePickerOpen(pickerId: string) {
     setOpenExclusive(false);
   }, [setOpenExclusive]);
 
-  return { open, toggle, close };
+  return { open, toggle, close, setOpenExclusive };
 }
 
 function useIsMobileLayout() {
@@ -209,7 +209,7 @@ export function DatePicker({
 }: DatePickerProps) {
   const isMobile = useIsMobileLayout();
   const pickerId = React.useId();
-  const { open, toggle, close } = useDatePickerOpen(pickerId);
+  const { open, close, setOpenExclusive } = useDatePickerOpen(pickerId);
   const anchorRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const ignoreOutsideUntilRef = React.useRef(0);
@@ -274,11 +274,16 @@ export function DatePicker({
 
   const handleToggle = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
       event.stopPropagation();
-      ignoreOutsideUntilRef.current = Date.now() + 300;
-      toggle();
+      ignoreOutsideUntilRef.current = Date.now() + 400;
+      if (open) {
+        close();
+        return;
+      }
+      setOpenExclusive(true);
     },
-    [toggle]
+    [open, close, setOpenExclusive]
   );
 
   const panel =
@@ -324,6 +329,7 @@ export function DatePicker({
         variant="outline"
         type="button"
         onClick={handleToggle}
+        aria-expanded={open}
         className={cn(
           "min-h-[var(--touch-target)] w-full justify-start text-left text-base font-normal md:min-h-9",
           !value && "text-muted-foreground",
