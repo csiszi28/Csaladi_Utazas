@@ -120,7 +120,6 @@ self.addEventListener("push", (event) => {
       body,
       tag,
       data: { href },
-      renotify: true,
     })
   );
 });
