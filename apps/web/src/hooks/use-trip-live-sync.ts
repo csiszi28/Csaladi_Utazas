@@ -2,14 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { bustTripViewCache, pullTripRevision } from "@/actions/trip-sync";
 
-const POLL_VISIBLE_MS = 1200;
-const POLL_HIDDEN_MS = 10000;
-
-type RevisionPayload = {
-  success: boolean;
-  data?: { contentUpdatedAt: string };
-};
+const POLL_VISIBLE_MS = 1000;
+const POLL_HIDDEN_MS = 8000;
 
 function toRevisionIso(value: string | Date | null | undefined): string {
   if (value == null) return "";
@@ -22,7 +18,6 @@ function toRevisionIso(value: string | Date | null | undefined): string {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? "" : value.toISOString();
   }
-  // RSC / cache néha plain objectként adja vissza a dátumot
   try {
     const parsed = new Date(value as string | number | Date);
     return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
@@ -32,17 +27,21 @@ function toRevisionIso(value: string | Date | null | undefined): string {
 }
 
 /**
- * Amíg a trip detail nyitva van (és a fül látható), ~1.2s-enként ellenőrzi,
- * változott-e a tartalom — más eszköz/fiók mutációi után automatikus router.refresh().
+ * Látható trip detailnél ~1s-enként nézi a contentUpdatedAt-et.
+ * Változáskor cache bust + router.refresh() — cél: módosítás <5s alatt mindenkinél.
  */
 export function useTripLiveSync(tripId: string, contentUpdatedAt: string | Date | null | undefined) {
   const router = useRouter();
   const knownRef = useRef(toRevisionIso(contentUpdatedAt));
-  const refreshPendingRef = useRef(false);
+  const busyRef = useRef(false);
 
+  // Props csak akkor írhatják felül a known revisiont, ha újabbak (ne reseteljenek stale cache-re)
   useEffect(() => {
-    const next = toRevisionIso(contentUpdatedAt);
-    if (next) knownRef.current = next;
+    const fromProps = toRevisionIso(contentUpdatedAt);
+    if (!fromProps) return;
+    if (!knownRef.current || fromProps > knownRef.current) {
+      knownRef.current = fromProps;
+    }
   }, [contentUpdatedAt]);
 
   useEffect(() => {
@@ -52,52 +51,48 @@ export function useTripLiveSync(tripId: string, contentUpdatedAt: string | Date 
     async function poll() {
       if (cancelled) return;
 
-      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
-      if (hidden) {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
         timer = setTimeout(poll, POLL_HIDDEN_MS);
         return;
       }
 
-      try {
-        const res = await fetch(`/api/v1/trips/${tripId}/revision`, {
-          cache: "no-store",
-          credentials: "same-origin",
-        });
-        if (res.ok) {
-          const json = (await res.json()) as RevisionPayload;
-          const next = json.data?.contentUpdatedAt
-            ? toRevisionIso(json.data.contentUpdatedAt)
-            : "";
-          if (
-            next &&
-            knownRef.current &&
-            next !== knownRef.current &&
-            !refreshPendingRef.current
-          ) {
-            knownRef.current = next;
-            refreshPendingRef.current = true;
-            router.refresh();
-            window.setTimeout(() => {
-              refreshPendingRef.current = false;
-            }, 1200);
-          } else if (next && !knownRef.current) {
-            // Első érvényes revision (régi cache-ből hiányzott a mező)
-            knownRef.current = next;
+      if (!busyRef.current) {
+        try {
+          const result = await pullTripRevision(tripId);
+          const next = toRevisionIso(result);
+
+          if (next) {
+            if (!knownRef.current) {
+              knownRef.current = next;
+            } else if (next !== knownRef.current) {
+              knownRef.current = next;
+              busyRef.current = true;
+              try {
+                await bustTripViewCache(tripId);
+                router.refresh();
+              } finally {
+                // Adj időt a friss RSC payloadnak, mielőtt újra pollolnánk
+                window.setTimeout(() => {
+                  busyRef.current = false;
+                }, 800);
+              }
+            }
           }
+        } catch {
+          // hálózat — következő kör
         }
-      } catch {
-        // hálózat — következő körben újra
       }
 
       if (!cancelled) {
-        timer = setTimeout(
-          poll,
-          document.visibilityState === "visible" ? POLL_VISIBLE_MS : POLL_HIDDEN_MS
-        );
+        const delay =
+          typeof document !== "undefined" && document.visibilityState === "visible"
+            ? POLL_VISIBLE_MS
+            : POLL_HIDDEN_MS;
+        timer = setTimeout(poll, delay);
       }
     }
 
-    timer = setTimeout(poll, POLL_VISIBLE_MS);
+    timer = setTimeout(poll, 400);
 
     function onVisibility() {
       if (document.visibilityState === "visible") {

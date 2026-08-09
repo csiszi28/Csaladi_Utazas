@@ -270,8 +270,26 @@ const getCachedTripDetail = (userId: string, id: string) =>
         },
       }),
     [`trip-detail-${userId}-${id}`],
-    { revalidate: 30, tags: [userDataTag(userId), `trip-${id}`] }
+    // Rövid TTL + tag: collaborator élő sync / router.refresh() ne ragadjon 30s-ig
+    { revalidate: 1, tags: [userDataTag(userId), `trip-${id}`] }
   )();
+
+/** Élő sync / mutáció után — mindig friss DB, unstable_cache nélkül */
+export async function fetchTripDetailFresh(id: string, userId?: string) {
+  const uid = userId ?? (await requireAuthUserId());
+  return prisma.trip.findFirst({
+    where: { id, ...tripAccessFilter(uid) },
+    include: {
+      ...tripDetailInclude,
+      activities: {
+        where: { actorUserId: { not: uid } },
+        include: { actor: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "desc" as const },
+        take: 50,
+      },
+    },
+  });
+}
 
 export async function fetchTripDetail(id: string, userId?: string) {
   const uid = userId ?? (await requireAuthUserId());

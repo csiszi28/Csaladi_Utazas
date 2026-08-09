@@ -2,9 +2,12 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { TripDetailPage } from "@/components/trips/trip-detail-page";
 import { fetchFamilyMembers } from "@/lib/queries/family";
-import { fetchTripDetail } from "@/lib/queries/trips";
+import { fetchTripDetailFresh } from "@/lib/queries/trips";
 import { getAuthSession, requireAuthUserId } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
+
+/** Mutációk / collaborator sync után ne ragadjon Full Route Cache-ben */
+export const dynamic = "force-dynamic";
 
 export default async function TripDetailRoute({
   params,
@@ -16,7 +19,7 @@ export default async function TripDetailRoute({
   const [authUser, userId, trip, members] = await Promise.all([
     getAuthSession(),
     userIdPromise,
-    userIdPromise.then((uid) => fetchTripDetail(id, uid)),
+    userIdPromise.then((uid) => fetchTripDetailFresh(id, uid)),
     fetchFamilyMembers(),
   ]);
 
