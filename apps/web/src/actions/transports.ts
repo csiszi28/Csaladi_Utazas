@@ -3,9 +3,10 @@
 import { prisma } from "@csaladi-utazas/database";
 import { isDateInRange, parseDate, transportSchema, updateTransportSchema } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
+import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
+import { notifyTripAudience } from "@/lib/trip-notifications";
 import type { ActionResult } from "./auth";
 
 export async function createTransport(data: {
@@ -75,7 +76,15 @@ export async function createTransport(data: {
     meta: { transportId: transport.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void notifyTripAudience({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    kind: "transport_created",
+    title: "Új közlekedés",
+    body: `${user.name}: ${parsed.data.title}`,
+    href: `/trips/${parsed.data.tripId}?tab=transport`,
+  });
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: transport.id } };
 }
 
@@ -165,7 +174,7 @@ export async function updateTransport(data: {
     meta: { transportId: parsed.data.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -197,6 +206,6 @@ export async function deleteTransport(id: string): Promise<ActionResult> {
     meta: { transportId: id },
   });
 
-  invalidateTripMutation(user.id, transport.tripId);
+  void invalidateTripAudience(transport.tripId);
   return { success: true, data: undefined };
 }

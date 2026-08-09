@@ -2,8 +2,9 @@ import { prisma } from "@csaladi-utazas/database";
 import { programSchema, parseDate, isDateInRange } from "@csaladi-utazas/shared";
 import { jsonFail, jsonOk, withApiAuth } from "@/lib/api/handler";
 import { requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
-import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
+import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import { recordTripActivity } from "@/lib/trip-activity";
+import { notifyTripAudience } from "@/lib/trip-notifications";
 
 export const GET = withApiAuth(async ({ userId, params }) => {
   const { id } = await params;
@@ -76,6 +77,19 @@ export const POST = withApiAuth(async ({ userId, params, request }) => {
     meta: { programId: program.id },
   });
 
-  invalidateTripsAndReports(userId, tripId);
+  const actor = await prisma.user.findFirst({
+    where: { id: userId },
+    select: { name: true },
+  });
+
+  void notifyTripAudience({
+    tripId,
+    actorUserId: userId,
+    kind: "program_created",
+    title: "Új program",
+    body: `${actor?.name ?? "Valaki"}: ${parsed.data.title}`,
+    href: `/trips/${tripId}?tab=planning`,
+  });
+  void invalidateTripAudience(tripId);
   return jsonOk({ program: { id: program.id } }, 201);
 });

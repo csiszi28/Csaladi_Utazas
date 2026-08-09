@@ -55,7 +55,7 @@ const calendarSelect = {
 export async function getTripsList() {
   const user = await requireUser();
   return prisma.trip.findMany({
-    where: { userId: user.id },
+    where: tripAccessFilter(user.id),
     select: {
       id: true,
       title: true,
@@ -74,7 +74,7 @@ export async function getTripsList() {
 export async function getTrips() {
   const user = await requireUser();
   return prisma.trip.findMany({
-    where: { userId: user.id },
+    where: tripAccessFilter(user.id),
     include: tripInclude,
     orderBy: { startDate: "asc" },
   });
@@ -83,7 +83,7 @@ export async function getTrips() {
 export async function getTrip(id: string) {
   const user = await requireUser();
   return prisma.trip.findFirst({
-    where: { id, userId: user.id },
+    where: { id, ...tripAccessFilter(user.id) },
     include: tripInclude,
   });
 }
@@ -91,7 +91,7 @@ export async function getTrip(id: string) {
 export async function getCalendarData(_year?: number, _month?: number) {
   const user = await requireUser();
   return prisma.trip.findMany({
-    where: { userId: user.id },
+    where: tripAccessFilter(user.id),
     select: calendarSelect,
     orderBy: { startDate: "asc" },
   });

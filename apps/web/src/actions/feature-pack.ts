@@ -10,7 +10,7 @@ import {
   dismissReminderSchema,
 } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
+import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import { requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
 import type { ActionResult } from "./auth";
@@ -42,7 +42,7 @@ export async function createPackingItem(data: {
     select: { id: true, quantity: true },
   });
 
-  invalidateTripMutation(user.id, parsed.data.tripId);
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: item };
 }
 
@@ -76,7 +76,7 @@ export async function createPackingItemsBatch(data: {
     )
   );
 
-  invalidateTripMutation(user.id, parsed.data.tripId);
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { ids: created.map((row) => row.id) } };
 }
 
@@ -116,7 +116,7 @@ export async function updatePackingItem(data: {
     },
   });
 
-  invalidateTripMutation(user.id, existing.tripId);
+  void invalidateTripAudience(existing.tripId);
   return { success: true, data: undefined };
 }
 
@@ -153,7 +153,7 @@ export async function reorderPackingItems(data: {
     )
   );
 
-  invalidateTripMutation(user.id, data.tripId);
+  void invalidateTripAudience(data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -169,7 +169,7 @@ export async function deletePackingItem(id: string): Promise<ActionResult> {
   if (!access.ok) return { success: false, error: access.error };
 
   await prisma.packingItem.delete({ where: { id } });
-  invalidateTripMutation(user.id, existing.tripId);
+  void invalidateTripAudience(existing.tripId);
   return { success: true, data: undefined };
 }
 
@@ -212,7 +212,7 @@ export async function createSettlementPayment(data: {
     meta: { paymentId: payment.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: payment.id } };
 }
 
@@ -225,7 +225,7 @@ export async function deleteSettlementPayment(id: string): Promise<ActionResult>
   if (!access.ok) return { success: false, error: access.error };
 
   await prisma.settlementPayment.delete({ where: { id } });
-  invalidateTripsAndReports(user.id, payment.tripId);
+  void invalidateTripAudience(payment.tripId);
   return { success: true, data: undefined };
 }
 
@@ -319,7 +319,7 @@ export async function setTripParticipants(data: {
     });
   }
 
-  invalidateTripMutation(user.id, parsed.data.tripId);
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -400,7 +400,7 @@ export async function uploadTripCover(formData: FormData): Promise<ActionResult>
     summary: "Borítókép frissítve",
   });
 
-  invalidateTripsAndReports(user.id, tripId);
+  void invalidateTripAudience(tripId);
   return { success: true, data: undefined };
 }
 

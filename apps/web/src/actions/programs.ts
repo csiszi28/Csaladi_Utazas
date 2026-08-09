@@ -3,12 +3,13 @@
 import { prisma } from "@csaladi-utazas/database";
 import { isDateInRange, parseDate } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
+import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import { programSchema, updateProgramSchema } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 
 import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
+import { notifyTripAudience } from "@/lib/trip-notifications";
 
 export async function createProgram(data: {
   tripId: string;
@@ -65,7 +66,15 @@ export async function createProgram(data: {
     meta: { programId: program.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void notifyTripAudience({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    kind: "program_created",
+    title: "Új program",
+    body: `${user.name}: ${parsed.data.title}`,
+    href: `/trips/${parsed.data.tripId}?tab=planning`,
+  });
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: program.id } };
 }
 
@@ -140,7 +149,15 @@ export async function updateProgram(data: {
     meta: { programId: parsed.data.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void notifyTripAudience({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    kind: "program_updated",
+    title: "Program módosítva",
+    body: `${user.name}: ${parsed.data.title}`,
+    href: `/trips/${parsed.data.tripId}?tab=planning`,
+  });
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -172,6 +189,14 @@ export async function deleteProgram(id: string): Promise<ActionResult> {
     meta: { programId: id },
   });
 
-  invalidateTripMutation(user.id, program.tripId);
+  void notifyTripAudience({
+    tripId: program.tripId,
+    actorUserId: user.id,
+    kind: "program_deleted",
+    title: "Program törölve",
+    body: `${user.name}: ${program.title}`,
+    href: `/trips/${program.tripId}?tab=planning`,
+  });
+  void invalidateTripAudience(program.tripId);
   return { success: true, data: undefined };
 }

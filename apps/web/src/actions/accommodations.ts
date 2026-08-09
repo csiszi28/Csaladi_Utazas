@@ -3,10 +3,11 @@
 import { prisma } from "@csaladi-utazas/database";
 import { isDateInRange, parseDate, accommodationSchema, updateAccommodationSchema } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
+import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import type { ActionResult } from "./auth";
 import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
+import { notifyTripAudience } from "@/lib/trip-notifications";
 
 function validateStayDates(
   checkIn: Date,
@@ -83,7 +84,15 @@ export async function createAccommodation(data: {
     meta: { accommodationId: accommodation.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void notifyTripAudience({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    kind: "accommodation_created",
+    title: "Új szállás",
+    body: `${user.name}: ${parsed.data.title}`,
+    href: `/trips/${parsed.data.tripId}?tab=accommodations`,
+  });
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: accommodation.id } };
 }
 
@@ -162,7 +171,7 @@ export async function updateAccommodation(data: {
     meta: { accommodationId: parsed.data.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -194,6 +203,6 @@ export async function deleteAccommodation(id: string): Promise<ActionResult> {
     meta: { accommodationId: id },
   });
 
-  invalidateTripMutation(user.id, accommodation.tripId);
+  void invalidateTripAudience(accommodation.tripId);
   return { success: true, data: undefined };
 }

@@ -2,7 +2,7 @@
 
 import { prisma } from "@csaladi-utazas/database";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripMutation, invalidateTripsAndReports } from "@/lib/revalidate-app-data";
+import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import {
   tripIdeaSchema,
   updateTripIdeaSchema,
@@ -17,6 +17,7 @@ import type { ActionResult } from "./auth";
 import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
 import { isDateInRange, parseDate } from "@csaladi-utazas/shared";
 import { recordTripActivity } from "@/lib/trip-activity";
+import { notifyTripAudience } from "@/lib/trip-notifications";
 
 function parseOptionalIdeaDate(value?: string | null): Date | null {
   if (!value) return null;
@@ -189,7 +190,15 @@ export async function createTripIdea(data: {
     meta: { ideaId: idea.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void notifyTripAudience({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    kind: "program_idea_created",
+    title: "Új programötlet",
+    body: `${user.name}: ${parsed.data.title}`,
+    href: `/trips/${parsed.data.tripId}?tab=planning`,
+  });
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: idea.id } };
 }
 
@@ -276,7 +285,7 @@ export async function updateTripIdea(data: {
     };
   }
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -293,7 +302,7 @@ export async function deleteTripIdea(id: string): Promise<ActionResult> {
 
   await prisma.tripIdea.delete({ where: { id } });
 
-  invalidateTripsAndReports(user.id, idea.tripId);
+  void invalidateTripAudience(idea.tripId);
   return { success: true, data: undefined };
 }
 
@@ -342,7 +351,7 @@ export async function toggleIdeaInterest(data: {
     });
   }
 
-  invalidateTripMutation(user.id, idea.tripId);
+  void invalidateTripAudience(idea.tripId);
   return { success: true, data: undefined };
 }
 
@@ -491,6 +500,6 @@ export async function setIdeaDecision(data: {
     meta: { ideaId: idea.id, decision: parsed.data.decision },
   });
 
-  invalidateTripMutation(user.id, idea.tripId);
+  void invalidateTripAudience(idea.tripId);
   return { success: true, data: undefined };
 }

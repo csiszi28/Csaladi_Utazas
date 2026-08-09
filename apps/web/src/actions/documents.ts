@@ -9,9 +9,10 @@ const ALLOWED_TYPES = ["application/pdf", "image/png", "image/jpeg"];
 const MAX_SIZE = 10 * 1024 * 1024;
 
 import { findAccessibleTrip, requireTripEditor, verifyDocumentAccess } from "@/lib/trip-access";
-import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
+import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import { documentCategorySchema } from "@csaladi-utazas/shared";
 import { recordTripActivity } from "@/lib/trip-activity";
+import { notifyTripAudience } from "@/lib/trip-notifications";
 
 function resolveMimeType(file: File): string | null {
   if (file.type && ALLOWED_TYPES.includes(file.type)) {
@@ -122,7 +123,15 @@ export async function uploadDocument(
       meta: { documentId: doc.id },
     });
 
-    invalidateTripsAndReports(user.id, tripId);
+    void notifyTripAudience({
+      tripId,
+      actorUserId: user.id,
+      kind: category === "PHOTO" ? "photo_uploaded" : "document_uploaded",
+      title: category === "PHOTO" ? "Új fotó" : "Új dokumentum",
+      body: `${user.name}: ${file.name}`,
+      href: `/trips/${tripId}?tab=documents`,
+    });
+    void invalidateTripAudience(tripId);
     return {
       success: true,
       data: {
@@ -195,7 +204,7 @@ export async function deleteDocument(id: string): Promise<ActionResult> {
     meta: { documentId: id },
   });
 
-  invalidateTripsAndReports(user.id, doc.tripId);
+  void invalidateTripAudience(doc.tripId);
   return { success: true, data: undefined };
 }
 

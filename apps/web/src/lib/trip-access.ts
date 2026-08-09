@@ -62,6 +62,21 @@ export function generateInviteCode(): string {
   return code;
 }
 
+/** Tulajdonos + közreműködők userId-jai (cache invalidálás / értesítés). */
+export async function getTripAudienceUserIds(tripId: string): Promise<string[]> {
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId },
+    select: {
+      userId: true,
+      collaborators: { select: { userId: true } },
+    },
+  });
+  if (!trip) return [];
+  return Array.from(
+    new Set([trip.userId, ...trip.collaborators.map((c) => c.userId)])
+  );
+}
+
 /** Meghívott felhasználó családtagjainak hozzáadása az utazáshoz. */
 export async function ensureUserFamilyMembersOnTrip(
   tripId: string,

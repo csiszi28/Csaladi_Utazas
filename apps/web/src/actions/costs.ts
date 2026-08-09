@@ -2,7 +2,7 @@
 
 import { prisma } from "@csaladi-utazas/database";
 import { requireUser } from "@/lib/auth";
-import { invalidateTripsAndReports, invalidateTripMutation } from "@/lib/revalidate-app-data";
+import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import {
   costSchema,
   updateCostSchema,
@@ -12,6 +12,7 @@ import {
 import type { ActionResult } from "./auth";
 import { requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
+import { notifyTripAudience } from "@/lib/trip-notifications";
 
 export async function createCost(data: {
   tripId: string;
@@ -58,7 +59,15 @@ export async function createCost(data: {
     meta: { costId: cost.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void notifyTripAudience({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    kind: "cost_created",
+    title: "Új költség",
+    body: `${user.name}: ${parsed.data.title}`,
+    href: `/trips/${parsed.data.tripId}?tab=finances`,
+  });
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: cost.id } };
 }
 
@@ -133,7 +142,7 @@ export async function updateCost(data: {
     meta: { costId: parsed.data.id },
   });
 
-  invalidateTripsAndReports(user.id, parsed.data.tripId);
+  void invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -162,7 +171,7 @@ export async function deleteCost(id: string): Promise<ActionResult> {
     meta: { costId: id },
   });
 
-  invalidateTripMutation(user.id, cost.tripId);
+  void invalidateTripAudience(cost.tripId);
   return { success: true, data: undefined };
 }
 
