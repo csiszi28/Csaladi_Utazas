@@ -91,6 +91,40 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
+self.addEventListener("push", (event) => {
+  let title = "Családi Utazás";
+  let body = "Új értesítésed van";
+  let href = "/";
+  let tag = "fam-push";
+
+  try {
+    const data = event.data?.json() as {
+      title?: unknown;
+      body?: unknown;
+      href?: unknown;
+      tag?: unknown;
+    } | null;
+    if (data) {
+      if (typeof data.title === "string" && data.title.trim()) title = data.title;
+      if (typeof data.body === "string" && data.body.trim()) body = data.body;
+      if (typeof data.href === "string" && data.href.trim()) href = data.href;
+      if (typeof data.tag === "string" && data.tag.trim()) tag = data.tag;
+    }
+  } catch {
+    const text = event.data?.text();
+    if (text) body = text;
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      tag,
+      data: { href },
+      renotify: true,
+    })
+  );
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const href =

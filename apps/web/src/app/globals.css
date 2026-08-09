@@ -415,15 +415,29 @@ html.app-splash-exiting body {
   opacity: 1;
 }
 
+/* Mobil: középre, de a viewport inseteken belül (ne lógjon ki) */
+[data-sonner-toaster][data-x-position="center"] {
+  left: var(--toast-offset-left, max(1rem, env(safe-area-inset-left, 0px))) !important;
+  right: var(--toast-offset-right, max(1rem, env(safe-area-inset-right, 0px))) !important;
+  width: auto !important;
+  max-width: none !important;
+  transform: none !important;
+  display: flex !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+
 [data-sonner-toaster][data-x-position="right"] {
-  right: var(--offset-right, 1rem) !important;
+  right: var(--toast-offset-right, max(1rem, env(safe-area-inset-right, 0px))) !important;
   left: auto !important;
+  width: auto !important;
+  max-width: calc(100dvw - 2rem) !important;
   box-sizing: border-box !important;
 }
 
 /* ─── App toasts (Sonner) ─── */
 [data-sonner-toaster].app-toaster {
-  --width: min(22.5rem, calc(100vw - 2rem));
+  --width: min(22.5rem, calc(100dvw - 2rem));
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -446,11 +460,12 @@ html.app-splash-exiting body {
 
   position: relative;
   display: flex !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   gap: 0.75rem !important;
-  width: var(--width) !important;
-  max-width: var(--width, min(22.5rem, calc(100vw - 2rem))) !important;
-  padding: 0.875rem 1rem 0.875rem 0.95rem !important;
+  width: min(var(--width), 100%) !important;
+  max-width: min(var(--width, 22.5rem), 100%) !important;
+  /* Jobb oldalon hely a close gombnak — ne takarja a szöveget */
+  padding: 0.85rem 2.5rem 0.85rem 0.95rem !important;
   overflow: hidden !important;
   border-radius: 1rem !important;
   border: 1px solid rgba(26, 54, 93, 0.12) !important;
@@ -507,10 +522,11 @@ html.app-splash-exiting body {
 [data-sonner-toast].app-toast [data-content] {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0.15rem;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  padding-right: 0.25rem;
+  padding-right: 0.15rem;
 }
 
 [data-sonner-toast].app-toast .app-toast-title {
@@ -519,6 +535,7 @@ html.app-splash-exiting body {
   letter-spacing: -0.01em;
   line-height: 1.35 !important;
   color: inherit !important;
+  overflow-wrap: anywhere;
 }
 
 [data-sonner-toast].app-toast .app-toast-description {
@@ -529,9 +546,10 @@ html.app-splash-exiting body {
 }
 
 [data-sonner-toast].app-toast .app-toast-icon-slot {
-  margin: 0.05rem 0 0 !important;
+  margin: 0 !important;
   width: auto !important;
   height: auto !important;
+  flex-shrink: 0;
 }
 
 .app-toast-icon {

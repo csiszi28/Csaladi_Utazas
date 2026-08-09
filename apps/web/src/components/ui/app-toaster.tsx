@@ -6,44 +6,82 @@ import { Toaster, type ToasterProps } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 
 const EDGE_PADDING_PX = 16;
+const MOBILE_MQ = "(max-width: 767px)";
 
-function readCssEnvPx(property: string): number {
+function readSafeInset(side: "top" | "right" | "left"): number {
+  if (typeof window === "undefined") return 0;
   const probe = document.createElement("div");
-  probe.style.cssText = `position:fixed;top:0;left:0;padding:env(${property},0px);visibility:hidden;pointer-events:none`;
+  const env =
+    side === "top"
+      ? "safe-area-inset-top"
+      : side === "right"
+        ? "safe-area-inset-right"
+        : "safe-area-inset-left";
+  probe.style.cssText = `position:fixed;top:0;left:0;padding-${side}:env(${env},0px);visibility:hidden;pointer-events:none`;
   document.body.appendChild(probe);
-  const value = Number.parseFloat(getComputedStyle(probe).paddingTop) || 0;
+  const style = getComputedStyle(probe);
+  const value =
+    Number.parseFloat(
+      side === "top"
+        ? style.paddingTop
+        : side === "right"
+          ? style.paddingRight
+          : style.paddingLeft
+    ) || 0;
   probe.remove();
   return value;
 }
 
-/** Jobb felső sarok a látható viewporthoz (visualViewport + safe-area) igazítva. */
-function readTopRightOffset(): { top: number; right: number; maxWidthPx: number } {
+type ToastLayout = {
+  position: NonNullable<ToasterProps["position"]>;
+  offset: { top: number; right: number; left: number };
+  maxWidthPx: number;
+};
+
+/** Látható viewporthoz igazított toast elhelyezés (mobil: középen, desktop: jobb felül). */
+function readToastLayout(): ToastLayout {
   if (typeof window === "undefined") {
     return {
-      top: EDGE_PADDING_PX,
-      right: EDGE_PADDING_PX,
+      position: "top-right",
+      offset: { top: EDGE_PADDING_PX, right: EDGE_PADDING_PX, left: EDGE_PADDING_PX },
       maxWidthPx: 360,
     };
   }
 
-  const safeTop = readCssEnvPx("safe-area-inset-top");
-  const safeRight = readCssEnvPx("safe-area-inset-right");
+  const isMobile = window.matchMedia(MOBILE_MQ).matches;
+  const safeTop = readSafeInset("top");
+  const safeRight = readSafeInset("right");
+  const safeLeft = readSafeInset("left");
 
   const vv = window.visualViewport;
   const visualTop = vv ? Math.max(0, vv.offsetTop) : 0;
+  const visualLeftGap = vv ? Math.max(0, vv.offsetLeft) : 0;
   const visualRightGap = vv
     ? Math.max(0, window.innerWidth - (vv.offsetLeft + vv.width))
     : 0;
-  const visualWidth = vv?.width ?? window.innerWidth;
+  const visualWidth = vv?.width ?? document.documentElement.clientWidth ?? window.innerWidth;
 
   const top = Math.round(visualTop + safeTop + EDGE_PADDING_PX);
+  const left = Math.round(visualLeftGap + safeLeft + EDGE_PADDING_PX);
   const right = Math.round(visualRightGap + safeRight + EDGE_PADDING_PX);
-  // Toast szélesség: elférjen a látható szélességben a jobb/bal margóval
-  const maxWidthPx = Math.round(
-    Math.min(360, Math.max(200, visualWidth - EDGE_PADDING_PX * 2 - safeRight))
+  const maxWidthPx = Math.min(
+    360,
+    Math.max(160, Math.floor(visualWidth - EDGE_PADDING_PX * 2 - safeLeft - safeRight))
   );
 
-  return { top, right, maxWidthPx };
+  if (isMobile) {
+    return {
+      position: "top-center",
+      offset: { top, left, right },
+      maxWidthPx,
+    };
+  }
+
+  return {
+    position: "top-right",
+    offset: { top, right, left },
+    maxWidthPx,
+  };
 }
 
 function ToastIcon({
@@ -62,16 +100,14 @@ function ToastIcon({
 
 export function AppToaster() {
   const { resolved } = useTheme();
-  const [offset, setOffset] = useState<NonNullable<ToasterProps["offset"]>>({
-    top: EDGE_PADDING_PX,
-    right: EDGE_PADDING_PX,
-  });
-  const [maxWidthPx, setMaxWidthPx] = useState(360);
+  const [layout, setLayout] = useState<ToastLayout>(() => ({
+    position: "top-right",
+    offset: { top: EDGE_PADDING_PX, right: EDGE_PADDING_PX, left: EDGE_PADDING_PX },
+    maxWidthPx: 360,
+  }));
 
   const updateLayout = useCallback(() => {
-    const { top, right, maxWidthPx: width } = readTopRightOffset();
-    setOffset({ top, right });
-    setMaxWidthPx(width);
+    setLayout(readToastLayout());
   }, []);
 
   useEffect(() => {
@@ -83,24 +119,31 @@ export function AppToaster() {
     window.addEventListener("resize", updateLayout);
     window.addEventListener("orientationchange", updateLayout);
 
+    const mobileQuery = window.matchMedia(MOBILE_MQ);
+    mobileQuery.addEventListener("change", updateLayout);
+
     return () => {
       viewport?.removeEventListener("resize", updateLayout);
       viewport?.removeEventListener("scroll", updateLayout);
       window.removeEventListener("resize", updateLayout);
       window.removeEventListener("orientationchange", updateLayout);
+      mobileQuery.removeEventListener("change", updateLayout);
     };
   }, [updateLayout]);
 
   const toasterStyle = {
-    "--width": `${maxWidthPx}px`,
+    "--width": `${layout.maxWidthPx}px`,
+    "--toast-offset-top": `${layout.offset.top}px`,
+    "--toast-offset-right": `${layout.offset.right}px`,
+    "--toast-offset-left": `${layout.offset.left}px`,
   } as CSSProperties;
 
   return (
     <Toaster
       theme={resolved}
-      position="top-right"
-      offset={offset}
-      mobileOffset={offset}
+      position={layout.position}
+      offset={layout.offset}
+      mobileOffset={layout.offset}
       expand
       gap={10}
       visibleToasts={4}

@@ -15,6 +15,18 @@ import {
   DialogBody,
 } from "@/components/ui/dialog";
 import { getUserReminders, dismissReminder } from "@/actions/feature-pack";
+import {
+  NOTIFICATION_PREF_CHANGE_EVENT,
+  canShowBrowserNotifications,
+  getBrowserNotificationsEnabled,
+  getNotificationPermission,
+  isNotificationCategoryEnabled,
+  type BrowserNotificationSupport,
+} from "@/lib/notification-prefs";
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+} from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 
 const NOTIFIED_DAY_KEY = "fam-reminders-notified-day";
@@ -28,23 +40,28 @@ export function RemindersBell({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [dismissing, setDismissing] = useState<Set<string>>(new Set());
-  const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | "unsupported">(
-    "default"
-  );
+  const [notifyPermission, setNotifyPermission] = useState<BrowserNotificationSupport>("default");
+  const [notifyEnabled, setNotifyEnabled] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof Notification === "undefined") {
-      setNotifyPermission("unsupported");
-      return;
+    function sync() {
+      setNotifyPermission(getNotificationPermission());
+      setNotifyEnabled(getBrowserNotificationsEnabled());
     }
-    setNotifyPermission(Notification.permission);
+    sync();
+    window.addEventListener(NOTIFICATION_PREF_CHANGE_EVENT, sync);
+    return () => window.removeEventListener(NOTIFICATION_PREF_CHANGE_EVENT, sync);
   }, [open]);
 
-  function requestNotifyPermission() {
-    if (typeof Notification === "undefined") return;
-    void Notification.requestPermission().then((permission) => {
-      setNotifyPermission(permission);
-    });
+  async function enableNotifications() {
+    const result = await enablePushNotifications();
+    setNotifyPermission(result.permission);
+    setNotifyEnabled(getBrowserNotificationsEnabled());
+  }
+
+  async function disableNotifications() {
+    await disablePushNotifications();
+    setNotifyEnabled(false);
   }
 
   const { data: reminders = [] } = useQuery({
@@ -62,8 +79,8 @@ export function RemindersBell({
 
   useEffect(() => {
     if (visibleReminders.length === 0) return;
-    if (typeof window === "undefined" || typeof Notification === "undefined") return;
-    if (Notification.permission !== "granted") return;
+    if (!canShowBrowserNotifications()) return;
+    if (!isNotificationCategoryEnabled("reminders")) return;
 
     const dayKey = new Date().toISOString().slice(0, 10);
     const dedupeKey = `${dayKey}:${visibleReminders
@@ -199,17 +216,42 @@ export function RemindersBell({
           </DialogHeader>
 
           <DialogBody className="space-y-3">
-            {notifyPermission === "default" && (
+            {notifyPermission === "default" ||
+            (notifyPermission === "granted" && !notifyEnabled) ? (
               <button
                 type="button"
-                onClick={requestNotifyPermission}
-                className="w-full rounded-xl border border-dashed px-3 py-2.5 text-left text-xs text-muted-foreground hover:bg-muted/40"
+                onClick={() => void enableNotifications()}
+                className="flex w-full items-center justify-between gap-3 rounded-xl border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/50"
               >
-                <span className="font-medium text-foreground">Push értesítések engedélyezése</span>
-                <br />
-                Kapj figyelmeztetést fontos emlékeztetőkről a böngésződön keresztül is.
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-foreground">
+                    Értesítések bekapcsolása
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Figyelmeztetés emlékeztetőkről, akár háttérben is
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs font-medium text-primary">Bekapcsol</span>
               </button>
-            )}
+            ) : null}
+
+            {notifyPermission === "granted" && notifyEnabled ? (
+              <button
+                type="button"
+                onClick={() => void disableNotifications()}
+                className="flex w-full items-center justify-between gap-3 rounded-xl border border-dashed px-3 py-2 text-left transition-colors hover:bg-muted/40"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-foreground">
+                    Értesítések bekapcsolva
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Koppints a kikapcsoláshoz
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs font-medium text-muted-foreground">Ki</span>
+              </button>
+            ) : null}
 
             {visibleReminders.length === 0 ? (
               <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">

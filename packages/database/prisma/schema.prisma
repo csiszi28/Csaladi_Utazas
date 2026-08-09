@@ -26,6 +26,8 @@ model User {
   settlementPayments        SettlementPayment[]
   notificationDismissals    UserNotificationDismissal[]
   inboxNotifications        UserInboxNotification[]
+  pushSubscriptions         PushSubscription[]
+  pushPreference            UserPushPreference?
 
   @@map("users")
 }
@@ -426,4 +428,33 @@ model UserInboxNotification {
   @@index([userId, dismissedAt])
   @@index([userId, createdAt])
   @@map("user_inbox_notifications")
+}
+
+/** Web Push feliratkozás — értesítés akkor is, ha az app nincs nyitva. */
+model PushSubscription {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint       String
+  p256dh         String
+  auth           String
+  userAgent      String?
+  lastDigestDay  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, endpoint])
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+/** Felhasználói push preferenciák (főkapcsoló + kategóriák). */
+model UserPushPreference {
+  userId     String   @id
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled    Boolean  @default(true)
+  categories String   @default("{}")
+  updatedAt  DateTime @updatedAt
+
+  @@map("user_push_preferences")
 }

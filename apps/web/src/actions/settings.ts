@@ -53,8 +53,8 @@ export async function updateAccountPassword(data: {
   confirmPassword: string;
 }): Promise<ActionResult> {
   await requireUser();
-  if (data.password.length < 8) {
-    return { success: false, error: "A jelszó legalább 8 karakter legyen" };
+  if (!data.password) {
+    return { success: false, error: "Add meg az új jelszót" };
   }
   if (data.password !== data.confirmPassword) {
     return { success: false, error: "A két jelszó nem egyezik" };

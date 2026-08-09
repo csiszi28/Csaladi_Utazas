@@ -40,6 +40,18 @@ export async function createInboxNotification(
           tripTitle: input.tripTitle ?? null,
         },
       });
+      void import("@/lib/web-push")
+        .then(async (m) => {
+          const { inboxKindToCategory } = await import("@/lib/notification-prefs");
+          return m.sendPushToUser(input.userId, {
+            title: input.title,
+            body: input.body,
+            href: input.href ?? "/",
+            tag: `inbox-${input.kind}`,
+            category: inboxKindToCategory(input.kind),
+          });
+        })
+        .catch(() => undefined);
       return true;
     }
 
@@ -57,6 +69,18 @@ export async function createInboxNotification(
       input.tripId ?? null,
       input.tripTitle ?? null
     );
+    void import("@/lib/web-push")
+      .then(async (m) => {
+        const { inboxKindToCategory } = await import("@/lib/notification-prefs");
+        return m.sendPushToUser(input.userId, {
+          title: input.title,
+          body: input.body,
+          href: input.href ?? "/",
+          tag: `inbox-${input.kind}`,
+          category: inboxKindToCategory(input.kind),
+        });
+      })
+      .catch(() => undefined);
     return true;
   } catch (error) {
     console.error("[createInboxNotification] failed:", error);
