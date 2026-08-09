@@ -124,6 +124,11 @@ export function LocationAutocomplete({
       </div>
 
       {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
+      {!error && !pending && value.trim().length >= 3 && hits.length === 0 ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Nincs javaslat — próbáld a hely nevét rövidebben (pl. csak a szállás neve).
+        </p>
+      ) : null}
 
       {open && hits.length > 0 ? (
         <ul

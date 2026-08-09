@@ -12,8 +12,11 @@ import { invalidateTripsAndReports } from "@/lib/revalidate-app-data";
 import type { ActionResult } from "./auth";
 
 const NOMINATIM_UA = "CsaladiUtazas/1.0 (family travel planner; contact@local)";
-/** Prefer Hungarian, then English — avoids local-script names (e.g. Arabic in Dubai). */
-const NOMINATIM_LANG = "hu,en";
+/**
+ * Geokódhoz angol elsődleges — szállás-/helynevek többnyire angolul vannak OSM-ben,
+ * és a Photon `lang=hu` sok lekérdezésre 400-at ad.
+ */
+const GEOCODE_LANG = "en,hu";
 
 export type GeocodeHit = {
   lat: number;
@@ -90,7 +93,7 @@ function pickNominatimDisplayName(row: {
   const details = row.namedetails;
   if (details) {
     const preferred =
-      details["name:hu"] || details["name:en"] || details.int_name || details.name;
+      details["name:en"] || details["name:hu"] || details.int_name || details.name;
     if (preferred && details.name && preferred !== details.name) {
       return row.display_name.replace(details.name, preferred);
     }
@@ -111,7 +114,7 @@ function dedupeHits(hits: GeocodeHit[]): GeocodeHit[] {
   return out;
 }
 
-/** Lekérdezési változatok: hotel prefix, vessző nélküli, rövidebb első szegmens */
+/** Lekérdezési változatok: zajszűrés + progresszív rövidítés (DAMAC Maison Mall street → DAMAC Maison) */
 function buildQueryVariants(query: string): string[] {
   const trimmed = query.trim().replace(/\s+/g, " ");
   if (!trimmed) return [];
@@ -119,7 +122,10 @@ function buildQueryVariants(query: string): string[] {
   const variants: string[] = [trimmed];
 
   const withoutHotelNoise = trimmed
-    .replace(/^(hotel|hostel|appart?amento|apartment|apartman|resort|villa|Airbnb)\s+/i, "")
+    .replace(
+      /^(hotel|hostel|appart?amento|apartment|apartman|resort|villa|maison|airbnb)\s+/i,
+      ""
+    )
     .trim();
   if (withoutHotelNoise && withoutHotelNoise !== trimmed) {
     variants.push(withoutHotelNoise);
@@ -134,6 +140,15 @@ function buildQueryVariants(query: string): string[] {
     }
   }
 
+  // Utolsó szavak elhagyása: „Mall street” zaj gyakran elrontja a pontos egyezést
+  const words = trimmed.split(" ");
+  if (words.length > 2) {
+    for (let len = words.length - 1; len >= 2; len--) {
+      const shorter = words.slice(0, len).join(" ");
+      if (shorter.length >= 3) variants.push(shorter);
+    }
+  }
+
   return [...new Set(variants)];
 }
 
@@ -144,13 +159,13 @@ async function nominatimSearchOnce(query: string, limit: number): Promise<Geocod
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("addressdetails", "0");
   url.searchParams.set("namedetails", "1");
-  url.searchParams.set("accept-language", NOMINATIM_LANG);
+  url.searchParams.set("accept-language", GEOCODE_LANG);
 
   const res = await fetch(url.toString(), {
     headers: {
       "User-Agent": NOMINATIM_UA,
       Accept: "application/json",
-      "Accept-Language": NOMINATIM_LANG,
+      "Accept-Language": GEOCODE_LANG,
     },
     cache: "no-store",
   });
@@ -173,7 +188,8 @@ async function nominatimSearchOnce(query: string, limit: number): Promise<Geocod
 async function photonSearchOnce(query: string, limit: number): Promise<GeocodeHit[]> {
   const url = new URL("https://photon.komoot.io/api/");
   url.searchParams.set("q", query);
-  url.searchParams.set("lang", "hu");
+  // `hu` gyakran 400 — angol stabilabb nemzetközi helyekre
+  url.searchParams.set("lang", "en");
   url.searchParams.set("limit", String(Math.min(limit, 8)));
 
   const res = await fetch(url.toString(), {
@@ -195,6 +211,7 @@ async function photonSearchOnce(query: string, limit: number): Promise<GeocodeHi
         city?: string;
         town?: string;
         village?: string;
+        district?: string;
         state?: string;
         country?: string;
       };
@@ -206,10 +223,12 @@ async function photonSearchOnce(query: string, limit: number): Promise<GeocodeHi
     if (!coords || coords.length < 2) return [];
     const [lng, lat] = coords;
     const p = feature.properties ?? {};
+    const streetLine = p.housenumber
+      ? `${p.street ?? ""} ${p.housenumber}`.trim()
+      : p.street;
     const parts = [
-      [p.name, p.housenumber ? `${p.street ?? ""} ${p.housenumber}`.trim() : p.street]
-        .filter(Boolean)
-        .join(", "),
+      [p.name, streetLine].filter(Boolean).join(", "),
+      p.district,
       p.city || p.town || p.village,
       p.state,
       p.country,
@@ -226,20 +245,27 @@ async function nominatimSearch(query: string, limit: number): Promise<GeocodeHit
   const variants = buildQueryVariants(query);
   let hits: GeocodeHit[] = [];
 
-  for (const variant of variants) {
-    hits = dedupeHits(await nominatimSearchOnce(variant, limit));
-    if (hits.length > 0) break;
-  }
+  // Photon gyakran jobb hotel/épület nevekre — párhuzamosan az első változattal
+  const primary = variants[0] ?? query;
+  const [nominatimPrimary, photonPrimary] = await Promise.all([
+    nominatimSearchOnce(primary, limit),
+    photonSearchOnce(primary, limit),
+  ]);
+  hits = dedupeHits([...photonPrimary, ...nominatimPrimary]);
 
   if (hits.length === 0) {
-    for (const variant of variants) {
-      hits = dedupeHits(await photonSearchOnce(variant, limit));
+    for (const variant of variants.slice(1)) {
+      const [nHits, pHits] = await Promise.all([
+        nominatimSearchOnce(variant, limit),
+        photonSearchOnce(variant, limit),
+      ]);
+      hits = dedupeHits([...pHits, ...nHits]);
       if (hits.length > 0) break;
     }
   }
 
-  writeGeocodeCache(query, limit, hits);
-  return hits;
+  writeGeocodeCache(query, limit, hits.slice(0, limit));
+  return hits.slice(0, limit);
 }
 
 export async function searchLocations(
