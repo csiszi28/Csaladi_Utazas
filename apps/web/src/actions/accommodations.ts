@@ -5,9 +5,23 @@ import { isDateInRange, parseDate, accommodationSchema, updateAccommodationSchem
 import { requireUser } from "@/lib/auth";
 import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import type { ActionResult } from "./auth";
-import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
+import { requireEditableTrip, requireTripEditor } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
 import { notifyTripAudience } from "@/lib/trip-notifications";
+
+type OptionalLinkedCost = {
+  amount: number;
+  currency?: string;
+  amountScope?: string;
+  category: string;
+  paidByFamilyMemberId?: string | null;
+};
+
+function sameIdSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((id) => set.has(id));
+}
 
 function validateStayDates(
   checkIn: Date,
@@ -37,6 +51,7 @@ export async function createAccommodation(data: {
   note?: string | null;
   participantIds: string[];
   ideaId?: string | null;
+  cost?: OptionalLinkedCost | null;
 }): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
   const parsed = accommodationSchema.safeParse(data);
@@ -45,38 +60,63 @@ export async function createAccommodation(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  const access = await requireEditableTrip(parsed.data.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
-
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Utazás nem található" };
-  }
 
   const checkIn = parseDate(parsed.data.checkIn);
   const checkOut = parseDate(parsed.data.checkOut);
-  const dateError = validateStayDates(checkIn, checkOut, trip.startDate, trip.endDate);
+  const dateError = validateStayDates(checkIn, checkOut, access.trip.startDate, access.trip.endDate);
   if (dateError) {
     return { success: false, error: dateError };
   }
 
-  const accommodation = await prisma.accommodation.create({
-    data: {
-      tripId: parsed.data.tripId,
-      ideaId: parsed.data.ideaId ?? null,
-      title: parsed.data.title,
-      checkIn,
-      checkOut,
-      url: parsed.data.url ?? null,
-      location: parsed.data.location ?? null,
-      note: parsed.data.note ?? null,
-      participants: {
-        create: parsed.data.participantIds.map((familyMemberId: string) => ({ familyMemberId })),
+  const linkedCost =
+    data.cost && data.cost.amount > 0
+      ? {
+          amount: data.cost.amount,
+          currency: data.cost.currency ?? "HUF",
+          amountScope: data.cost.amountScope ?? "TOTAL",
+          category: data.cost.category,
+          paidByFamilyMemberId: data.cost.paidByFamilyMemberId ?? null,
+        }
+      : null;
+
+  const accommodation = await prisma.$transaction(async (tx) => {
+    const created = await tx.accommodation.create({
+      data: {
+        tripId: parsed.data.tripId,
+        ideaId: parsed.data.ideaId ?? null,
+        title: parsed.data.title,
+        checkIn,
+        checkOut,
+        url: parsed.data.url ?? null,
+        location: parsed.data.location ?? null,
+        note: parsed.data.note ?? null,
+        participants: {
+          create: parsed.data.participantIds.map((familyMemberId: string) => ({ familyMemberId })),
+        },
       },
-    },
+    });
+
+    if (linkedCost) {
+      await tx.cost.create({
+        data: {
+          tripId: parsed.data.tripId,
+          accommodationId: created.id,
+          title: parsed.data.title,
+          amount: linkedCost.amount,
+          currency: linkedCost.currency,
+          amountScope: linkedCost.amountScope,
+          category: linkedCost.category,
+          paidByFamilyMemberId: linkedCost.paidByFamilyMemberId,
+        },
+      });
+    }
+
+    return created;
   });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: parsed.data.tripId,
     actorUserId: user.id,
     type: "ACCOMMODATION_CREATED",
@@ -92,7 +132,7 @@ export async function createAccommodation(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=accommodations`,
   });
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: accommodation.id } };
 }
 
@@ -115,24 +155,23 @@ export async function updateAccommodation(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  const access = await requireEditableTrip(parsed.data.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
-
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Utazás nem található" };
-  }
 
   const checkIn = parseDate(parsed.data.checkIn);
   const checkOut = parseDate(parsed.data.checkOut);
-  const dateError = validateStayDates(checkIn, checkOut, trip.startDate, trip.endDate);
+  const dateError = validateStayDates(checkIn, checkOut, access.trip.startDate, access.trip.endDate);
   if (dateError) {
     return { success: false, error: dateError };
   }
 
   const existing = await prisma.accommodation.findFirst({
-    where: { id: parsed.data.id },
-    select: { location: true, title: true },
+    where: { id: parsed.data.id, tripId: parsed.data.tripId },
+    select: {
+      location: true,
+      title: true,
+      participants: { select: { familyMemberId: true } },
+    },
   });
   if (!existing) {
     return { success: false, error: "Szállás nem található" };
@@ -144,9 +183,30 @@ export async function updateAccommodation(data: {
     (existing.location?.trim() || existing.title) !==
     (nextLocation?.trim() || nextTitle);
 
-  await prisma.$transaction([
-    prisma.accommodationParticipant.deleteMany({ where: { accommodationId: parsed.data.id } }),
-    prisma.accommodation.update({
+  const existingParticipantIds = existing.participants.map((p) => p.familyMemberId);
+  const participantsChanged = !sameIdSet(existingParticipantIds, parsed.data.participantIds);
+
+  if (participantsChanged) {
+    await prisma.$transaction([
+      prisma.accommodationParticipant.deleteMany({ where: { accommodationId: parsed.data.id } }),
+      prisma.accommodation.update({
+        where: { id: parsed.data.id },
+        data: {
+          title: nextTitle,
+          checkIn,
+          checkOut,
+          url: parsed.data.url ?? null,
+          location: nextLocation,
+          note: parsed.data.note ?? null,
+          ...(geoQueryChanged ? { lat: null, lng: null } : {}),
+          participants: {
+            create: parsed.data.participantIds.map((familyMemberId: string) => ({ familyMemberId })),
+          },
+        },
+      }),
+    ]);
+  } else {
+    await prisma.accommodation.update({
       where: { id: parsed.data.id },
       data: {
         title: nextTitle,
@@ -156,14 +216,11 @@ export async function updateAccommodation(data: {
         location: nextLocation,
         note: parsed.data.note ?? null,
         ...(geoQueryChanged ? { lat: null, lng: null } : {}),
-        participants: {
-          create: parsed.data.participantIds.map((familyMemberId: string) => ({ familyMemberId })),
-        },
       },
-    }),
-  ]);
+    });
+  }
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: parsed.data.tripId,
     actorUserId: user.id,
     type: "ACCOMMODATION_UPDATED",
@@ -171,7 +228,7 @@ export async function updateAccommodation(data: {
     meta: { accommodationId: parsed.data.id },
   });
 
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -180,7 +237,7 @@ export async function deleteAccommodation(id: string): Promise<ActionResult> {
 
   const accommodation = await prisma.accommodation.findFirst({
     where: { id },
-    include: { trip: true },
+    select: { id: true, title: true, tripId: true },
   });
 
   if (!accommodation) {
@@ -195,7 +252,7 @@ export async function deleteAccommodation(id: string): Promise<ActionResult> {
     prisma.accommodation.delete({ where: { id } }),
   ]);
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: accommodation.tripId,
     actorUserId: user.id,
     type: "ACCOMMODATION_DELETED",
@@ -203,6 +260,6 @@ export async function deleteAccommodation(id: string): Promise<ActionResult> {
     meta: { accommodationId: id },
   });
 
-  void invalidateTripAudience(accommodation.tripId);
+  await invalidateTripAudience(accommodation.tripId);
   return { success: true, data: undefined };
 }

@@ -1,7 +1,7 @@
 import { prisma } from "@csaladi-utazas/database";
 import { programSchema, parseDate, isDateInRange } from "@csaladi-utazas/shared";
 import { jsonFail, jsonOk, withApiAuth } from "@/lib/api/handler";
-import { requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
+import { requireEditableTrip, tripAccessFilter } from "@/lib/trip-access";
 import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import { recordTripActivity } from "@/lib/trip-activity";
 import { notifyTripAudience } from "@/lib/trip-notifications";
@@ -27,7 +27,7 @@ export const GET = withApiAuth(async ({ userId, params }) => {
 export const POST = withApiAuth(async ({ userId, params, request }) => {
   const { id: tripId } = await params;
 
-  const access = await requireTripEditor(tripId, userId);
+  const access = await requireEditableTrip(tripId, userId);
   if (!access.ok) return jsonFail(access.error, 403, "FORBIDDEN");
 
   let body: unknown;
@@ -42,14 +42,8 @@ export const POST = withApiAuth(async ({ userId, params, request }) => {
     return jsonFail(parsed.error.errors[0]?.message ?? "Érvénytelen adatok", 400, "VALIDATION");
   }
 
-  const trip = await prisma.trip.findFirst({
-    where: { id: tripId },
-    select: { startDate: true, endDate: true },
-  });
-  if (!trip) return jsonFail("Utazás nem található", 404, "NOT_FOUND");
-
   const programDate = parseDate(parsed.data.date);
-  if (!isDateInRange(programDate, trip.startDate, trip.endDate)) {
+  if (!isDateInRange(programDate, access.trip.startDate, access.trip.endDate)) {
     return jsonFail("A program dátuma az utazás időtartamán belül kell legyen", 400, "DATE_RANGE");
   }
 
@@ -69,7 +63,7 @@ export const POST = withApiAuth(async ({ userId, params, request }) => {
     },
   });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId,
     actorUserId: userId,
     type: "PROGRAM_CREATED",
@@ -77,19 +71,20 @@ export const POST = withApiAuth(async ({ userId, params, request }) => {
     meta: { programId: program.id },
   });
 
-  const actor = await prisma.user.findFirst({
-    where: { id: userId },
-    select: { name: true },
-  });
-
-  void notifyTripAudience({
-    tripId,
-    actorUserId: userId,
-    kind: "program_created",
-    title: "Új program",
-    body: `${actor?.name ?? "Valaki"}: ${parsed.data.title}`,
-    href: `/trips/${tripId}?tab=planning`,
-  });
-  void invalidateTripAudience(tripId);
+  void (async () => {
+    const actor = await prisma.user.findFirst({
+      where: { id: userId },
+      select: { name: true },
+    });
+    await notifyTripAudience({
+      tripId,
+      actorUserId: userId,
+      kind: "program_created",
+      title: "Új program",
+      body: `${actor?.name ?? "Valaki"}: ${parsed.data.title}`,
+      href: `/trips/${tripId}?tab=planning`,
+    });
+  })();
+  await invalidateTripAudience(tripId);
   return jsonOk({ program: { id: program.id } }, 201);
 });

@@ -42,7 +42,7 @@ export async function createPackingItem(data: {
     select: { id: true, quantity: true },
   });
 
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: item };
 }
 
@@ -76,7 +76,7 @@ export async function createPackingItemsBatch(data: {
     )
   );
 
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { ids: created.map((row) => row.id) } };
 }
 
@@ -116,7 +116,7 @@ export async function updatePackingItem(data: {
     },
   });
 
-  void invalidateTripAudience(existing.tripId);
+  await invalidateTripAudience(existing.tripId);
   return { success: true, data: undefined };
 }
 
@@ -153,7 +153,7 @@ export async function reorderPackingItems(data: {
     )
   );
 
-  void invalidateTripAudience(data.tripId);
+  await invalidateTripAudience(data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -169,7 +169,7 @@ export async function deletePackingItem(id: string): Promise<ActionResult> {
   if (!access.ok) return { success: false, error: access.error };
 
   await prisma.packingItem.delete({ where: { id } });
-  void invalidateTripAudience(existing.tripId);
+  await invalidateTripAudience(existing.tripId);
   return { success: true, data: undefined };
 }
 
@@ -204,7 +204,7 @@ export async function createSettlementPayment(data: {
     },
   });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: parsed.data.tripId,
     actorUserId: user.id,
     type: "SETTLEMENT_PAYMENT",
@@ -212,7 +212,7 @@ export async function createSettlementPayment(data: {
     meta: { paymentId: payment.id },
   });
 
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: payment.id } };
 }
 
@@ -225,7 +225,7 @@ export async function deleteSettlementPayment(id: string): Promise<ActionResult>
   if (!access.ok) return { success: false, error: access.error };
 
   await prisma.settlementPayment.delete({ where: { id } });
-  void invalidateTripAudience(payment.tripId);
+  await invalidateTripAudience(payment.tripId);
   return { success: true, data: undefined };
 }
 
@@ -304,7 +304,7 @@ export async function setTripParticipants(data: {
   if (removedNames.length > 0) parts.push(`Eltávolítva: ${removedNames.join(", ")}`);
 
   if (parts.length > 0) {
-    await recordTripActivity({
+    void recordTripActivity({
       tripId: parsed.data.tripId,
       actorUserId: user.id,
       type: "PARTICIPANTS_UPDATED",
@@ -319,7 +319,7 @@ export async function setTripParticipants(data: {
     });
   }
 
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -429,14 +429,14 @@ export async function uploadTripCover(formData: FormData): Promise<ActionResult>
     },
   });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId,
     actorUserId: user.id,
     type: "COVER_UPDATED",
     summary: "Borítókép frissítve",
   });
 
-  void invalidateTripAudience(tripId);
+  await invalidateTripAudience(tripId);
   return { success: true, data: undefined };
 }
 

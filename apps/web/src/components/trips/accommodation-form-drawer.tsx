@@ -201,7 +201,6 @@ export function AccommodationFormDrawer({
   const isPending =
     createMutation.isPending ||
     updateMutation.isPending ||
-    createCostMutation.isPending ||
     updateCostMutation.isPending;
 
   async function saveCostForAccommodation(accommodationId: string, parsedAmount: number) {
@@ -252,13 +251,15 @@ export function AccommodationFormDrawer({
       const result = await createMutation.mutateAsync({
         ...data,
         ideaId: selectedIdeaId || defaultIdeaId || null,
+        cost: {
+          amount: parsedAmount,
+          currency: costFields.currency,
+          amountScope: costFields.amountScope,
+          category: costFields.category as CostCategory,
+          paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
+        },
       });
       if (!result.success) return;
-
-      if (result.data?.id) {
-        const costResult = await saveCostForAccommodation(result.data.id, parsedAmount);
-        if (!costResult.success) return;
-      }
     }
 
     onOpenChange(false);

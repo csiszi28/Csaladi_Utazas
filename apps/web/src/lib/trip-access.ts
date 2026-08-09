@@ -44,13 +44,54 @@ export async function resolveTripRole(
   return normalizeCollaboratorRole(trip.collaborators[0]?.role);
 }
 
-export async function requireTripEditor(tripId: string, userId: string) {
-  const role = await resolveTripRole(tripId, userId);
-  if (!role) return { ok: false as const, error: "Nincs hozzáférésed ehhez az utazáshoz" };
+/**
+ * Egy DB lekérdezéssel: szerkesztési jog + trip dátumok (create/update validációhoz).
+ * Kerüli a requireTripEditor + findAccessibleTrip dupla round-tripet.
+ */
+export async function requireEditableTrip(tripId: string, userId: string) {
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId, ...tripAccessFilter(userId) },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      userId: true,
+      collaborators: {
+        where: { userId },
+        select: { role: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (!trip) {
+    return { ok: false as const, error: "Nincs hozzáférésed ehhez az utazáshoz" };
+  }
+
+  const role: TripRole =
+    trip.userId === userId
+      ? "OWNER"
+      : normalizeCollaboratorRole(trip.collaborators[0]?.role);
+
   if (!canEditTrip(role)) {
     return { ok: false as const, error: "Csak olvasási jogod van ehhez az utazáshoz" };
   }
-  return { ok: true as const, role };
+
+  return {
+    ok: true as const,
+    role,
+    trip: {
+      id: trip.id,
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+    },
+  };
+}
+
+export async function requireTripEditor(tripId: string, userId: string) {
+  const access = await requireEditableTrip(tripId, userId);
+  if (!access.ok) return access;
+  return { ok: true as const, role: access.role };
 }
 
 export function generateInviteCode(): string {

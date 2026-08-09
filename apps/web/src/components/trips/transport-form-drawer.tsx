@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/dialog";
 import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateTransport, useUpdateTransport } from "@/hooks/use-transports";
-import { useCreateCost } from "@/hooks/use-costs";
 import { ParticipantPicker } from "@/components/trips/participant-picker";
 import { LocationAutocomplete } from "@/components/trips/location-autocomplete";
 import {
@@ -79,7 +78,6 @@ export function TransportFormDrawer({
 }: TransportFormDrawerProps) {
   const createMutation = useCreateTransport();
   const updateMutation = useUpdateTransport();
-  const createCostMutation = useCreateCost();
   const isEditing = !!transport;
 
   const [type, setType] = useState<TransportType>("OTHER");
@@ -166,24 +164,25 @@ export function TransportFormDrawer({
       return;
     }
 
-    const result = await createMutation.mutateAsync(payload);
+    const result = await createMutation.mutateAsync({
+      ...payload,
+      ...(includeCost && costFields.amount.trim()
+        ? (() => {
+            const amount = parseAmountInput(costFields.amount);
+            if (amount == null || amount <= 0) return {};
+            return {
+              cost: {
+                amount,
+                currency: costFields.currency,
+                amountScope: costFields.amountScope as "TOTAL" | "PER_PERSON",
+                category: (costFields.category || "TRANSPORT") as CostCategory,
+                paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
+              },
+            };
+          })()
+        : {}),
+    });
     if (!result.success) return;
-
-    if (includeCost && costFields.amount.trim()) {
-      const amount = parseAmountInput(costFields.amount);
-      if (amount != null && amount > 0) {
-        await createCostMutation.mutateAsync({
-          tripId,
-          transportId: result.data.id,
-          title: title || "Közlekedés",
-          amount,
-          currency: costFields.currency,
-          amountScope: costFields.amountScope as "TOTAL" | "PER_PERSON",
-          category: (costFields.category || "TRANSPORT") as CostCategory,
-          paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
-        });
-      }
-    }
 
     onOpenChange(false);
     onSaved?.();

@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/dialog";
 import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateProgram, useUpdateProgram } from "@/hooks/use-programs";
-import { useCreateCost } from "@/hooks/use-costs";
 import { ParticipantPicker } from "@/components/trips/participant-picker";
 import { LocationAutocomplete } from "@/components/trips/location-autocomplete";
 import { Sparkles } from "lucide-react";
@@ -92,7 +91,6 @@ export function ProgramFormDrawer({
 }: ProgramFormDrawerProps) {
   const createMutation = useCreateProgram();
   const updateMutation = useUpdateProgram();
-  const createCostMutation = useCreateCost();
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -186,10 +184,7 @@ export function ProgramFormDrawer({
 
   const selectedIdea = ideaOptions.find((i) => i.id === selectedIdeaId);
 
-  const isPending =
-    createMutation.isPending ||
-    updateMutation.isPending ||
-    createCostMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   async function handleSubmit() {
     const normalizedStart = startTime ? normalizeTimeValue(startTime) : null;
@@ -210,25 +205,23 @@ export function ProgramFormDrawer({
       const result = await updateMutation.mutateAsync({ id: program.id, ...data });
       if (!result.success) return;
     } else {
+      const parsedAmount = parseAmountInput(costFields.amount);
       const result = await createMutation.mutateAsync({
         ...data,
         ideaId: selectedIdeaId || null,
+        ...(parsedAmount > 0
+          ? {
+              cost: {
+                amount: parsedAmount,
+                currency: costFields.currency,
+                amountScope: costFields.amountScope,
+                category: costFields.category as CostCategory,
+                paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
+              },
+            }
+          : {}),
       });
       if (!result.success) return;
-
-      const parsedAmount = parseAmountInput(costFields.amount);
-      if (result.data?.id && parsedAmount > 0) {
-        await createCostMutation.mutateAsync({
-          tripId,
-          programId: result.data.id,
-          title,
-          amount: parsedAmount,
-          currency: costFields.currency,
-          amountScope: costFields.amountScope,
-          category: costFields.category as CostCategory,
-          paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
-        });
-      }
     }
 
     onOpenChange(false);

@@ -114,7 +114,7 @@ export async function uploadDocument(
       },
     });
 
-    await recordTripActivity({
+    void recordTripActivity({
       tripId,
       actorUserId: user.id,
       type: category === "PHOTO" ? "PHOTO_UPLOADED" : "DOCUMENT_UPLOADED",
@@ -131,7 +131,7 @@ export async function uploadDocument(
       body: `${user.name}: ${file.name}`,
       href: `/trips/${tripId}?tab=documents`,
     });
-    void invalidateTripAudience(tripId);
+    await invalidateTripAudience(tripId);
     return {
       success: true,
       data: {
@@ -196,7 +196,7 @@ export async function deleteDocument(id: string): Promise<ActionResult> {
   await supabase.storage.from("trip-documents").remove([doc.storagePath]);
   await prisma.document.delete({ where: { id } });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: doc.tripId,
     actorUserId: user.id,
     type: "DOCUMENT_DELETED",
@@ -204,7 +204,7 @@ export async function deleteDocument(id: string): Promise<ActionResult> {
     meta: { documentId: id },
   });
 
-  void invalidateTripAudience(doc.tripId);
+  await invalidateTripAudience(doc.tripId);
   return { success: true, data: undefined };
 }
 

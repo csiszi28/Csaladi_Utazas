@@ -76,7 +76,12 @@ export function TripTransportsSection({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<TransportRow | null>(null);
   const [view, setView] = useState<"list" | "map">("list");
+  const [localTransports, setLocalTransports] = useState(transports);
   const deleteMutation = useDeleteTransport();
+
+  useEffect(() => {
+    setLocalTransports(transports);
+  }, [transports]);
 
   useEffect(() => {
     if (openSignal > 0) {
@@ -112,7 +117,7 @@ export function TripTransportsSection({
         active={view}
         onChange={(id) => setView(id as "list" | "map")}
         items={[
-          { id: "list", label: "Lista", shortLabel: "Lista", count: transports.length },
+          { id: "list", label: "Lista", shortLabel: "Lista", count: localTransports.length },
           { id: "map", label: "Térkép", shortLabel: "Térkép" },
         ]}
       />
@@ -122,12 +127,12 @@ export function TripTransportsSection({
           markers={buildTripMapMarkers({
             programs: [],
             accommodations: [],
-            transports,
+            transports: localTransports,
           })}
           canEdit={canEdit}
           showNearbyToggle={false}
         />
-      ) : transports.length === 0 ? (
+      ) : localTransports.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-10 text-center">
           <p className="text-sm text-muted-foreground">
             Még nincsenek rögzített járatok vagy utak. Add hozzá a repülőjegyeket, vonatokat vagy
@@ -149,7 +154,7 @@ export function TripTransportsSection({
         </div>
       ) : (
         <ul className="space-y-3">
-          {transports.map((t) => {
+          {localTransports.map((t) => {
             const route = [t.fromLocation, t.toLocation].filter(Boolean).join(" → ");
             const linkedCosts = costs.filter((c) => c.transportId === t.id);
             return (
@@ -240,8 +245,14 @@ export function TripTransportsSection({
                           className="h-9 w-9"
                           disabled={deleteMutation.isPending}
                           onClick={async () => {
+                            const previous = localTransports;
+                            setLocalTransports((prev) => prev.filter((x) => x.id !== t.id));
                             const result = await deleteMutation.mutateAsync(t.id);
-                            if (result.success) onRefresh();
+                            if (!result.success) {
+                              setLocalTransports(previous);
+                              return;
+                            }
+                            onRefresh();
                           }}
                         >
                           <Trash2 className="h-4 w-4" />

@@ -101,6 +101,12 @@ export function TripAccommodationsSection({
     [ideas]
   );
 
+  const [localAccommodations, setLocalAccommodations] = useState(accommodations);
+
+  useEffect(() => {
+    setLocalAccommodations(accommodations);
+  }, [accommodations]);
+
   useEffect(() => {
     if (ideaOpenSignal > 0) {
       setEditingIdea(null);
@@ -131,8 +137,14 @@ export function TripAccommodationsSection({
   }
 
   async function handleDeleteAccommodation(id: string) {
+    const previous = localAccommodations;
+    setLocalAccommodations((prev) => prev.filter((a) => a.id !== id));
     const result = await deleteAccommodationMutation.mutateAsync(id);
-    if (result.success) onRefresh();
+    if (!result.success) {
+      setLocalAccommodations(previous);
+      return;
+    }
+    onRefresh();
   }
 
   const ideaOptions = accommodationIdeas.map((idea) => ({
@@ -157,7 +169,7 @@ export function TripAccommodationsSection({
           {
             id: "bookings",
             label: "Foglalások",
-            count: accommodations.length,
+            count: localAccommodations.length,
           },
           { id: "ideas", label: "Ötletek", count: accommodationIdeas.length },
         ]}
@@ -353,19 +365,19 @@ export function TripAccommodationsSection({
             active={bookingView}
             onChange={(id) => setBookingView(id as "list" | "map")}
             items={[
-              { id: "list", label: "Lista", shortLabel: "Lista", count: accommodations.length },
+              { id: "list", label: "Lista", shortLabel: "Lista", count: localAccommodations.length },
               { id: "map", label: "Térkép", shortLabel: "Térkép" },
             ]}
           />
 
           {bookingView === "map" ? (
             <TripMapView
-              markers={buildTripMapMarkers({ programs: [], accommodations })}
+              markers={buildTripMapMarkers({ programs: [], accommodations: localAccommodations })}
               canEdit={canEdit}
             />
           ) : (
           <div className="space-y-3">
-            {accommodations.map((accommodation) => {
+            {localAccommodations.map((accommodation) => {
               const accommodationCosts = costs.filter(
                 (c) => c.accommodationId === accommodation.id
               );
@@ -466,7 +478,7 @@ export function TripAccommodationsSection({
               );
             })}
 
-            {accommodations.length === 0 && (
+            {localAccommodations.length === 0 && (
               <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
                 Még nincsenek foglalások. Rögzíts egy szállást, vagy alakíts ötletet foglalássá.
               </p>

@@ -7,9 +7,23 @@ import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import { programSchema, updateProgramSchema } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 
-import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
+import { requireEditableTrip, requireTripEditor } from "@/lib/trip-access";
 import { recordTripActivity } from "@/lib/trip-activity";
 import { notifyTripAudience } from "@/lib/trip-notifications";
+
+type OptionalLinkedCost = {
+  amount: number;
+  currency?: string;
+  amountScope?: string;
+  category: string;
+  paidByFamilyMemberId?: string | null;
+};
+
+function sameIdSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((id) => set.has(id));
+}
 
 export async function createProgram(data: {
   tripId: string;
@@ -21,6 +35,8 @@ export async function createProgram(data: {
   url?: string | null;
   participantIds: string[];
   ideaId?: string | null;
+  /** Opcionális költség — egy tranzakcióban, külön createCost round-trip nélkül */
+  cost?: OptionalLinkedCost | null;
 }): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
   const parsed = programSchema.safeParse(data);
@@ -29,36 +45,61 @@ export async function createProgram(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  const access = await requireEditableTrip(parsed.data.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Utazás nem található" };
-  }
-
   const programDate = parseDate(parsed.data.date);
-  if (!isDateInRange(programDate, trip.startDate, trip.endDate)) {
+  if (!isDateInRange(programDate, access.trip.startDate, access.trip.endDate)) {
     return { success: false, error: "A program dátuma az utazás időtartamán belül kell legyen" };
   }
 
-  const program = await prisma.program.create({
-    data: {
-      tripId: parsed.data.tripId,
-      ideaId: parsed.data.ideaId ?? null,
-      title: parsed.data.title,
-      date: programDate,
-      startTime: parsed.data.startTime ?? null,
-      endTime: parsed.data.endTime ?? null,
-      location: parsed.data.location ?? null,
-      url: parsed.data.url ?? "",
-      participants: {
-        create: parsed.data.participantIds.map((familyMemberId) => ({ familyMemberId })),
+  const linkedCost =
+    data.cost && data.cost.amount > 0
+      ? {
+          amount: data.cost.amount,
+          currency: data.cost.currency ?? "HUF",
+          amountScope: data.cost.amountScope ?? "TOTAL",
+          category: data.cost.category,
+          paidByFamilyMemberId: data.cost.paidByFamilyMemberId ?? null,
+        }
+      : null;
+
+  const program = await prisma.$transaction(async (tx) => {
+    const created = await tx.program.create({
+      data: {
+        tripId: parsed.data.tripId,
+        ideaId: parsed.data.ideaId ?? null,
+        title: parsed.data.title,
+        date: programDate,
+        startTime: parsed.data.startTime ?? null,
+        endTime: parsed.data.endTime ?? null,
+        location: parsed.data.location ?? null,
+        url: parsed.data.url ?? "",
+        participants: {
+          create: parsed.data.participantIds.map((familyMemberId) => ({ familyMemberId })),
+        },
       },
-    },
+    });
+
+    if (linkedCost) {
+      await tx.cost.create({
+        data: {
+          tripId: parsed.data.tripId,
+          programId: created.id,
+          title: parsed.data.title,
+          amount: linkedCost.amount,
+          currency: linkedCost.currency,
+          amountScope: linkedCost.amountScope,
+          category: linkedCost.category,
+          paidByFamilyMemberId: linkedCost.paidByFamilyMemberId,
+        },
+      });
+    }
+
+    return created;
   });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: parsed.data.tripId,
     actorUserId: user.id,
     type: "PROGRAM_CREATED",
@@ -74,7 +115,7 @@ export async function createProgram(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=planning`,
   });
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: program.id } };
 }
 
@@ -97,22 +138,20 @@ export async function updateProgram(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  const access = await requireEditableTrip(parsed.data.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
 
-  const trip = await findAccessibleTrip(parsed.data.tripId, user.id);
-  if (!trip) {
-    return { success: false, error: "Utazás nem található" };
-  }
-
   const programDate = parseDate(parsed.data.date);
-  if (!isDateInRange(programDate, trip.startDate, trip.endDate)) {
+  if (!isDateInRange(programDate, access.trip.startDate, access.trip.endDate)) {
     return { success: false, error: "A program dátuma az utazás időtartamán belül kell legyen" };
   }
 
   const existing = await prisma.program.findFirst({
-    where: { id: parsed.data.id },
-    select: { location: true },
+    where: { id: parsed.data.id, tripId: parsed.data.tripId },
+    select: {
+      location: true,
+      participants: { select: { familyMemberId: true } },
+    },
   });
   if (!existing) {
     return { success: false, error: "Program nem található" };
@@ -122,9 +161,30 @@ export async function updateProgram(data: {
   const locationChanged =
     (existing.location ?? "").trim() !== (nextLocation ?? "").trim();
 
-  await prisma.$transaction([
-    prisma.programParticipant.deleteMany({ where: { programId: parsed.data.id } }),
-    prisma.program.update({
+  const existingParticipantIds = existing.participants.map((p) => p.familyMemberId);
+  const participantsChanged = !sameIdSet(existingParticipantIds, parsed.data.participantIds);
+
+  if (participantsChanged) {
+    await prisma.$transaction([
+      prisma.programParticipant.deleteMany({ where: { programId: parsed.data.id } }),
+      prisma.program.update({
+        where: { id: parsed.data.id },
+        data: {
+          title: parsed.data.title,
+          date: programDate,
+          startTime: parsed.data.startTime ?? null,
+          endTime: parsed.data.endTime ?? null,
+          location: nextLocation,
+          url: parsed.data.url ?? "",
+          ...(locationChanged ? { lat: null, lng: null } : {}),
+          participants: {
+            create: parsed.data.participantIds.map((familyMemberId) => ({ familyMemberId })),
+          },
+        },
+      }),
+    ]);
+  } else {
+    await prisma.program.update({
       where: { id: parsed.data.id },
       data: {
         title: parsed.data.title,
@@ -134,14 +194,11 @@ export async function updateProgram(data: {
         location: nextLocation,
         url: parsed.data.url ?? "",
         ...(locationChanged ? { lat: null, lng: null } : {}),
-        participants: {
-          create: parsed.data.participantIds.map((familyMemberId) => ({ familyMemberId })),
-        },
       },
-    }),
-  ]);
+    });
+  }
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: parsed.data.tripId,
     actorUserId: user.id,
     type: "PROGRAM_UPDATED",
@@ -157,7 +214,7 @@ export async function updateProgram(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=planning`,
   });
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -166,7 +223,7 @@ export async function deleteProgram(id: string): Promise<ActionResult> {
 
   const program = await prisma.program.findFirst({
     where: { id },
-    include: { trip: true },
+    select: { id: true, title: true, tripId: true },
   });
 
   if (!program) {
@@ -181,7 +238,7 @@ export async function deleteProgram(id: string): Promise<ActionResult> {
     prisma.program.delete({ where: { id } }),
   ]);
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: program.tripId,
     actorUserId: user.id,
     type: "PROGRAM_DELETED",
@@ -197,6 +254,6 @@ export async function deleteProgram(id: string): Promise<ActionResult> {
     body: `${user.name}: ${program.title}`,
     href: `/trips/${program.tripId}?tab=planning`,
   });
-  void invalidateTripAudience(program.tripId);
+  await invalidateTripAudience(program.tripId);
   return { success: true, data: undefined };
 }

@@ -14,7 +14,7 @@ import {
   setIdeaDecisionSchema,
 } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
-import { findAccessibleTrip, requireTripEditor } from "@/lib/trip-access";
+import { requireEditableTrip, requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
 import { isDateInRange, parseDate } from "@csaladi-utazas/shared";
 import { recordTripActivity } from "@/lib/trip-activity";
 import { notifyTripAudience } from "@/lib/trip-notifications";
@@ -24,11 +24,11 @@ function parseOptionalIdeaDate(value?: string | null): Date | null {
   return parseDate(value);
 }
 
-async function validateIdeaStayDates(
-  tripId: string,
+function validateIdeaStayDatesWithTrip(
+  trip: { startDate: Date; endDate: Date },
   checkInDate: Date | null,
   checkOutDate: Date | null
-): Promise<string | null> {
+): string | null {
   if (!checkInDate && !checkOutDate) return null;
   if (!checkInDate || !checkOutDate) {
     return "A be- és kijelentkezés dátuma együtt kötelező";
@@ -36,13 +36,6 @@ async function validateIdeaStayDates(
   if (checkOutDate <= checkInDate) {
     return "A kijelentkezés dátuma későbbi kell legyen a bejelentkezésnél";
   }
-
-  const trip = await prisma.trip.findFirst({
-    where: { id: tripId },
-    select: { startDate: true, endDate: true },
-  });
-  if (!trip) return "Utazás nem található";
-
   if (!isDateInRange(checkInDate, trip.startDate, trip.endDate)) {
     return "A bejelentkezés dátuma az utazás időtartamán belül kell legyen";
   }
@@ -61,14 +54,13 @@ async function assertTripParticipant(tripId: string, familyMemberId: string) {
 
 async function findAccessibleIdea(ideaId: string, userId: string) {
   const idea = await prisma.tripIdea.findFirst({
-    where: { id: ideaId },
-    include: { trip: true },
+    where: { id: ideaId, trip: tripAccessFilter(userId) },
+    select: {
+      id: true,
+      tripId: true,
+      title: true,
+    },
   });
-  if (!idea) return null;
-
-  const accessible = await findAccessibleTrip(idea.tripId, userId);
-  if (!accessible) return null;
-
   return idea;
 }
 
@@ -79,29 +71,33 @@ async function syncIdeaInterests(
 ) {
   const uniqueIds = [...new Set(participantIds)];
 
-  for (const familyMemberId of uniqueIds) {
-    const isParticipant = await assertTripParticipant(tripId, familyMemberId);
-    if (!isParticipant) {
+  if (uniqueIds.length > 0) {
+    const valid = await prisma.tripParticipant.findMany({
+      where: { tripId, familyMemberId: { in: uniqueIds } },
+      select: { familyMemberId: true },
+    });
+    if (valid.length !== uniqueIds.length) {
       throw new Error("A családtag nem résztvevő az utazáson");
     }
   }
 
-  await prisma.tripIdeaInterest.deleteMany({
-    where: {
-      ideaId,
-      ...(uniqueIds.length > 0 ? { familyMemberId: { notIn: uniqueIds } } : {}),
-    },
-  });
-
-  for (const familyMemberId of uniqueIds) {
-    await prisma.tripIdeaInterest.upsert({
+  await prisma.$transaction([
+    prisma.tripIdeaInterest.deleteMany({
       where: {
-        ideaId_familyMemberId: { ideaId, familyMemberId },
+        ideaId,
+        ...(uniqueIds.length > 0 ? { familyMemberId: { notIn: uniqueIds } } : {}),
       },
-      create: { ideaId, familyMemberId },
-      update: {},
-    });
-  }
+    }),
+    ...uniqueIds.map((familyMemberId) =>
+      prisma.tripIdeaInterest.upsert({
+        where: {
+          ideaId_familyMemberId: { ideaId, familyMemberId },
+        },
+        create: { ideaId, familyMemberId },
+        update: {},
+      })
+    ),
+  ]);
 }
 
 export async function createTripIdea(data: {
@@ -128,23 +124,17 @@ export async function createTripIdea(data: {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
   }
 
-  const access = await requireTripEditor(parsed.data.tripId, user.id);
+  const access = await requireEditableTrip(parsed.data.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
 
   const eventDate = parseOptionalIdeaDate(parsed.data.date);
-  if (eventDate) {
-    const fullTrip = await prisma.trip.findFirst({
-      where: { id: parsed.data.tripId },
-      select: { startDate: true, endDate: true },
-    });
-    if (fullTrip && !isDateInRange(eventDate, fullTrip.startDate, fullTrip.endDate)) {
-      return { success: false, error: "A dátum az utazás időtartamán belül kell legyen" };
-    }
+  if (eventDate && !isDateInRange(eventDate, access.trip.startDate, access.trip.endDate)) {
+    return { success: false, error: "A dátum az utazás időtartamán belül kell legyen" };
   }
 
   const checkInDate = parseOptionalIdeaDate(parsed.data.checkInDate);
   const checkOutDate = parseOptionalIdeaDate(parsed.data.checkOutDate);
-  const dateError = await validateIdeaStayDates(parsed.data.tripId, checkInDate, checkOutDate);
+  const dateError = validateIdeaStayDatesWithTrip(access.trip, checkInDate, checkOutDate);
   if (dateError) {
     return { success: false, error: dateError };
   }
@@ -182,7 +172,7 @@ export async function createTripIdea(data: {
     };
   }
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: parsed.data.tripId,
     actorUserId: user.id,
     type: "IDEA_CREATED",
@@ -198,7 +188,7 @@ export async function createTripIdea(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=planning`,
   });
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: idea.id } };
 }
 
@@ -232,23 +222,17 @@ export async function updateTripIdea(data: {
     return { success: false, error: "Ötlet nem található" };
   }
 
-  const access = await requireTripEditor(idea.tripId, user.id);
+  const access = await requireEditableTrip(idea.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
 
   const eventDate = parseOptionalIdeaDate(parsed.data.date);
-  if (eventDate) {
-    const fullTrip = await prisma.trip.findFirst({
-      where: { id: parsed.data.tripId },
-      select: { startDate: true, endDate: true },
-    });
-    if (fullTrip && !isDateInRange(eventDate, fullTrip.startDate, fullTrip.endDate)) {
-      return { success: false, error: "A dátum az utazás időtartamán belül kell legyen" };
-    }
+  if (eventDate && !isDateInRange(eventDate, access.trip.startDate, access.trip.endDate)) {
+    return { success: false, error: "A dátum az utazás időtartamán belül kell legyen" };
   }
 
   const checkInDate = parseOptionalIdeaDate(parsed.data.checkInDate);
   const checkOutDate = parseOptionalIdeaDate(parsed.data.checkOutDate);
-  const dateError = await validateIdeaStayDates(parsed.data.tripId, checkInDate, checkOutDate);
+  const dateError = validateIdeaStayDatesWithTrip(access.trip, checkInDate, checkOutDate);
   if (dateError) {
     return { success: false, error: dateError };
   }
@@ -285,7 +269,7 @@ export async function updateTripIdea(data: {
     };
   }
 
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -302,7 +286,7 @@ export async function deleteTripIdea(id: string): Promise<ActionResult> {
 
   await prisma.tripIdea.delete({ where: { id } });
 
-  void invalidateTripAudience(idea.tripId);
+  await invalidateTripAudience(idea.tripId);
   return { success: true, data: undefined };
 }
 
@@ -351,7 +335,7 @@ export async function toggleIdeaInterest(data: {
     });
   }
 
-  void invalidateTripAudience(idea.tripId);
+  await invalidateTripAudience(idea.tripId);
   return { success: true, data: undefined };
 }
 
@@ -381,6 +365,8 @@ export async function createIdeaMessage(data: {
       body: parsed.data.body,
     },
   });
+
+  await invalidateTripAudience(idea.tripId);
 
   return {
     success: true,
@@ -412,6 +398,7 @@ export async function updateIdeaNote(data: {
     data: { note: parsed.data.note ?? null },
   });
 
+  await invalidateTripAudience(idea.tripId);
   return { success: true, data: undefined };
 }
 
@@ -443,6 +430,7 @@ export async function updateIdeaMessage(data: {
     data: { body: parsed.data.body },
   });
 
+  await invalidateTripAudience(message.idea.tripId);
   return { success: true, data: undefined };
 }
 
@@ -468,6 +456,7 @@ export async function deleteIdeaMessage(id: string): Promise<ActionResult> {
 
   await prisma.tripIdeaMessage.delete({ where: { id: parsed.data.id } });
 
+  await invalidateTripAudience(message.idea.tripId);
   return { success: true, data: undefined };
 }
 
@@ -500,6 +489,6 @@ export async function setIdeaDecision(data: {
     meta: { ideaId: idea.id, decision: parsed.data.decision },
   });
 
-  void invalidateTripAudience(idea.tripId);
+  await invalidateTripAudience(idea.tripId);
   return { success: true, data: undefined };
 }

@@ -51,7 +51,7 @@ export async function createCost(data: {
     },
   });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: parsed.data.tripId,
     actorUserId: user.id,
     type: "COST_CREATED",
@@ -67,7 +67,7 @@ export async function createCost(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=finances`,
   });
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: { id: cost.id } };
 }
 
@@ -134,7 +134,7 @@ export async function updateCost(data: {
     },
   });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: parsed.data.tripId,
     actorUserId: user.id,
     type: "COST_UPDATED",
@@ -142,7 +142,7 @@ export async function updateCost(data: {
     meta: { costId: parsed.data.id },
   });
 
-  void invalidateTripAudience(parsed.data.tripId);
+  await invalidateTripAudience(parsed.data.tripId);
   return { success: true, data: undefined };
 }
 
@@ -151,7 +151,7 @@ export async function deleteCost(id: string): Promise<ActionResult> {
 
   const cost = await prisma.cost.findFirst({
     where: { id },
-    include: { trip: true },
+    select: { id: true, title: true, tripId: true },
   });
 
   if (!cost) {
@@ -163,7 +163,7 @@ export async function deleteCost(id: string): Promise<ActionResult> {
 
   await prisma.cost.delete({ where: { id } });
 
-  await recordTripActivity({
+  void recordTripActivity({
     tripId: cost.tripId,
     actorUserId: user.id,
     type: "COST_DELETED",
@@ -171,7 +171,7 @@ export async function deleteCost(id: string): Promise<ActionResult> {
     meta: { costId: id },
   });
 
-  void invalidateTripAudience(cost.tripId);
+  await invalidateTripAudience(cost.tripId);
   return { success: true, data: undefined };
 }
 

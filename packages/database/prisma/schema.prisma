@@ -77,6 +77,8 @@ model Trip {
   coverMimeType    String?
   tripType         String?
   isTemplate       Boolean             @default(false)
+  /** Közös „van új tartalom?” jel — collaborator élő frissítéshez */
+  contentUpdatedAt DateTime            @default(now())
   userId           String
   inviteCode       String?             @unique
   user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)

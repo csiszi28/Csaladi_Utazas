@@ -27,6 +27,7 @@ import { deleteCost } from "@/actions/costs";
 import { uploadTripCover } from "@/actions/feature-pack";
 import type { FamilyMemberRow } from "@/lib/queries/family";
 import type { TripDetailRow } from "@/lib/queries/trips";
+import { useTripLiveSync } from "@/hooks/use-trip-live-sync";
 import {
   TripDetailTabs,
   TripSectionHeading,
@@ -148,6 +149,8 @@ export function TripDetailPage({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
+  useTripLiveSync(trip.id, trip.contentUpdatedAt);
+
   const [tripDrawerOpen, setTripDrawerOpen] = useState(false);
   const [costDrawerOpen, setCostDrawerOpen] = useState(false);
   const [ideaOpenSignal, setIdeaOpenSignal] = useState(0);
@@ -169,6 +172,7 @@ export function TripDetailPage({
   });
   const [localCosts, setLocalCosts] = useState(trip.costs);
   const [localDocuments, setLocalDocuments] = useState(trip.documents);
+  const [localPrograms, setLocalPrograms] = useState(trip.programs);
   const [visitedTabs, setVisitedTabs] = useState(() => new Set<TripDetailTab>([activeTab]));
 
   const setActiveTab = useCallback(
@@ -271,6 +275,21 @@ export function TripDetailPage({
     });
   }, [costsFingerprint, trip.costs]);
 
+  const programsFingerprint = useMemo(
+    () =>
+      trip.programs
+        .map(
+          (p) =>
+            `${p.id}:${p.title}:${String(p.date)}:${p.startTime ?? ""}:${p.endTime ?? ""}:${p.location ?? ""}`
+        )
+        .join("|"),
+    [trip.programs]
+  );
+
+  useEffect(() => {
+    setLocalPrograms(trip.programs);
+  }, [programsFingerprint, trip.programs]);
+
   useEffect(() => {
     const action = searchParams.get("new");
     const tab = searchParams.get("tab");
@@ -309,8 +328,8 @@ export function TripDetailPage({
   }, [searchParams, pathname, router]);
 
   const programTitleById = useMemo(
-    () => new Map(trip.programs.map((program) => [program.id, program.title])),
-    [trip.programs]
+    () => new Map(localPrograms.map((program) => [program.id, program.title])),
+    [localPrograms]
   );
 
   const accommodationTitleById = useMemo(
@@ -337,14 +356,14 @@ export function TripDetailPage({
   const convertedIdeaIds = useMemo(
     () =>
       new Set([
-        ...trip.programs
+        ...localPrograms
           .map((program) => program.ideaId)
           .filter((id): id is string => Boolean(id)),
         ...trip.accommodations
           .map((accommodation) => accommodation.ideaId)
           .filter((id): id is string => Boolean(id)),
       ]),
-    [trip.programs, trip.accommodations]
+    [localPrograms, trip.accommodations]
   );
 
   function handleConvertIdeaToAccommodation(ideaId: string) {
@@ -454,12 +473,15 @@ export function TripDetailPage({
   }
 
   function handleDeleteProgram(id: string) {
+    const previousPrograms = localPrograms;
     const previousCosts = localCosts;
+    setLocalPrograms((prev) => prev.filter((p) => p.id !== id));
     setLocalCosts((prev) => prev.filter((c) => c.programId !== id));
 
     startTransition(async () => {
       const result = await deleteProgram(id);
       if (!result.success) {
+        setLocalPrograms(previousPrograms);
         setLocalCosts(previousCosts);
         toast.error(result.error);
       } else {
@@ -493,7 +515,7 @@ export function TripDetailPage({
 
   const tabCounts: Partial<Record<TripDetailTab, number>> = {
     transport: trip.transports?.length ?? 0,
-    planning: generalIdeas.length + trip.programs.length,
+    planning: generalIdeas.length + localPrograms.length,
     accommodations: accommodationIdeas.length + trip.accommodations.length,
     finances: localCosts.length,
     documents: localDocuments.length,
@@ -772,7 +794,7 @@ export function TripDetailPage({
             tripStartDate={formatDate(trip.startDate)}
             tripEndDate={formatDate(trip.endDate)}
             ideas={generalIdeas}
-            programs={trip.programs}
+            programs={localPrograms}
             costs={localCosts}
             documents={localDocuments}
             participants={trip.participants.map((p) => p.familyMember)}
