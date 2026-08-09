@@ -228,8 +228,19 @@ const getCachedTripsList = (userId: string) =>
         orderBy: { startDate: "asc" },
       }),
     [`trips-list-${userId}`],
-    { revalidate: 30, tags: [userDataTag(userId)] }
+    // Rövid TTL: résztvevőszám / lista ne ragadjon mutáció után
+    { revalidate: 1, tags: [userDataTag(userId)] }
   )();
+
+/** Utazások oldal — mindig friss DB (résztvevőszám egyezzen a részletekkel) */
+export async function fetchTripsListFresh(userId?: string) {
+  const uid = userId ?? (await requireAuthUserId());
+  return prisma.trip.findMany({
+    where: tripAccessFilter(uid),
+    select: listSelect,
+    orderBy: { startDate: "asc" },
+  });
+}
 
 const getCachedCalendarTrips = (userId: string) =>
   unstable_cache(

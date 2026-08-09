@@ -85,6 +85,6 @@ export const POST = withApiAuth(async ({ userId, params, request }) => {
       href: `/trips/${tripId}?tab=planning`,
     });
   })();
-  await invalidateTripAudience(tripId);
+  invalidateTripAudience(tripId, userId);
   return jsonOk({ program: { id: program.id } }, 201);
 });

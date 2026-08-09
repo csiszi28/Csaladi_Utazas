@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Pencil,
@@ -77,11 +77,26 @@ export function TripTransportsSection({
   const [editing, setEditing] = useState<TransportRow | null>(null);
   const [view, setView] = useState<"list" | "map">("list");
   const [localTransports, setLocalTransports] = useState(transports);
+  const transportsFingerprint = useMemo(
+    () =>
+      transports
+        .map(
+          (t) =>
+            `${t.id}:${t.title}:${t.type}:${String(t.departureDate)}:${t.fromLocation ?? ""}:${t.toLocation ?? ""}`
+        )
+        .join("|"),
+    [transports]
+  );
   const deleteMutation = useDeleteTransport();
 
   useEffect(() => {
-    setLocalTransports(transports);
-  }, [transports]);
+    setLocalTransports((prev) => {
+      const serverIds = new Set(transports.map((t) => t.id));
+      const pending = prev.filter((t) => !serverIds.has(t.id));
+      return [...pending, ...transports];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transportsFingerprint]);
 
   useEffect(() => {
     if (openSignal > 0) {
@@ -275,7 +290,34 @@ export function TripTransportsSection({
         tripEndDate={tripEndDate}
         participantOptions={participants}
         transport={editing ?? undefined}
-        onSaved={onRefresh}
+        onSaved={(payload) => {
+          setLocalTransports((prev) => {
+            const index = prev.findIndex((item) => item.id === payload.id);
+            if (index >= 0) {
+              const next = [...prev];
+              next[index] = {
+                ...next[index],
+                ...payload,
+                participants: payload.participants as unknown as TransportRow["participants"],
+              };
+              return next;
+            }
+            return [
+              ...prev,
+              {
+                ...payload,
+                ideaId: null,
+                fromLat: null,
+                fromLng: null,
+                toLat: null,
+                toLng: null,
+                costs: [],
+                participants: payload.participants,
+              } as unknown as TransportRow,
+            ];
+          });
+          onRefresh();
+        }}
       />
     </div>
   );

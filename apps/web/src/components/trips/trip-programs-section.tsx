@@ -206,6 +206,7 @@ interface TripProgramsSectionProps {
   currentFamilyMemberId?: string | null;
   canEdit?: boolean;
   onRefresh: () => void;
+  onProgramSaved?: (payload: import("./program-form-drawer").ProgramSavedPayload) => void;
   onDeleteProgram: (id: string) => void;
   onConvertToProgram: (ideaId: string) => void;
   convertedIdeaIds: Set<string>;
@@ -232,6 +233,7 @@ export function TripProgramsSection({
   currentFamilyMemberId = null,
   canEdit = true,
   onRefresh,
+  onProgramSaved,
   onDeleteProgram,
   onConvertToProgram,
   convertedIdeaIds,
@@ -803,7 +805,10 @@ export function TripProgramsSection({
         ideaOptions={ideaOptions}
         defaultIdeaId={convertIdeaId}
         program={editingProgram ?? undefined}
-        onSaved={onRefresh}
+        onSaved={(payload) => {
+          onProgramSaved?.(payload);
+          onRefresh();
+        }}
       />
     </div>
   );

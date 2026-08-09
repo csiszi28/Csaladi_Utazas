@@ -67,7 +67,7 @@ export async function createCost(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=finances`,
   });
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: { id: cost.id } };
 }
 
@@ -142,7 +142,7 @@ export async function updateCost(data: {
     meta: { costId: parsed.data.id },
   });
 
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -171,7 +171,7 @@ export async function deleteCost(id: string): Promise<ActionResult> {
     meta: { costId: id },
   });
 
-  await invalidateTripAudience(cost.tripId);
+  invalidateTripAudience(cost.tripId, user.id);
   return { success: true, data: undefined };
 }
 

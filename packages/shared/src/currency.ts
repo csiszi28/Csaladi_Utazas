@@ -1,4 +1,4 @@
-export const CURRENCIES = ["HUF", "EUR", "USD", "AED"] as const;
+export const CURRENCIES = ["HUF", "EUR", "USD", "AED", "THB"] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
 export const CURRENCY_LABELS: Record<Currency, string> = {
@@ -6,6 +6,7 @@ export const CURRENCY_LABELS: Record<Currency, string> = {
   EUR: "EUR",
   USD: "USD",
   AED: "AED",
+  THB: "THB",
 };
 
 /** Becsült árfolyamok megjelenítéshez (1 egység → HUF) */
@@ -14,6 +15,7 @@ export const DEFAULT_HUF_RATES: Record<Currency, number> = {
   EUR: 395,
   USD: 365,
   AED: 108,
+  THB: 10,
 };
 
 export function toHuf(

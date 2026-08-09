@@ -16,7 +16,7 @@ import { buildDayItinerary, listTripDays } from "../itinerary";
 import { parseIcalToProgramCandidates } from "../ical-import";
 import { buildReminders } from "../reminders";
 
-const rates = { HUF: 1, EUR: 400, USD: 370, AED: 110 };
+const rates = { HUF: 1, EUR: 400, USD: 370, AED: 110, THB: 10 };
 
 const baseTrip = {
   id: "trip-1",

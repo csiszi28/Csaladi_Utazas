@@ -188,7 +188,7 @@ export async function createTripIdea(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=planning`,
   });
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: { id: idea.id } };
 }
 
@@ -269,7 +269,7 @@ export async function updateTripIdea(data: {
     };
   }
 
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -286,7 +286,7 @@ export async function deleteTripIdea(id: string): Promise<ActionResult> {
 
   await prisma.tripIdea.delete({ where: { id } });
 
-  await invalidateTripAudience(idea.tripId);
+  invalidateTripAudience(idea.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -335,7 +335,7 @@ export async function toggleIdeaInterest(data: {
     });
   }
 
-  await invalidateTripAudience(idea.tripId);
+  invalidateTripAudience(idea.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -366,7 +366,7 @@ export async function createIdeaMessage(data: {
     },
   });
 
-  await invalidateTripAudience(idea.tripId);
+  invalidateTripAudience(idea.tripId, user.id);
 
   return {
     success: true,
@@ -398,7 +398,7 @@ export async function updateIdeaNote(data: {
     data: { note: parsed.data.note ?? null },
   });
 
-  await invalidateTripAudience(idea.tripId);
+  invalidateTripAudience(idea.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -430,7 +430,7 @@ export async function updateIdeaMessage(data: {
     data: { body: parsed.data.body },
   });
 
-  await invalidateTripAudience(message.idea.tripId);
+  invalidateTripAudience(message.idea.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -456,7 +456,7 @@ export async function deleteIdeaMessage(id: string): Promise<ActionResult> {
 
   await prisma.tripIdeaMessage.delete({ where: { id: parsed.data.id } });
 
-  await invalidateTripAudience(message.idea.tripId);
+  invalidateTripAudience(message.idea.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -489,6 +489,6 @@ export async function setIdeaDecision(data: {
     meta: { ideaId: idea.id, decision: parsed.data.decision },
   });
 
-  await invalidateTripAudience(idea.tripId);
+  invalidateTripAudience(idea.tripId, user.id);
   return { success: true, data: undefined };
 }

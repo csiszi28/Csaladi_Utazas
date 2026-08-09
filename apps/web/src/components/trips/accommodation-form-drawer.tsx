@@ -5,6 +5,7 @@ import {
   formatDate,
   formatAmountInput,
   parseAmountInput,
+  parseDate,
   type CostCategory,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,18 @@ interface AccommodationLinkedCost {
   paidByFamilyMemberId: string | null;
 }
 
+export type AccommodationSavedPayload = {
+  id: string;
+  tripId: string;
+  title: string;
+  checkIn: Date;
+  checkOut: Date;
+  location: string | null;
+  url: string;
+  note: string | null;
+  participants: { familyMember: { id: string; name: string } }[];
+};
+
 interface AccommodationFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -63,7 +76,7 @@ interface AccommodationFormDrawerProps {
   tripEndDate: string;
   participantOptions: { id: string; name: string }[];
   ideaOptions?: AccommodationIdeaOption[];
-  onSaved?: () => void;
+  onSaved?: (payload: AccommodationSavedPayload) => void;
   defaultIdeaId?: string;
   accommodation?: {
     id: string;
@@ -237,6 +250,7 @@ export function AccommodationFormDrawer({
 
     const parsedAmount = parseAmountInput(costFields.amount);
 
+    let savedId = accommodation?.id;
     if (accommodation) {
       const result = await updateMutation.mutateAsync({ id: accommodation.id, ...data });
       if (!result.success) return;
@@ -261,10 +275,28 @@ export function AccommodationFormDrawer({
         },
       });
       if (!result.success) return;
+      savedId = result.data.id;
     }
 
+    if (!savedId) return;
+
+    const payload: AccommodationSavedPayload = {
+      id: savedId,
+      tripId,
+      title,
+      checkIn: parseDate(checkIn),
+      checkOut: parseDate(checkOut),
+      location: location || null,
+      url: url.trim() || "",
+      note: note.trim() || null,
+      participants: participantIds.map((id) => {
+        const member = participantOptions.find((p) => p.id === id);
+        return { familyMember: { id, name: member?.name ?? "" } };
+      }),
+    };
+
     onOpenChange(false);
-    onSaved?.();
+    onSaved?.(payload);
   }
 
   const isCostValid =

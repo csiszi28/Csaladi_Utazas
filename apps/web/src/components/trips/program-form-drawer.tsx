@@ -7,6 +7,7 @@ import {
   normalizeTimeValue,
   formatAmountInput,
   parseAmountInput,
+  parseDate,
   type CostCategory,
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,18 @@ export interface ProgramIdeaOption {
   interests: { familyMember: { id: string } }[];
 }
 
+export type ProgramSavedPayload = {
+  id: string;
+  tripId: string;
+  title: string;
+  date: Date;
+  startTime: string | null;
+  endTime: string | null;
+  location: string | null;
+  url: string;
+  participants: { familyMember: { id: string; name: string } }[];
+};
+
 interface ProgramFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -61,7 +74,7 @@ interface ProgramFormDrawerProps {
   tripEndDate: string;
   participantOptions: { id: string; name: string }[];
   ideaOptions?: ProgramIdeaOption[];
-  onSaved?: () => void;
+  onSaved?: (payload: ProgramSavedPayload) => void;
   defaultDate?: string;
   defaultIdeaId?: string;
   program?: {
@@ -201,6 +214,7 @@ export function ProgramFormDrawer({
       participantIds,
     };
 
+    let savedId = program?.id;
     if (program) {
       const result = await updateMutation.mutateAsync({ id: program.id, ...data });
       if (!result.success) return;
@@ -222,10 +236,28 @@ export function ProgramFormDrawer({
           : {}),
       });
       if (!result.success) return;
+      savedId = result.data.id;
     }
 
+    if (!savedId) return;
+
+    const payload: ProgramSavedPayload = {
+      id: savedId,
+      tripId,
+      title,
+      date: parseDate(date),
+      startTime: normalizedStart,
+      endTime: normalizedEnd,
+      location: location || null,
+      url: url.trim() || "",
+      participants: participantIds.map((id) => {
+        const member = participantOptions.find((p) => p.id === id);
+        return { familyMember: { id, name: member?.name ?? "" } };
+      }),
+    };
+
     onOpenChange(false);
-    onSaved?.();
+    onSaved?.(payload);
   }
 
   return (

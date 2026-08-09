@@ -7,6 +7,7 @@ import {
   normalizeTimeValue,
   formatAmountInput,
   parseAmountInput,
+  parseDate,
   TRANSPORT_TYPES,
   TRANSPORT_TYPE_LABELS,
   type TransportType,
@@ -41,6 +42,23 @@ import {
   type CostFieldsValue,
 } from "@/components/trips/cost-fields-block";
 
+export type TransportSavedPayload = {
+  id: string;
+  tripId: string;
+  type: string;
+  title: string;
+  departureDate: Date;
+  departureTime: string | null;
+  arrivalDate: Date | null;
+  arrivalTime: string | null;
+  fromLocation: string | null;
+  toLocation: string | null;
+  bookingRef: string | null;
+  url: string | null;
+  note: string | null;
+  participants: { familyMember: { id: string; name: string } }[];
+};
+
 interface TransportFormDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,7 +66,7 @@ interface TransportFormDrawerProps {
   tripStartDate: string;
   tripEndDate: string;
   participantOptions: { id: string; name: string }[];
-  onSaved?: () => void;
+  onSaved?: (payload: TransportSavedPayload) => void;
   transport?: {
     id: string;
     type: string;
@@ -155,37 +173,57 @@ export function TransportFormDrawer({
       participantIds,
     };
 
+    let savedId = transport?.id;
     if (isEditing && transport) {
       const result = await updateMutation.mutateAsync({ id: transport.id, ...payload });
-      if (result.success) {
-        onOpenChange(false);
-        onSaved?.();
-      }
-      return;
+      if (!result.success) return;
+    } else {
+      const result = await createMutation.mutateAsync({
+        ...payload,
+        ...(includeCost && costFields.amount.trim()
+          ? (() => {
+              const amount = parseAmountInput(costFields.amount);
+              if (amount == null || amount <= 0) return {};
+              return {
+                cost: {
+                  amount,
+                  currency: costFields.currency,
+                  amountScope: costFields.amountScope as "TOTAL" | "PER_PERSON",
+                  category: (costFields.category || "TRANSPORT") as CostCategory,
+                  paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
+                },
+              };
+            })()
+          : {}),
+      });
+      if (!result.success) return;
+      savedId = result.data.id;
     }
 
-    const result = await createMutation.mutateAsync({
-      ...payload,
-      ...(includeCost && costFields.amount.trim()
-        ? (() => {
-            const amount = parseAmountInput(costFields.amount);
-            if (amount == null || amount <= 0) return {};
-            return {
-              cost: {
-                amount,
-                currency: costFields.currency,
-                amountScope: costFields.amountScope as "TOTAL" | "PER_PERSON",
-                category: (costFields.category || "TRANSPORT") as CostCategory,
-                paidByFamilyMemberId: costFields.paidByFamilyMemberId || null,
-              },
-            };
-          })()
-        : {}),
-    });
-    if (!result.success) return;
+    if (!savedId) return;
+
+    const saved: TransportSavedPayload = {
+      id: savedId,
+      tripId,
+      type,
+      title,
+      departureDate: parseDate(departureDate),
+      departureTime: normalizeTimeValue(departureTime) || null,
+      arrivalDate: arrivalDate ? parseDate(arrivalDate) : null,
+      arrivalTime: normalizeTimeValue(arrivalTime) || null,
+      fromLocation: fromLocation || null,
+      toLocation: toLocation || null,
+      bookingRef: bookingRef || null,
+      url: url || null,
+      note: note || null,
+      participants: participantIds.map((id) => {
+        const member = participantOptions.find((p) => p.id === id);
+        return { familyMember: { id, name: member?.name ?? "" } };
+      }),
+    };
 
     onOpenChange(false);
-    onSaved?.();
+    onSaved?.(saved);
   }
 
   const pending = createMutation.isPending || updateMutation.isPending;

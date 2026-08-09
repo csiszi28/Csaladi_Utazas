@@ -5,7 +5,7 @@ export type HufRates = Record<Currency, number>;
 
 async function fetchRatesFromApi(): Promise<HufRates> {
   try {
-    const [eurRes, usdRes, aedRes] = await Promise.all([
+    const [eurRes, usdRes, aedRes, thbRes] = await Promise.all([
       fetch("https://api.frankfurter.app/latest?from=EUR&to=HUF", {
         next: { revalidate: 3600 },
       }),
@@ -13,6 +13,9 @@ async function fetchRatesFromApi(): Promise<HufRates> {
         next: { revalidate: 3600 },
       }),
       fetch("https://api.frankfurter.app/latest?from=AED&to=HUF", {
+        next: { revalidate: 3600 },
+      }),
+      fetch("https://api.frankfurter.app/latest?from=THB&to=HUF", {
         next: { revalidate: 3600 },
       }),
     ]);
@@ -26,12 +29,16 @@ async function fetchRatesFromApi(): Promise<HufRates> {
     const aedData = aedRes.ok
       ? ((await aedRes.json()) as { rates?: { HUF?: number } })
       : null;
+    const thbData = thbRes.ok
+      ? ((await thbRes.json()) as { rates?: { HUF?: number } })
+      : null;
 
     return {
       HUF: 1,
       EUR: eurData.rates?.HUF ?? DEFAULT_HUF_RATES.EUR,
       USD: usdData.rates?.HUF ?? DEFAULT_HUF_RATES.USD,
       AED: aedData?.rates?.HUF ?? DEFAULT_HUF_RATES.AED,
+      THB: thbData?.rates?.HUF ?? DEFAULT_HUF_RATES.THB,
     };
   } catch {
     return DEFAULT_HUF_RATES;

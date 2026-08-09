@@ -102,10 +102,25 @@ export function TripAccommodationsSection({
   );
 
   const [localAccommodations, setLocalAccommodations] = useState(accommodations);
+  const accommodationsFingerprint = useMemo(
+    () =>
+      accommodations
+        .map(
+          (a) =>
+            `${a.id}:${a.title}:${String(a.checkIn)}:${String(a.checkOut)}:${a.location ?? ""}`
+        )
+        .join("|"),
+    [accommodations]
+  );
 
   useEffect(() => {
-    setLocalAccommodations(accommodations);
-  }, [accommodations]);
+    setLocalAccommodations((prev) => {
+      const serverIds = new Set(accommodations.map((a) => a.id));
+      const pending = prev.filter((a) => !serverIds.has(a.id));
+      return [...pending, ...accommodations];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accommodationsFingerprint]);
 
   useEffect(() => {
     if (ideaOpenSignal > 0) {
@@ -512,7 +527,32 @@ export function TripAccommodationsSection({
         ideaOptions={ideaOptions}
         defaultIdeaId={convertIdeaId}
         accommodation={editingAccommodation ?? undefined}
-        onSaved={onRefresh}
+        onSaved={(payload) => {
+          setLocalAccommodations((prev) => {
+            const index = prev.findIndex((item) => item.id === payload.id);
+            if (index >= 0) {
+              const next = [...prev];
+              next[index] = {
+                ...next[index],
+                ...payload,
+                participants: payload.participants as unknown as AccommodationRow["participants"],
+              };
+              return next;
+            }
+            return [
+              ...prev,
+              {
+                ...payload,
+                ideaId: null,
+                lat: null,
+                lng: null,
+                costs: [],
+                participants: payload.participants,
+              } as unknown as AccommodationRow,
+            ];
+          });
+          onRefresh();
+        }}
       />
     </div>
   );

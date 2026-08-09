@@ -287,8 +287,20 @@ export function TripDetailPage({
   );
 
   useEffect(() => {
-    setLocalPrograms(trip.programs);
-  }, [programsFingerprint, trip.programs]);
+    setLocalPrograms((prev) => {
+      const serverIds = new Set(trip.programs.map((p) => p.id));
+      const pending = prev.filter((p) => !serverIds.has(p.id));
+      const merged = [...pending, ...trip.programs];
+      const seen = new Set<string>();
+      return merged.filter((p) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+    });
+    // Csak server fingerprint változáskor — ne írja felül az optimistic mentést stale refresh-sel
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programsFingerprint]);
 
   useEffect(() => {
     const action = searchParams.get("new");
@@ -441,7 +453,46 @@ export function TripDetailPage({
   }
 
   function refresh() {
-    router.refresh();
+    startTransition(() => {
+      router.refresh();
+    });
+  }
+
+  function handleProgramSaved(payload: {
+    id: string;
+    tripId: string;
+    title: string;
+    date: Date;
+    startTime: string | null;
+    endTime: string | null;
+    location: string | null;
+    url: string;
+    participants: { familyMember: { id: string; name: string } }[];
+  }) {
+    setLocalPrograms((prev) => {
+      const index = prev.findIndex((item) => item.id === payload.id);
+      if (index >= 0) {
+        const next = [...prev];
+        next[index] = {
+          ...next[index],
+          ...payload,
+          participants: payload.participants as unknown as TripDetailRow["programs"][number]["participants"],
+        };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          ...payload,
+          ideaId: null,
+          lat: null,
+          lng: null,
+          costs: [],
+          participants: payload.participants,
+        } as unknown as TripDetailRow["programs"][number],
+      ];
+    });
+    refresh();
   }
 
   function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -803,6 +854,7 @@ export function TripDetailPage({
             currentFamilyMemberId={currentFamilyMemberId}
             canEdit={canEdit}
             onRefresh={refresh}
+            onProgramSaved={handleProgramSaved}
             onDeleteProgram={handleDeleteProgram}
             onConvertToProgram={handleConvertIdeaToProgram}
             convertedIdeaIds={convertedIdeaIds}

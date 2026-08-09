@@ -132,7 +132,7 @@ export async function createAccommodation(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=accommodations`,
   });
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: { id: accommodation.id } };
 }
 
@@ -228,7 +228,7 @@ export async function updateAccommodation(data: {
     meta: { accommodationId: parsed.data.id },
   });
 
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -260,6 +260,6 @@ export async function deleteAccommodation(id: string): Promise<ActionResult> {
     meta: { accommodationId: id },
   });
 
-  await invalidateTripAudience(accommodation.tripId);
+  invalidateTripAudience(accommodation.tripId, user.id);
   return { success: true, data: undefined };
 }

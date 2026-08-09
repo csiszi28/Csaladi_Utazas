@@ -54,30 +54,37 @@ function fanOutTripAudience(tripId: string): void {
 }
 
 /**
- * Mutáció után: bump + trip tag (await), lista/dashboard fan-out háttérben.
- * Hívd await-tel, hogy a válasz előtt meglegyen a revision a többi kliens polljához.
+ * Mutáció után: azonnali path/tag bust (actor lista is), bump + audience fan-out háttérben.
+ * Nem vár DB-re — a server action azonnal visszatérhet.
  */
-export async function invalidateTripAudience(tripId: string): Promise<void> {
-  try {
-    await bumpTripContent(tripId);
-  } catch (error) {
+export function invalidateTripAudience(tripId: string, actorUserId?: string): void {
+  revalidateTag(`trip-${tripId}`);
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+  if (actorUserId) {
+    revalidateUserData(actorUserId);
+  }
+
+  void bumpTripContent(tripId).catch((error) => {
     console.error("[invalidateTripAudience] bump failed:", error);
     revalidateTag(`trip-${tripId}`);
     revalidatePath(`/trips/${tripId}`);
-  }
+  });
   fanOutTripAudience(tripId);
 }
 
 /** Narrower bust for entity mutations (program / szállás / közlekedés / költség) */
-export async function invalidateTripMutation(userId: string, tripId: string) {
+export function invalidateTripMutation(userId: string, tripId: string): void {
   revalidateUserData(userId);
-  try {
-    await bumpTripContent(tripId);
-  } catch {
+  revalidatePath("/trips");
+  revalidatePath(`/trips/${tripId}`);
+  revalidateTag(`trip-${tripId}`);
+  void bumpTripContent(tripId).catch(() => {
     revalidateTag(`trip-${tripId}`);
     revalidatePath(`/trips/${tripId}`);
-  }
-  revalidatePath("/trips");
+  });
 }
 
 export function invalidateFamilyAndCalendar(userId: string) {

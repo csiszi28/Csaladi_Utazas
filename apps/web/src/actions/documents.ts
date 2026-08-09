@@ -131,7 +131,7 @@ export async function uploadDocument(
       body: `${user.name}: ${file.name}`,
       href: `/trips/${tripId}?tab=documents`,
     });
-    await invalidateTripAudience(tripId);
+    invalidateTripAudience(tripId, user.id);
     return {
       success: true,
       data: {
@@ -204,7 +204,7 @@ export async function deleteDocument(id: string): Promise<ActionResult> {
     meta: { documentId: id },
   });
 
-  await invalidateTripAudience(doc.tripId);
+  invalidateTripAudience(doc.tripId, user.id);
   return { success: true, data: undefined };
 }
 

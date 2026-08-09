@@ -127,7 +127,7 @@ export async function createTransport(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=transport`,
   });
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: { id: transport.id } };
 }
 
@@ -243,7 +243,7 @@ export async function updateTransport(data: {
     meta: { transportId: parsed.data.id },
   });
 
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -275,6 +275,6 @@ export async function deleteTransport(id: string): Promise<ActionResult> {
     meta: { transportId: id },
   });
 
-  await invalidateTripAudience(transport.tripId);
+  invalidateTripAudience(transport.tripId, user.id);
   return { success: true, data: undefined };
 }

@@ -42,7 +42,7 @@ export async function createPackingItem(data: {
     select: { id: true, quantity: true },
   });
 
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: item };
 }
 
@@ -76,7 +76,7 @@ export async function createPackingItemsBatch(data: {
     )
   );
 
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: { ids: created.map((row) => row.id) } };
 }
 
@@ -116,7 +116,7 @@ export async function updatePackingItem(data: {
     },
   });
 
-  await invalidateTripAudience(existing.tripId);
+  invalidateTripAudience(existing.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -153,7 +153,7 @@ export async function reorderPackingItems(data: {
     )
   );
 
-  await invalidateTripAudience(data.tripId);
+  invalidateTripAudience(data.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -169,7 +169,7 @@ export async function deletePackingItem(id: string): Promise<ActionResult> {
   if (!access.ok) return { success: false, error: access.error };
 
   await prisma.packingItem.delete({ where: { id } });
-  await invalidateTripAudience(existing.tripId);
+  invalidateTripAudience(existing.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -212,7 +212,7 @@ export async function createSettlementPayment(data: {
     meta: { paymentId: payment.id },
   });
 
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: { id: payment.id } };
 }
 
@@ -225,7 +225,7 @@ export async function deleteSettlementPayment(id: string): Promise<ActionResult>
   if (!access.ok) return { success: false, error: access.error };
 
   await prisma.settlementPayment.delete({ where: { id } });
-  await invalidateTripAudience(payment.tripId);
+  invalidateTripAudience(payment.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -319,7 +319,7 @@ export async function setTripParticipants(data: {
     });
   }
 
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -436,7 +436,7 @@ export async function uploadTripCover(formData: FormData): Promise<ActionResult>
     summary: "Borítókép frissítve",
   });
 
-  await invalidateTripAudience(tripId);
+  invalidateTripAudience(tripId, user.id);
   return { success: true, data: undefined };
 }
 

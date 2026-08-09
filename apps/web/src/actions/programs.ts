@@ -115,7 +115,7 @@ export async function createProgram(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=planning`,
   });
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: { id: program.id } };
 }
 
@@ -214,7 +214,7 @@ export async function updateProgram(data: {
     body: `${user.name}: ${parsed.data.title}`,
     href: `/trips/${parsed.data.tripId}?tab=planning`,
   });
-  await invalidateTripAudience(parsed.data.tripId);
+  invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: undefined };
 }
 
@@ -254,6 +254,6 @@ export async function deleteProgram(id: string): Promise<ActionResult> {
     body: `${user.name}: ${program.title}`,
     href: `/trips/${program.tripId}?tab=planning`,
   });
-  await invalidateTripAudience(program.tripId);
+  invalidateTripAudience(program.tripId, user.id);
   return { success: true, data: undefined };
 }
