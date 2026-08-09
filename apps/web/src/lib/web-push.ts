@@ -56,6 +56,7 @@ function getPushDelegate() {
         findMany: (args: unknown) => Promise<
           Array<{
             id: string;
+            userId: string;
             endpoint: string;
             p256dh: string;
             auth: string;
