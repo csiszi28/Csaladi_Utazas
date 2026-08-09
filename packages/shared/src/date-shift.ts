@@ -1,11 +1,7 @@
 import { parseDate, formatDate } from "./date";
 
 export function dayOffsetMs(from: Date, to: Date): number {
-  const fromDay = new Date(from);
-  fromDay.setHours(0, 0, 0, 0);
-  const toDay = new Date(to);
-  toDay.setHours(0, 0, 0, 0);
-  return toDay.getTime() - fromDay.getTime();
+  return parseDate(to).getTime() - parseDate(from).getTime();
 }
 
 export function shiftDateString(dateStr: string, offsetMs: number): string {
@@ -14,5 +10,5 @@ export function shiftDateString(dateStr: string, offsetMs: number): string {
 }
 
 export function shiftDateValue(date: Date, offsetMs: number): Date {
-  return new Date(date.getTime() + offsetMs);
+  return parseDate(new Date(parseDate(date).getTime() + offsetMs));
 }

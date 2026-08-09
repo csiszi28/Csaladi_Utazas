@@ -58,7 +58,7 @@ export function LocationAutocomplete({
 
     debounceRef.current = setTimeout(() => {
       startTransition(async () => {
-        const result = await searchLocations(q, 5);
+        const result = await searchLocations(q, 8);
         if (!result.success) {
           setError(result.error);
           setHits([]);
@@ -68,7 +68,7 @@ export function LocationAutocomplete({
         setHits(result.data);
         setOpen(result.data.length > 0);
       });
-    }, 450);
+    }, 320);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

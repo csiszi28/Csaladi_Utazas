@@ -56,6 +56,9 @@ export async function createTransport(data: {
   }
 
   const arrivalDate = parsed.data.arrivalDate ? parseDate(parsed.data.arrivalDate) : null;
+  if (arrivalDate && !isDateInRange(arrivalDate, access.trip.startDate, access.trip.endDate)) {
+    return { success: false, error: "Az érkezés dátuma az utazás időtartamán belül kell legyen" };
+  }
 
   const linkedCost =
     data.cost && data.cost.amount > 0
@@ -161,6 +164,9 @@ export async function updateTransport(data: {
   }
 
   const arrivalDate = parsed.data.arrivalDate ? parseDate(parsed.data.arrivalDate) : null;
+  if (arrivalDate && !isDateInRange(arrivalDate, access.trip.startDate, access.trip.endDate)) {
+    return { success: false, error: "Az érkezés dátuma az utazás időtartamán belül kell legyen" };
+  }
 
   const existing = await prisma.transport.findFirst({
     where: { id: parsed.data.id, tripId: parsed.data.tripId },

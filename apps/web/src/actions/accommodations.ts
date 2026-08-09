@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@csaladi-utazas/database";
-import { isDateInRange, parseDate, accommodationSchema, updateAccommodationSchema } from "@csaladi-utazas/shared";
+import { isDateInRange, parseDate, formatDate, accommodationSchema, updateAccommodationSchema } from "@csaladi-utazas/shared";
 import { requireUser } from "@/lib/auth";
 import { invalidateTripAudience } from "@/lib/revalidate-app-data";
 import type { ActionResult } from "./auth";
@@ -29,7 +29,7 @@ function validateStayDates(
   tripStart: Date,
   tripEnd: Date
 ): string | null {
-  if (checkOut <= checkIn) {
+  if (formatDate(checkOut) <= formatDate(checkIn)) {
     return "A kijelentkezés dátuma későbbi kell legyen a bejelentkezésnél";
   }
   if (!isDateInRange(checkIn, tripStart, tripEnd)) {

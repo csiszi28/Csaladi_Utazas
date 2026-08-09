@@ -15,7 +15,7 @@ import {
 } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 import { requireEditableTrip, requireTripEditor, tripAccessFilter } from "@/lib/trip-access";
-import { isDateInRange, parseDate } from "@csaladi-utazas/shared";
+import { isDateInRange, parseDate, formatDate } from "@csaladi-utazas/shared";
 import { recordTripActivity } from "@/lib/trip-activity";
 import { notifyTripAudience } from "@/lib/trip-notifications";
 
@@ -33,7 +33,7 @@ function validateIdeaStayDatesWithTrip(
   if (!checkInDate || !checkOutDate) {
     return "A be- és kijelentkezés dátuma együtt kötelező";
   }
-  if (checkOutDate <= checkInDate) {
+  if (formatDate(checkOutDate) <= formatDate(checkInDate)) {
     return "A kijelentkezés dátuma későbbi kell legyen a bejelentkezésnél";
   }
   if (!isDateInRange(checkInDate, trip.startDate, trip.endDate)) {

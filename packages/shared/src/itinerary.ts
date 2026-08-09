@@ -1,4 +1,4 @@
-import { formatDate } from "./date";
+import { formatDate, parseDate } from "./date";
 
 export type ItineraryItemKind =
   | "program"
@@ -44,12 +44,8 @@ export interface ItineraryItem {
   entityId: string;
 }
 
-function asDate(value: Date | string): Date {
-  return typeof value === "string" ? new Date(value) : value;
-}
-
 function dayKey(value: Date | string): string {
-  return formatDate(asDate(value));
+  return formatDate(value);
 }
 
 function timeSort(time: string | null | undefined): string {
@@ -131,16 +127,13 @@ export function buildDayItinerary(
 
 /** All YYYY.MM.DD days from trip start to end (inclusive). */
 export function listTripDays(startDate: Date | string, endDate: Date | string): string[] {
-  const start = asDate(startDate);
-  const end = asDate(endDate);
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
-
+  const startKey = formatDate(startDate);
+  const endKey = formatDate(endDate);
   const days: string[] = [];
-  const cursor = new Date(start);
-  while (cursor.getTime() <= end.getTime()) {
+  let cursor = parseDate(startKey);
+  while (formatDate(cursor) <= endKey) {
     days.push(formatDate(cursor));
-    cursor.setDate(cursor.getDate() + 1);
+    cursor = new Date(cursor.getTime() + 86_400_000);
   }
   return days;
 }

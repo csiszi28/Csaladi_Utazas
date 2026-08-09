@@ -9,6 +9,7 @@ import {
 } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -338,11 +339,12 @@ export function AccommodationFormDrawer({
 
           <div className="space-y-1.5">
             <Label>Megjegyzés (opcionális)</Label>
-            <textarea
+            <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
-              className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex max-h-[4.5rem] min-h-[4.5rem] w-full resize-none overflow-y-auto rounded-md border px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              autoComplete="off"
+              className="max-h-[4.5rem] min-h-[4.5rem] resize-none overflow-y-auto"
             />
           </div>
 

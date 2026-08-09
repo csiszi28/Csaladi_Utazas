@@ -232,6 +232,8 @@ export function TransportFormDrawer({
                 <DatePicker
                   value={departureDate}
                   onChange={setDepartureDate}
+                  minDate={tripStartDate}
+                  maxDate={tripEndDate}
                   inDialog
                   className="min-h-[var(--touch-target)] w-full md:min-h-9"
                 />
@@ -254,6 +256,8 @@ export function TransportFormDrawer({
                 <DatePicker
                   value={arrivalDate}
                   onChange={setArrivalDate}
+                  minDate={departureDate || tripStartDate}
+                  maxDate={tripEndDate}
                   inDialog
                   className="min-h-[var(--touch-target)] w-full md:min-h-9"
                 />

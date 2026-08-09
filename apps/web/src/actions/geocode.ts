@@ -32,6 +32,7 @@ export type NearbyPlace = {
 type GeocodeCacheEntry = { hits: GeocodeHit[]; expiresAt: number };
 const geocodeMemoryCache = new Map<string, GeocodeCacheEntry>();
 const GEOCODE_TTL_MS = 1000 * 60 * 60 * 12;
+const GEOCODE_EMPTY_TTL_MS = 1000 * 45;
 const GEOCODE_CACHE_MAX = 200;
 
 function normalizeGeocodeQuery(query: string) {
@@ -62,7 +63,8 @@ function writeGeocodeCache(query: string, limit: number, hits: GeocodeHit[]) {
   }
   geocodeMemoryCache.set(key, {
     hits,
-    expiresAt: Date.now() + GEOCODE_TTL_MS,
+    // Üres találatot ne cache-eljük órákig — rate-limit / átmeneti hiba esetén újrapróbálható
+    expiresAt: Date.now() + (hits.length > 0 ? GEOCODE_TTL_MS : GEOCODE_EMPTY_TTL_MS),
   });
 }
 
@@ -89,8 +91,6 @@ function pickNominatimDisplayName(row: {
   if (details) {
     const preferred =
       details["name:hu"] || details["name:en"] || details.int_name || details.name;
-    // If Nominatim already localized display_name, keep the full address path.
-    // Only swap when the primary name exists in a preferred language and differs.
     if (preferred && details.name && preferred !== details.name) {
       return row.display_name.replace(details.name, preferred);
     }
@@ -98,13 +98,46 @@ function pickNominatimDisplayName(row: {
   return row.display_name;
 }
 
-async function nominatimSearch(
-  query: string,
-  limit: number
-): Promise<GeocodeHit[]> {
-  const cached = readGeocodeCache(query, limit);
-  if (cached) return cached;
+function dedupeHits(hits: GeocodeHit[]): GeocodeHit[] {
+  const seen = new Set<string>();
+  const out: GeocodeHit[] = [];
+  for (const hit of hits) {
+    if (!Number.isFinite(hit.lat) || !Number.isFinite(hit.lng)) continue;
+    const key = `${hit.lat.toFixed(5)},${hit.lng.toFixed(5)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(hit);
+  }
+  return out;
+}
 
+/** Lekérdezési változatok: hotel prefix, vessző nélküli, rövidebb első szegmens */
+function buildQueryVariants(query: string): string[] {
+  const trimmed = query.trim().replace(/\s+/g, " ");
+  if (!trimmed) return [];
+
+  const variants: string[] = [trimmed];
+
+  const withoutHotelNoise = trimmed
+    .replace(/^(hotel|hostel|appart?amento|apartment|apartman|resort|villa|Airbnb)\s+/i, "")
+    .trim();
+  if (withoutHotelNoise && withoutHotelNoise !== trimmed) {
+    variants.push(withoutHotelNoise);
+  }
+
+  if (trimmed.includes(",")) {
+    const noComma = trimmed.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+    if (noComma) variants.push(noComma);
+    const firstSeg = trimmed.split(",")[0]?.trim();
+    if (firstSeg && firstSeg.length >= 3 && firstSeg !== trimmed) {
+      variants.push(firstSeg);
+    }
+  }
+
+  return [...new Set(variants)];
+}
+
+async function nominatimSearchOnce(query: string, limit: number): Promise<GeocodeHit[]> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
@@ -119,7 +152,7 @@ async function nominatimSearch(
       Accept: "application/json",
       "Accept-Language": NOMINATIM_LANG,
     },
-    next: { revalidate: 86400 },
+    cache: "no-store",
   });
   if (!res.ok) return [];
 
@@ -130,11 +163,81 @@ async function nominatimSearch(
     namedetails?: Record<string, string>;
   }>;
 
-  const hits = data.map((row) => ({
+  return data.map((row) => ({
     lat: Number(row.lat),
     lng: Number(row.lon),
     displayName: pickNominatimDisplayName(row),
   }));
+}
+
+async function photonSearchOnce(query: string, limit: number): Promise<GeocodeHit[]> {
+  const url = new URL("https://photon.komoot.io/api/");
+  url.searchParams.set("q", query);
+  url.searchParams.set("lang", "hu");
+  url.searchParams.set("limit", String(Math.min(limit, 8)));
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      "User-Agent": NOMINATIM_UA,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+
+  const json = (await res.json()) as {
+    features?: Array<{
+      geometry?: { coordinates?: [number, number] };
+      properties?: {
+        name?: string;
+        street?: string;
+        housenumber?: string;
+        city?: string;
+        town?: string;
+        village?: string;
+        state?: string;
+        country?: string;
+      };
+    }>;
+  };
+
+  return (json.features ?? []).flatMap((feature) => {
+    const coords = feature.geometry?.coordinates;
+    if (!coords || coords.length < 2) return [];
+    const [lng, lat] = coords;
+    const p = feature.properties ?? {};
+    const parts = [
+      [p.name, p.housenumber ? `${p.street ?? ""} ${p.housenumber}`.trim() : p.street]
+        .filter(Boolean)
+        .join(", "),
+      p.city || p.town || p.village,
+      p.state,
+      p.country,
+    ].filter((part) => Boolean(part && String(part).trim()));
+    const displayName = parts.join(", ") || p.name || query;
+    return [{ lat, lng, displayName }];
+  });
+}
+
+async function nominatimSearch(query: string, limit: number): Promise<GeocodeHit[]> {
+  const cached = readGeocodeCache(query, limit);
+  if (cached) return cached;
+
+  const variants = buildQueryVariants(query);
+  let hits: GeocodeHit[] = [];
+
+  for (const variant of variants) {
+    hits = dedupeHits(await nominatimSearchOnce(variant, limit));
+    if (hits.length > 0) break;
+  }
+
+  if (hits.length === 0) {
+    for (const variant of variants) {
+      hits = dedupeHits(await photonSearchOnce(variant, limit));
+      if (hits.length > 0) break;
+    }
+  }
+
   writeGeocodeCache(query, limit, hits);
   return hits;
 }
@@ -157,14 +260,27 @@ export async function searchLocations(
   }
 }
 
-export async function geocodeLocation(query: string): Promise<
-  ActionResult<{ lat: number; lng: number; displayName: string }>
-> {
-  const result = await searchLocations(query, 1);
-  if (!result.success) return result;
-  const first = result.data[0];
-  if (!first) return { success: false, error: "Nincs találat erre a címre" };
-  return { success: true, data: first };
+export async function geocodeLocation(
+  query: string,
+  context?: string | null
+): Promise<ActionResult<{ lat: number; lng: number; displayName: string }>> {
+  const base = query.trim();
+  if (!base) return { success: false, error: "Nincs megadott helyszín" };
+
+  const attempts = [base];
+  const bias = context?.trim();
+  if (bias && !base.toLowerCase().includes(bias.toLowerCase())) {
+    attempts.unshift(`${base}, ${bias}`);
+  }
+
+  for (const attempt of attempts) {
+    const result = await searchLocations(attempt, 3);
+    if (!result.success) continue;
+    const first = result.data[0];
+    if (first) return { success: true, data: first };
+  }
+
+  return { success: false, error: "Nincs találat erre a címre" };
 }
 
 export async function ensureEntityCoords(data: {
@@ -176,7 +292,14 @@ export async function ensureEntityCoords(data: {
   if (data.entityType === "program") {
     const program = await prisma.program.findFirst({
       where: { id: data.entityId },
-      select: { id: true, tripId: true, location: true, lat: true, lng: true },
+      select: {
+        id: true,
+        tripId: true,
+        location: true,
+        lat: true,
+        lng: true,
+        trip: { select: { destination: true } },
+      },
     });
     if (!program) return { success: false, error: "Program nem található" };
     const trip = await findAccessibleTrip(program.tripId, user.id);
@@ -189,7 +312,7 @@ export async function ensureEntityCoords(data: {
       return { success: false, error: "Nincs megadott helyszín" };
     }
 
-    const geo = await geocodeLocation(program.location);
+    const geo = await geocodeLocation(program.location, program.trip.destination);
     if (!geo.success) return geo;
 
     const access = await requireTripEditor(program.tripId, user.id);
@@ -207,7 +330,15 @@ export async function ensureEntityCoords(data: {
   if (data.entityType === "accommodation") {
     const accommodation = await prisma.accommodation.findFirst({
       where: { id: data.entityId },
-      select: { id: true, tripId: true, location: true, lat: true, lng: true, title: true },
+      select: {
+        id: true,
+        tripId: true,
+        location: true,
+        lat: true,
+        lng: true,
+        title: true,
+        trip: { select: { destination: true } },
+      },
     });
     if (!accommodation) return { success: false, error: "Szállás nem található" };
     const trip = await findAccessibleTrip(accommodation.tripId, user.id);
@@ -218,7 +349,7 @@ export async function ensureEntityCoords(data: {
     }
 
     const query = accommodation.location?.trim() || accommodation.title;
-    const geo = await geocodeLocation(query);
+    const geo = await geocodeLocation(query, accommodation.trip.destination);
     if (!geo.success) return geo;
 
     const access = await requireTripEditor(accommodation.tripId, user.id);
@@ -412,7 +543,12 @@ export async function resetEntityCoordsToAddress(data: {
   if (entityType === "program") {
     const program = await prisma.program.findFirst({
       where: { id: entityId },
-      select: { id: true, tripId: true, location: true },
+      select: {
+        id: true,
+        tripId: true,
+        location: true,
+        trip: { select: { destination: true } },
+      },
     });
     if (!program) return { success: false, error: "Program nem található" };
     const access = await requireTripEditor(program.tripId, user.id);
@@ -426,7 +562,7 @@ export async function resetEntityCoordsToAddress(data: {
       data: { lat: null, lng: null },
     });
 
-    const geo = await geocodeLocation(program.location);
+    const geo = await geocodeLocation(program.location, program.trip.destination);
     if (!geo.success) return geo;
 
     await prisma.program.update({
@@ -440,7 +576,13 @@ export async function resetEntityCoordsToAddress(data: {
   if (entityType === "accommodation") {
     const accommodation = await prisma.accommodation.findFirst({
       where: { id: entityId },
-      select: { id: true, tripId: true, location: true, title: true },
+      select: {
+        id: true,
+        tripId: true,
+        location: true,
+        title: true,
+        trip: { select: { destination: true } },
+      },
     });
     if (!accommodation) return { success: false, error: "Szállás nem található" };
     const access = await requireTripEditor(accommodation.tripId, user.id);
@@ -456,7 +598,7 @@ export async function resetEntityCoordsToAddress(data: {
       data: { lat: null, lng: null },
     });
 
-    const geo = await geocodeLocation(query);
+    const geo = await geocodeLocation(query, accommodation.trip.destination);
     if (!geo.success) return geo;
 
     await prisma.accommodation.update({

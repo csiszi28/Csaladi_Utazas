@@ -460,7 +460,7 @@ export const importIcalProgramsSchema = z.object({
 
 export const geocodeLocationSchema = z.object({
   query: z.string().min(1).max(300),
-  limit: z.number().int().min(1).max(8).optional().default(5),
+  limit: z.number().int().min(1).max(10).optional().default(5),
 });
 
 export const updateEntityCoordsSchema = z.object({

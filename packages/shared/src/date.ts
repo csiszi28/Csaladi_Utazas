@@ -1,16 +1,34 @@
 const DATE_FORMAT_REGEX = /^(\d{4})\.(\d{2})\.(\d{2})$/;
-const ISO_DAY_REGEX = /^(\d{4})-(\d{2})-(\d{2})/;
+const ISO_DAY_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+/**
+ * Naptári nap kinyerése DateTime-ből, szerver TZ-től függetlenül.
+ * - UTC éjfél / UTC dél (új parseDate) → UTC nap
+ * - Régi „helyi éjfél” (pl. T22:00Z / T23:00Z) → +12h trükk
+ */
 function calendarPartsFromDate(d: Date): { year: number; month: number; day: number } {
+  const hour = d.getUTCHours();
+  if (hour === 0 || hour === 12) {
+    return {
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth() + 1,
+      day: d.getUTCDate(),
+    };
+  }
+  const shifted = new Date(d.getTime() + 12 * 60 * 60 * 1000);
   return {
-    year: d.getFullYear(),
-    month: d.getMonth() + 1,
-    day: d.getDate(),
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
   };
 }
 
 function formatParts(year: number, month: number, day: number): string {
   return `${year}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}`;
+}
+
+function utcNoon(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 }
 
 /**
@@ -19,12 +37,14 @@ function formatParts(year: number, month: number, day: number): string {
  */
 export function formatDate(date: Date | string): string {
   if (typeof date === "string") {
-    const dotted = DATE_FORMAT_REGEX.exec(date.trim());
+    const trimmed = date.trim();
+    const dotted = DATE_FORMAT_REGEX.exec(trimmed);
     if (dotted) return dotted[0];
 
-    const isoDay = ISO_DAY_REGEX.exec(date.trim());
-    if (isoDay) {
-      return formatParts(Number(isoDay[1]), Number(isoDay[2]), Number(isoDay[3]));
+    // Csak tiszta YYYY-MM-DD (idő nélkül) — ne az ISO datetime prefixét
+    const isoDayOnly = ISO_DAY_REGEX.exec(trimmed);
+    if (isoDayOnly) {
+      return formatParts(Number(isoDayOnly[1]), Number(isoDayOnly[2]), Number(isoDayOnly[3]));
     }
   }
 
@@ -37,32 +57,34 @@ export function formatDate(date: Date | string): string {
 }
 
 /**
- * YYYY.MM.DD / YYYY-MM-DD / ISO / Date → helyi naptári Date (éjfél).
- * Nem dob hibát ismert formátumokra; ismeretlennél Invalid Date helyett safe fallback.
+ * YYYY.MM.DD / YYYY-MM-DD / ISO / Date → stabil naptári Date (UTC dél).
+ * Szerver és kliens ugyanazt a naptári napot kapja, TZ-től függetlenül.
  */
 export function parseDate(dateStr: string | Date): Date {
   if (dateStr instanceof Date) {
     if (Number.isNaN(dateStr.getTime())) {
-      return new Date(1970, 0, 1);
+      return utcNoon(1970, 1, 1);
     }
-    return new Date(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
+    const { year, month, day } = calendarPartsFromDate(dateStr);
+    return utcNoon(year, month, day);
   }
 
   const raw = dateStr.trim();
   const dotted = DATE_FORMAT_REGEX.exec(raw);
   if (dotted) {
     const [, year, month, day] = dotted;
-    return new Date(Number(year), Number(month) - 1, Number(day));
+    return utcNoon(Number(year), Number(month), Number(day));
   }
 
-  const isoDay = ISO_DAY_REGEX.exec(raw);
-  if (isoDay) {
-    return new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]));
+  const isoDayOnly = ISO_DAY_REGEX.exec(raw);
+  if (isoDayOnly) {
+    return utcNoon(Number(isoDayOnly[1]), Number(isoDayOnly[2]), Number(isoDayOnly[3]));
   }
 
   const parsed = new Date(raw);
   if (!Number.isNaN(parsed.getTime())) {
-    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    const { year, month, day } = calendarPartsFromDate(parsed);
+    return utcNoon(year, month, day);
   }
 
   throw new Error(`Invalid date format: ${dateStr}. Expected YYYY.MM.DD`);
@@ -83,36 +105,35 @@ export function getMonogram(name: string): string {
 }
 
 export function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return formatDate(a) === formatDate(b);
 }
 
-export function isDateInRange(date: Date, start: Date, end: Date): boolean {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+/** Inclusive: a trip kezdő és utolsó napja is érvényes. */
+export function isDateInRange(date: Date | string, start: Date | string, end: Date | string): boolean {
+  const d = formatDate(date);
+  const s = formatDate(start);
+  const e = formatDate(end);
   return d >= s && d <= e;
 }
 
 export function getDaysInMonth(year: number, month: number): Date[] {
   const days: Date[] = [];
-  const date = new Date(year, month, 1);
-  while (date.getMonth() === month) {
+  const date = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
+  while (date.getUTCMonth() === month - 1) {
     days.push(new Date(date));
-    date.setDate(date.getDate() + 1);
+    date.setUTCDate(date.getUTCDate() + 1);
   }
   return days;
 }
 
 export function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
+  const { year, month } = calendarPartsFromDate(date);
+  return utcNoon(year, month, 1);
 }
 
 export function endOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  const { year, month } = calendarPartsFromDate(date);
+  return utcNoon(year, month + 1, 0);
 }
 
 /** Idő mező gépelés közben: csak számjegy, automatikus „:” a perc elé. */
