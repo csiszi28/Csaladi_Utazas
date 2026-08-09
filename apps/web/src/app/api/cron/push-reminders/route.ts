@@ -158,6 +158,7 @@ export async function GET(request: Request) {
   const dayKey = new Date().toISOString().slice(0, 10);
   const users = await listUsersWithPushSubscriptions();
   let sentUsers = 0;
+  let sentNotifications = 0;
 
   for (const { userId, subscriptions } of users) {
     const needsDigest = subscriptions.some((s) => s.lastDigestDay !== dayKey);
@@ -173,26 +174,35 @@ export async function GET(request: Request) {
         continue;
       }
 
-      const first = reminders[0]!;
-      const title =
-        reminders.length === 1 ? first.title : `${reminders.length} emlékeztető`;
-      const body =
-        reminders.length === 1
-          ? first.body
-          : reminders
-              .slice(0, 3)
-              .map((r) => r.title)
-              .join(" · ");
+      // Egyenként küldjük OS-értesítésként (ne egy „emlékeztető” összesítőként).
+      const batch = reminders.slice(0, 5);
+      let userSent = 0;
+      for (const reminder of batch) {
+        const sent = await sendPushToUser(userId, {
+          title: reminder.title,
+          body: reminder.body,
+          href: reminder.href,
+          tag: `reminder:${reminder.key}`,
+          category: "reminders",
+        });
+        userSent += sent;
+        sentNotifications += sent;
+      }
 
-      const sent = await sendPushToUser(userId, {
-        title,
-        body,
-        href: first.href,
-        tag: `digest-${dayKey}`,
-        category: "reminders",
-      });
+      if (reminders.length > batch.length) {
+        const more = reminders.length - batch.length;
+        const sent = await sendPushToUser(userId, {
+          title: "További értesítések",
+          body: `Még ${more} tennivaló vár az appban.`,
+          href: "/",
+          tag: `digest-more-${dayKey}`,
+          category: "reminders",
+        });
+        userSent += sent;
+        sentNotifications += sent;
+      }
 
-      if (sent > 0) {
+      if (userSent > 0) {
         sentUsers += 1;
         await markDigestSent(
           subscriptions.map((s) => s.id),
@@ -209,5 +219,6 @@ export async function GET(request: Request) {
     dayKey,
     users: users.length,
     sentUsers,
+    sentNotifications,
   });
 }

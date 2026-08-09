@@ -231,7 +231,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           },
           body,
-          { TTL: 60 * 60 * 12, urgency: "normal" }
+          { TTL: 60 * 60 * 24, urgency: "high" }
         );
         sent += 1;
       } catch (error) {

@@ -21,8 +21,8 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<
   { title: string; description: string }
 > = {
   reminders: {
-    title: "Emlékeztetők",
-    description: "Közelgő út, holnapi program, teendők",
+    title: "Értesítések / teendők",
+    description: "Közelgő út, holnapi program, napi tennivalók (háttér-push)",
   },
   programs: {
     title: "Programok",

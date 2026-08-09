@@ -18,16 +18,13 @@ import {
 import { dismissReminder, dismissAllReminders, getUserReminders } from "@/actions/feature-pack";
 import {
   NOTIFICATION_PREF_CHANGE_EVENT,
-  canShowBrowserNotifications,
   getBrowserNotificationsEnabled,
   getNotificationPermission,
-  isNotificationCategoryEnabled,
   type BrowserNotificationSupport,
 } from "@/lib/notification-prefs";
 import { enablePushNotifications } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 
-const NOTIFIED_DAY_KEY = "fam-reminders-notified-day";
 const SEEN_KEYS_STORAGE = "fam-reminders-seen-keys";
 const PUSH_PROMPT_DISMISSED_KEY = "fam-reminders-push-prompt-dismissed";
 
@@ -104,7 +101,11 @@ export function RemindersBell({
     if (result.permission === "granted") {
       dismissPushPrompt();
       setShowPushPrompt(false);
-      toast.success(result.message ?? "Értesítések bekapcsolva");
+      toast.success(
+        result.subscribed
+          ? (result.message ?? "Értesítések bekapcsolva — a telefon zárolva is jelez.")
+          : (result.message ?? "Értesítések bekapcsolva")
+      );
     } else if (result.message) {
       toast.message(result.message, { duration: 8000 });
     }
@@ -139,64 +140,10 @@ export function RemindersBell({
   }
 
   function handleOpenChange(nextOpen: boolean) {
+    // A számláló csak akkor csökken, ha egy konkrét eseményt megnyitsz
+    // (vagy „Összes olvasott” / törlés) — a harang megnyitása NEM olvasottnak jelöl.
     setOpen(nextOpen);
-    if (nextOpen) {
-      markKeysSeen(visibleReminders.map((r) => r.key));
-    }
   }
-
-  useEffect(() => {
-    if (visibleReminders.length === 0) return;
-    if (!canShowBrowserNotifications()) return;
-    if (!isNotificationCategoryEnabled("reminders")) return;
-
-    const dayKey = new Date().toISOString().slice(0, 10);
-    const dedupeKey = `${dayKey}:${visibleReminders
-      .slice(0, 5)
-      .map((r) => r.key)
-      .join(",")}`;
-
-    try {
-      if (window.localStorage.getItem(NOTIFIED_DAY_KEY) === dedupeKey) return;
-      window.localStorage.setItem(NOTIFIED_DAY_KEY, dedupeKey);
-    } catch {
-      return;
-    }
-
-    const first = visibleReminders[0];
-    const title =
-      visibleReminders.length === 1 ? first.title : `${visibleReminders.length} emlékeztető`;
-    const body =
-      visibleReminders.length === 1
-        ? first.body
-        : visibleReminders
-            .slice(0, 3)
-            .map((r) => r.title)
-            .join(" · ");
-
-    async function showNotification() {
-      try {
-        const registration = await navigator.serviceWorker?.ready;
-        if (registration?.showNotification) {
-          await registration.showNotification(title, {
-            body,
-            tag: "fam-reminders",
-            data: { href: first.href },
-          });
-          return;
-        }
-      } catch {
-        /* fall through */
-      }
-      try {
-        new Notification(title, { body, tag: "fam-reminders" });
-      } catch {
-        /* ignore */
-      }
-    }
-
-    void showNotification();
-  }, [visibleReminders]);
 
   function handleDismiss(key: string) {
     setDismissing((prev) => new Set(prev).add(key));
@@ -235,7 +182,7 @@ export function RemindersBell({
         return;
       }
       void queryClient.invalidateQueries({ queryKey: ["reminders"] });
-      toast.success("Emlékeztetők törölve");
+      toast.success("Értesítések törölve");
     });
   }
 
@@ -258,7 +205,7 @@ export function RemindersBell({
           "text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground",
           "dark:text-white/60 dark:hover:bg-white/8 dark:hover:text-white"
         )}
-        aria-label={badgeCount > 0 ? `Emlékeztetők (${badgeCount})` : "Emlékeztetők"}
+        aria-label={badgeCount > 0 ? `Értesítések (${badgeCount})` : "Értesítések"}
       >
         <span
           className={cn(
@@ -269,7 +216,7 @@ export function RemindersBell({
         >
           <Bell className="h-4 w-4" />
         </span>
-        <span className="min-w-0 flex-1 text-left">Emlékeztetők</span>
+        <span className="min-w-0 flex-1 text-left">Értesítések</span>
         {badgeCount > 0 ? (
           <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[0.65rem] font-semibold leading-none text-destructive-foreground">
             {badgeCount > 9 ? "9+" : badgeCount}
@@ -302,11 +249,11 @@ export function RemindersBell({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Emlékeztetők</DialogTitle>
+            <DialogTitle>Értesítések</DialogTitle>
             <p className="mt-0.5 text-sm font-normal text-muted-foreground">
               {visibleReminders.length > 0
                 ? `${visibleReminders.length} tennivaló az utazásaidnál`
-                : "Nincs új emlékeztető"}
+                : "Nincs új értesítés"}
             </p>
           </DialogHeader>
 
@@ -322,7 +269,7 @@ export function RemindersBell({
                     Értesítések bekapcsolása
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    Háttérben is jelez, ha van teendő
+                    Zárolt képernyőn is jelez (PWA / böngésző push)
                   </span>
                 </button>
                 <Button

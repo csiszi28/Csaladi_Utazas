@@ -5,7 +5,8 @@
   "scripts": {
     "prebuild": "node scripts/sync-prisma-client.mjs",
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "next build && node scripts/append-sw-push.mjs",
+    "sw:append-push": "node scripts/append-sw-push.mjs",
     "start": "next start",
     "lint": "next lint",
     "icons:generate": "node scripts/generate-icons.mjs"
