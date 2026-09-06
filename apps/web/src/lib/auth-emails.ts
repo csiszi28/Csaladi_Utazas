@@ -144,12 +144,28 @@ async function generateAuthActionLink(opts: {
   redirectTo: string;
 }): Promise<{ ok: true; actionLink: string } | { ok: false; error: string }> {
   const supabase = await createServiceClient();
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: opts.type,
-    email: opts.email,
-    password: opts.password,
-    options: { redirectTo: opts.redirectTo },
-  });
+
+  const result =
+    opts.type === "signup"
+      ? await supabase.auth.admin.generateLink({
+          type: "signup",
+          email: opts.email,
+          password: opts.password || crypto.randomUUID(),
+          options: { redirectTo: opts.redirectTo },
+        })
+      : opts.type === "recovery"
+        ? await supabase.auth.admin.generateLink({
+            type: "recovery",
+            email: opts.email,
+            options: { redirectTo: opts.redirectTo },
+          })
+        : await supabase.auth.admin.generateLink({
+            type: "magiclink",
+            email: opts.email,
+            options: { redirectTo: opts.redirectTo },
+          });
+
+  const { data, error } = result;
 
   if (error) {
     return { ok: false, error: error.message };

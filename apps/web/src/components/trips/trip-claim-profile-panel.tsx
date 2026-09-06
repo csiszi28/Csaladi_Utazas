@@ -16,7 +16,7 @@ interface TripClaimProfilePanelProps {
     name: string;
     linkedUserId: string | null;
     /** Háztartás tulajdonosa (FamilyMember.userId). */
-    ownerUserId: string;
+    ownerUserId: string | null;
   }[];
 }
 

@@ -44,16 +44,19 @@ function AuthCallbackInner() {
           });
           if (error) throw error;
         } else if (token && type) {
-          const { error } = await supabase.auth.verifyOtp({
-            token,
-            type: type as
-              | "signup"
-              | "email"
-              | "recovery"
-              | "invite"
-              | "magiclink"
-              | "email_change",
-          });
+          const email = searchParams.get("email");
+          const otpType = type as
+            | "signup"
+            | "email"
+            | "recovery"
+            | "invite"
+            | "magiclink"
+            | "email_change";
+
+          // token + email = OTP; token email nélkül = legacy token_hash
+          const { error } = email
+            ? await supabase.auth.verifyOtp({ email, token, type: otpType })
+            : await supabase.auth.verifyOtp({ token_hash: token, type: otpType });
           if (error) throw error;
         } else if (typeof window !== "undefined" && window.location.hash.includes("access_token")) {
           const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
