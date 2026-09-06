@@ -14,6 +14,8 @@ model User {
   id                        String                       @id @default(uuid())
   email                     String                       @unique
   name                      String
+  avatarStoragePath         String?
+  avatarMimeType            String?
   members                   FamilyMember[]
   linkedProfiles            FamilyMember[]               @relation("LinkedFamilyProfile")
   pendingFamilyLinkRequests FamilyMember[]               @relation("PendingFamilyLink")
@@ -36,6 +38,7 @@ model FamilyMember {
   id                          String                     @id @default(uuid())
   name                        String
   email                       String?
+  isChild                     Boolean                    @default(false)
   userId                      String?
   user                        User?                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   linkedUserId                String?

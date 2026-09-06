@@ -46,6 +46,14 @@ const ReportsBarChart = dynamic(
   }
 );
 
+const TripCompareChart = dynamic(
+  () => import("@/components/reports/reports-charts").then((m) => m.TripCompareChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-[280px] animate-pulse rounded-xl border bg-muted/30" />,
+  }
+);
+
 type DetailTab = "person" | "day" | "program" | "settlement";
 
 const DETAIL_TABS: { id: DetailTab; label: string }[] = [
@@ -106,6 +114,7 @@ export function ReportsPage({ data }: { data: ReportsData }) {
   const defaultTripId = useMemo(() => pickDefaultTripId(tripBreakdowns), [tripBreakdowns]);
   const [selectedTripId, setSelectedTripId] = useState(defaultTripId);
   const [detailTab, setDetailTab] = useState<DetailTab>("person");
+  const [compareIds, setCompareIds] = useState<string[]>([]);
 
   const selectedTrip =
     tripBreakdowns.find((t) => t.tripId === selectedTripId) ?? tripBreakdowns[0] ?? null;
@@ -114,6 +123,34 @@ export function ReportsPage({ data }: { data: ReportsData }) {
   const totalHuf = selectedTrip?.totalHuf ?? 0;
   const totalParticipants = selectedTrip?.perPerson.length ?? 0;
   const perPersonCost = totalParticipants > 0 ? Math.round(totalHuf / totalParticipants) : 0;
+
+  const compareTrips = useMemo(() => {
+    const ids = compareIds.length > 0 ? compareIds : [];
+    return tripBreakdowns.filter((t) => ids.includes(t.tripId));
+  }, [tripBreakdowns, compareIds]);
+
+  const compareChartData = useMemo(
+    () =>
+      compareTrips.map((t) => {
+        const people = Math.max(1, t.perPerson.length);
+        const dayCount = Math.max(1, t.days.length);
+        return {
+          name: t.title.length > 18 ? `${t.title.slice(0, 16)}…` : t.title,
+          összesen: Math.round(t.totalHuf),
+          fejenként: Math.round(t.totalHuf / people),
+          naponként: Math.round(t.totalHuf / dayCount),
+        };
+      }),
+    [compareTrips]
+  );
+
+  function toggleCompareTrip(tripId: string) {
+    setCompareIds((prev) => {
+      if (prev.includes(tripId)) return prev.filter((id) => id !== tripId);
+      if (prev.length >= 4) return prev;
+      return [...prev, tripId];
+    });
+  }
 
   const topCategory = useMemo(() => {
     if (!categoryData.length) return null;
@@ -211,21 +248,79 @@ export function ReportsPage({ data }: { data: ReportsData }) {
             </Select>
           </div>
 
+          {tripBreakdowns.length > 1 ? (
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-xs font-medium text-muted-foreground">
+                Utazások összehasonlítása (max. 4)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {tripBreakdowns.map((t) => {
+                  const active = compareIds.includes(t.tripId);
+                  return (
+                    <button
+                      key={t.tripId}
+                      type="button"
+                      onClick={() => toggleCompareTrip(t.tripId)}
+                      aria-pressed={active}
+                      className={cn(
+                        "rounded-md border px-3 py-1.5 text-sm transition-colors",
+                        active
+                          ? "border-primary/40 bg-primary/10 text-foreground"
+                          : "border-border bg-background text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {t.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {selectedTrip && (
             <div className="flex flex-wrap gap-2 border-t pt-4">
-              <span className="rounded-full bg-background px-3 py-1 text-sm shadow-sm">
+              <span className="rounded-md bg-background px-3 py-1 text-sm shadow-sm">
                 {selectedTrip.title}
               </span>
-              <span className="rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">
+              <span className="rounded-md bg-muted px-3 py-1 text-sm text-muted-foreground">
                 {selectedTrip.startDate}
               </span>
-              <span className="rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">
+              <span className="rounded-md bg-muted px-3 py-1 text-sm text-muted-foreground">
                 {selectedTrip.costCount} költség
               </span>
             </div>
           )}
         </div>
       </section>
+
+      {compareTrips.length >= 2 ? (
+        <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <div className="border-b px-4 py-3 sm:px-5 sm:py-4">
+            <h3 className="font-semibold">Összehasonlítás</h3>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Összesen · fejenként · naponként (HUF)
+            </p>
+          </div>
+          <div className="space-y-4 p-4 sm:p-5">
+            <TripCompareChart data={compareChartData} />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {compareTrips.map((t) => {
+                const people = Math.max(1, t.perPerson.length);
+                const dayCount = Math.max(1, t.days.length);
+                return (
+                  <article key={t.tripId} className="rounded-xl border px-3 py-2.5 text-sm">
+                    <p className="font-medium">{t.title}</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {huf(t.totalHuf)} · {huf(Math.round(t.totalHuf / people))} / fő ·{" "}
+                      {huf(Math.round(t.totalHuf / dayCount))} / nap
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {storyText ? (
         <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">

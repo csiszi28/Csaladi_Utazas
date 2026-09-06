@@ -222,7 +222,12 @@ export function TripTransportsSection({
                       </p>
                     ) : null}
                     <div className="mt-2">
-                      <MonogramGroup names={t.participants.map((p) => p.familyMember.name)} />
+                      <MonogramGroup
+                        members={t.participants.map((p) => ({
+                          id: p.familyMember.id,
+                          name: p.familyMember.name,
+                        }))}
+                      />
                     </div>
                     {linkedCosts.length > 0 ? (
                       <div className="mt-2">

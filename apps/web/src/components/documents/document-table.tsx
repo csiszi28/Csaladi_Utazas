@@ -68,11 +68,11 @@ export function DocumentTable({
                 <p className="truncate font-medium">{doc.fileName}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                   {tripTitleByDocId?.get(doc.id) && (
-                    <span className="inline-flex max-w-full truncate rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                    <span className="inline-flex max-w-full truncate rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary">
                       {tripTitleByDocId.get(doc.id)}
                     </span>
                   )}
-                  <span className="inline-flex rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                  <span className="inline-flex rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
                     {doc.pending
                       ? "Feltöltés…"
                       : documentCategoryLabel(doc.category ?? "OTHER")}
@@ -154,7 +154,7 @@ export function DocumentTable({
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
-                    <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                    <span className="inline-flex rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
                       {doc.pending
                         ? "Feltöltés…"
                         : documentCategoryLabel(doc.category ?? "OTHER")}

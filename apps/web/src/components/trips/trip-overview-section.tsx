@@ -178,7 +178,7 @@ function activityVisual(type: string): { icon: LucideIcon; className: string } {
     case "COST_DELETED":
       return { icon: Trash2, className: "bg-destructive/10 text-destructive" };
     case "DOCUMENT_UPLOADED":
-      return { icon: FileText, className: "bg-slate-500/10 text-slate-700 dark:text-slate-300" };
+      return { icon: FileText, className: "bg-muted text-foreground" };
     case "DOCUMENT_DELETED":
       return { icon: Trash2, className: "bg-destructive/10 text-destructive" };
     case "PHOTO_UPLOADED":
@@ -825,7 +825,10 @@ export function TripOverviewSection({
                     <div className="min-w-0">
                       {program.participants.length > 0 ? (
                         <MonogramGroup
-                          names={program.participants.map((p) => p.familyMember.name)}
+                          members={program.participants.map((p) => ({
+                            id: p.familyMember.id,
+                            name: p.familyMember.name,
+                          }))}
                         />
                       ) : (
                         <span className="text-sm text-muted-foreground">–</span>
@@ -919,7 +922,10 @@ export function TripOverviewSection({
                       <div className="min-w-0">
                         {stay.participants.length > 0 ? (
                           <MonogramGroup
-                            names={stay.participants.map((p) => p.familyMember.name)}
+                            members={stay.participants.map((p) => ({
+                              id: p.familyMember.id,
+                              name: p.familyMember.name,
+                            }))}
                           />
                         ) : (
                           <span className="text-sm text-muted-foreground">–</span>

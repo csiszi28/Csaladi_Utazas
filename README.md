@@ -30,7 +30,7 @@ DIRECT_URL=
 
 1. Futtasd az [`packages/database/prisma/init.sql`](packages/database/prisma/init.sql) fájlt a Supabase SQL Editorban (táblák létrehozása).
 2. Ezután futtasd az [`packages/database/prisma/rls.sql`](packages/database/prisma/rls.sql) fájlt (biztonsági policy-k).
-3. Ha már létező adatbázisod van, futtasd a migrációs fájlokat is sorrendben (pl. [`migrate-budget-settlement.sql`](packages/database/prisma/migrate-budget-settlement.sql), [`migrate-features-7-12.sql`](packages/database/prisma/migrate-features-7-12.sql), [`migrate-expansion-pack.sql`](packages/database/prisma/migrate-expansion-pack.sql)).
+3. Ha már létező adatbázisod van, futtasd a migrációs fájlokat is sorrendben (pl. [`migrate-budget-settlement.sql`](packages/database/prisma/migrate-budget-settlement.sql), [`migrate-features-7-12.sql`](packages/database/prisma/migrate-features-7-12.sql), [`migrate-expansion-pack.sql`](packages/database/prisma/migrate-expansion-pack.sql), [`migrate-user-avatar.sql`](packages/database/prisma/migrate-user-avatar.sql)).
 
 **Alternatíva (Prisma CLI):** Add hozzá a `DATABASE_URL` és `DIRECT_URL` értékeket az `apps/web/.env.local` fájlhoz és a `packages/database/.env` fájlba is (ugyanazok az értékek). A jelszót a Supabase Dashboard → Project Settings → Database → Connection string menüpontban találod.
 

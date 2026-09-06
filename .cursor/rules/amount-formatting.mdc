@@ -1,0 +1,24 @@
+---
+description: Összeg mezők mindig ezres tagolással (hu-HU)
+alwaysApply: true
+---
+
+# Összeg mezők — ezres tagolás
+
+Minden összeg **beviteli mezőnél** használd a meglévő helper-eket:
+
+- `formatAmountInput(value)` — gépelés közben ezres tagolás
+- `parseAmountInput(value)` — mentéskor számra
+
+Import: `@csaladi-utazas/shared` (vagy a projekt meglévő re-exportja).
+
+Példa:
+
+```tsx
+onChange={(e) => setAmount(formatAmountInput(e.target.value))}
+const parsed = parseAmountInput(amount);
+```
+
+Megjelenített összegeknél: `toLocaleString("hu-HU")` + valuta (pl. `Ft`).
+
+Ne írj nyers `Number(raw)` parse-t szóköz/tagolás nélkül összegmezőkre.

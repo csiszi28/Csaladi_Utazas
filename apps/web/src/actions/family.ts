@@ -10,6 +10,7 @@ import {
   claimFamilyMemberSchema,
   linkFamilyMemberSchema,
   familyMemberLinkProposalSchema,
+  personNamesMatch,
 } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 import { findAccessibleTrip } from "@/lib/trip-access";
@@ -55,13 +56,20 @@ async function findUniqueAutoLinkCandidate(
 
   if (!userName.trim()) return null;
 
-  const nameCandidates = await prisma.familyMember.findMany({
-    where: {
-      ...baseWhere,
-      name: { equals: userName, mode: "insensitive" },
+  // Név-egyezés token-sorrendtől függetlenül („Attila Csiszár” ≡ „Csiszár Attila”)
+  const namePool = await prisma.familyMember.findMany({
+    where: baseWhere,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      userId: true,
+      linkedUserId: true,
+      pendingLinkUserId: true,
     },
   });
 
+  const nameCandidates = namePool.filter((m) => personNamesMatch(m.name, userName));
   if (nameCandidates.length !== 1) return null;
   return nameCandidates[0]!;
 }
@@ -134,6 +142,24 @@ async function finalizeFamilyMemberLink(familyMemberId: string, userId: string) 
   const tripIds = await getTripIdsForFamilyMember(familyMemberId);
   await grantCollaboratorAccess(userId, tripIds);
 
+  // Duplikált saját „én” sor eltávolítása az átvett profilt tartalmazó utazásokról
+  const selfProfiles = await prisma.familyMember.findMany({
+    where: {
+      userId,
+      linkedUserId: userId,
+      id: { not: familyMemberId },
+    },
+    select: { id: true },
+  });
+  if (selfProfiles.length > 0 && tripIds.length > 0) {
+    await prisma.tripParticipant.deleteMany({
+      where: {
+        tripId: { in: tripIds },
+        familyMemberId: { in: selfProfiles.map((s) => s.id) },
+      },
+    });
+  }
+
   invalidateFamilyAndCalendar(member.userId);
   invalidateFamilyAndCalendar(userId);
   for (const tripId of tripIds) {
@@ -189,6 +215,7 @@ export async function getOrCreateSelfFamilyMemberId(): Promise<string> {
 export async function createFamilyMember(data: {
   name: string;
   email?: string;
+  isChild?: boolean;
 }): Promise<
   ActionResult<{ id: string; matchedRegisteredUser: MatchedRegisteredUser | null }>
 > {
@@ -209,7 +236,11 @@ export async function createFamilyMember(data: {
       userId: user.id,
     },
   });
-
+  if (parsed.data.isChild) {
+    await prisma
+      .$executeRawUnsafe(`UPDATE "family_members" SET "isChild" = true WHERE "id" = $1`, member.id)
+      .catch(() => undefined);
+  }
   invalidateFamilyAndCalendar(user.id);
   return { success: true, data: { id: member.id, matchedRegisteredUser } };
 }
@@ -218,6 +249,7 @@ export async function updateFamilyMember(data: {
   id: string;
   name: string;
   email?: string;
+  isChild?: boolean;
 }): Promise<ActionResult<{ matchedRegisteredUser: MatchedRegisteredUser | null }>> {
   const user = await requireUser();
   const parsed = updateFamilyMemberSchema.safeParse(data);
@@ -251,6 +283,13 @@ export async function updateFamilyMember(data: {
       ...(emailChanged ? { pendingLinkUserId: null } : {}),
     },
   });
+  await prisma
+    .$executeRawUnsafe(
+      `UPDATE "family_members" SET "isChild" = $1 WHERE "id" = $2`,
+      parsed.data.isChild ?? false,
+      parsed.data.id
+    )
+    .catch(() => undefined);
 
   invalidateFamilyAndCalendar(user.id);
   return { success: true, data: { matchedRegisteredUser } };
@@ -608,10 +647,13 @@ export async function autoClaimMatchingProfile(
   const member = await findUniqueAutoLinkCandidate(userId, userEmail, userName, tripId);
   if (!member) return null;
 
-  return prisma.familyMember.update({
+  const updated = await prisma.familyMember.update({
     where: { id: member.id },
-    data: { linkedUserId: userId },
+    data: { linkedUserId: userId, pendingLinkUserId: null },
   });
+
+  await finalizeFamilyMemberLink(member.id, userId);
+  return updated;
 }
 
 /**
@@ -647,19 +689,7 @@ export async function autoLinkRegisteredUserToParticipantProfiles(
     data: { linkedUserId: userId, pendingLinkUserId: null },
   });
 
-  const tripIds = await getTripIdsForFamilyMember(member.id);
-  await grantCollaboratorAccess(userId, tripIds);
+  await finalizeFamilyMemberLink(member.id, userId);
 
-  if (member.userId) {
-    invalidateFamilyAndCalendar(member.userId);
-    for (const tripId of tripIds) {
-      invalidateTripsAndReports(member.userId, tripId);
-    }
-  }
-  invalidateFamilyAndCalendar(userId);
-  for (const tripId of tripIds) {
-    invalidateTripsAndReports(userId, tripId);
-  }
-
-  return { linkedMemberId: member.id, tripIds };
+  return { linkedMemberId: member.id, tripIds: await getTripIdsForFamilyMember(member.id) };
 }

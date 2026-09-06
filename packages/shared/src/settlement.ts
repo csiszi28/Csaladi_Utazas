@@ -98,21 +98,30 @@ export function buildTripSettlement(
   ctx: SettlementContext,
   rates: HufRateMap
 ): TripSettlement {
+  const adults = ctx.participants.filter((p) => !p.isChild);
+  const adultIdSet = new Set(adults.map((p) => p.id));
   const allIds = ctx.participants.map((p) => p.id);
+  const adultIds = adults.map((p) => p.id);
+
   const balanceMap = new Map<string, number>();
-  for (const p of ctx.participants) balanceMap.set(p.id, 0);
+  for (const p of adults) balanceMap.set(p.id, 0);
 
   const unsettledCosts: UnsettledCost[] = [];
   let settledCostCount = 0;
 
   for (const cost of ctx.costs) {
-    const ids = participantIdsForCost(
+    const rawIds = participantIdsForCost(
       cost,
       ctx.programs,
       ctx.accommodations ?? [],
       ctx.transports ?? [],
       allIds
     );
+    // Gyerekek nem kerülnek az elszámolásba — részesedésüket a felnőttek viszik
+    let ids = rawIds.filter((id) => adultIdSet.has(id));
+    if (ids.length === 0) ids = adultIds;
+    if (ids.length === 0) continue;
+
     const totalHuf = costTotalHuf(cost, Math.max(ids.length, 1), rates);
 
     if (!cost.paidByFamilyMemberId) {
@@ -123,17 +132,19 @@ export function buildTripSettlement(
     settledCostCount += 1;
     const shares = splitShare(totalHuf, Math.max(ids.length, 1));
 
-    balanceMap.set(
-      cost.paidByFamilyMemberId,
-      (balanceMap.get(cost.paidByFamilyMemberId) ?? 0) + totalHuf
-    );
+    // Ha gyerek „fizetett”, a tartozás nem náluk landol — első felnőtt kapja a creditet
+    const payerId = adultIdSet.has(cost.paidByFamilyMemberId)
+      ? cost.paidByFamilyMemberId
+      : ids[0];
+
+    balanceMap.set(payerId, (balanceMap.get(payerId) ?? 0) + totalHuf);
 
     ids.forEach((id, index) => {
       balanceMap.set(id, (balanceMap.get(id) ?? 0) - (shares[index] ?? 0));
     });
   }
 
-  const balances: PersonBalance[] = ctx.participants.map((p) => ({
+  const balances: PersonBalance[] = adults.map((p) => ({
     id: p.id,
     name: p.name,
     balanceHuf: Math.round(balanceMap.get(p.id) ?? 0),

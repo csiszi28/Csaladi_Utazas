@@ -50,7 +50,7 @@ export default function OfflinePage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate text-sm font-semibold">{snap.tripTitle}</p>
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                           Offline
                         </span>
                       </div>

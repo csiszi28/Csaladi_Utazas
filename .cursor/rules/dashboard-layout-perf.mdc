@@ -1,0 +1,15 @@
+---
+description: Dashboard layout soha ne blokkoljon avatar/signed URL miatt
+alwaysApply: true
+---
+
+# Layout betöltés — ne ragadjon be
+
+A `(dashboard)/layout.tsx` **kritikus útvonalán** tilos:
+
+- `resolveMemberAvatarUrls` / Supabase `createSignedUrl` megvárása
+- Extra DB lekérdezések csak avatar miatt (`fetchFamilyMembers` a layoutban)
+
+Avatar URL-ök legyenek üres map a layoutban, vagy külön, nem-blokkoló útvonalon (pl. beállítások / család oldal).
+
+Auth `redirect` hibát (`NEXT_REDIRECT` digest) **soha ne kapd el** try/catch-ben anélkül, hogy újradobnád.

@@ -4,8 +4,8 @@ import { fetchFamilyMembers } from "@/lib/queries/family";
 import { requireAuthUserId } from "@/lib/auth";
 
 export default async function HomePage() {
-  const [userId, trips, members] = await Promise.all([
-    requireAuthUserId(),
+  const userId = await requireAuthUserId();
+  const [trips, members] = await Promise.all([
     fetchCalendarTrips(),
     fetchFamilyMembers(),
   ]);

@@ -218,7 +218,7 @@ export function RemindersBell({
         </span>
         <span className="min-w-0 flex-1 text-left">Értesítések</span>
         {badgeCount > 0 ? (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[0.65rem] font-semibold leading-none text-destructive-foreground">
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-md bg-destructive px-1.5 text-[0.65rem] font-semibold leading-none text-destructive-foreground">
             {badgeCount > 9 ? "9+" : badgeCount}
           </span>
         ) : null}
@@ -235,7 +235,7 @@ export function RemindersBell({
       >
         <Bell className="h-4 w-4" />
         {badgeCount > 0 && (
-          <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[0.6rem] font-semibold leading-none text-destructive-foreground">
+          <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-md bg-destructive px-1 text-[0.6rem] font-semibold leading-none text-destructive-foreground">
             {badgeCount > 9 ? "9+" : badgeCount}
           </span>
         )}

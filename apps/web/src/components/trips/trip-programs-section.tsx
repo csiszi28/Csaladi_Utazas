@@ -669,7 +669,12 @@ export function TripProgramsSection({
                         </div>
                       </div>
                     ) : null}
-                    <MonogramGroup names={program.participants.map((p) => p.familyMember.name)} />
+                    <MonogramGroup
+                      members={program.participants.map((p) => ({
+                        id: p.familyMember.id,
+                        name: p.familyMember.name,
+                      }))}
+                    />
                   </div>
                 </CollapsiblePanel>
               );

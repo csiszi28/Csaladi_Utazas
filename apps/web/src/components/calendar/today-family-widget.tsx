@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { CalendarDays, MapPin, Plane, BedDouble } from "lucide-react";
-import { formatDate, isSameDay } from "@csaladi-utazas/shared";
+import { formatDate, isSameDay, isDateInRange, isAccommodationNight } from "@csaladi-utazas/shared";
 import type { CalendarTripRow } from "@/lib/queries/trips";
 import { cn } from "@/lib/utils";
 
@@ -11,26 +11,15 @@ interface TodayFamilyWidgetProps {
   className?: string;
 }
 
-function isAccommodationNight(day: Date, checkIn: Date | string, checkOut: Date | string) {
-  const d = new Date(day);
-  d.setHours(0, 0, 0, 0);
-  const start = new Date(checkIn);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(checkOut);
-  end.setHours(0, 0, 0, 0);
-  return d >= start && d < end;
-}
-
 export function TodayFamilyWidget({ trips, className }: TodayFamilyWidgetProps) {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   const dayTrips = trips.filter((t) => {
-    const start = new Date(t.startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(t.endDate);
-    end.setHours(0, 0, 0, 0);
-    return today >= start && today <= end;
+    if (isDateInRange(today, t.startDate, t.endDate)) return true;
+    if ((t.accommodations ?? []).some((a) => isAccommodationNight(today, a.checkIn, a.checkOut))) {
+      return true;
+    }
+    return t.programs.some((p) => isSameDay(new Date(p.date), today));
   });
 
   const programs = dayTrips.flatMap((t) =>
@@ -118,23 +107,20 @@ export function TodayFamilyWidget({ trips, className }: TodayFamilyWidgetProps) 
               <li key={program.id}>
                 <Link
                   href={`/trips/${program.tripId}?tab=planning&day=${formatDate(today)}`}
-                  className="block rounded-xl border px-3 py-2.5 transition-colors hover:bg-muted/30"
+                  className="flex items-start gap-2 rounded-lg px-1 py-1.5 hover:bg-muted/40"
                 >
-                  <div className="flex flex-wrap items-baseline justify-between gap-1">
-                    <p className="text-sm font-medium">{program.title}</p>
-                    {program.startTime ? (
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {program.startTime}
-                      </span>
+                  <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {program.startTime ? `${program.startTime} · ` : ""}
+                      {program.title}
+                    </p>
+                    {program.people.length > 0 ? (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {program.people.join(", ")}
+                      </p>
                     ) : null}
                   </div>
-                  {program.people.length > 0 ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {program.people.join(", ")}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-muted-foreground">{program.tripTitle}</p>
-                  )}
                 </Link>
               </li>
             ))}
@@ -142,45 +128,44 @@ export function TodayFamilyWidget({ trips, className }: TodayFamilyWidgetProps) 
         ) : null}
 
         {transports.length > 0 ? (
-          <ul className="space-y-1.5">
-            {transports.slice(0, 3).map((tr) => (
-              <li
-                key={tr.id}
-                className="flex items-start gap-2 rounded-lg bg-muted/20 px-3 py-2 text-sm"
-              >
-                <Plane className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1">
-                  <span className="font-medium">{tr.title}</span>
-                  {tr.time ? (
-                    <span className="text-muted-foreground"> · {tr.time}</span>
-                  ) : null}
-                  {tr.people.length > 0 ? (
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {tr.people.join(", ")}
-                    </span>
-                  ) : null}
-                </span>
+          <ul className="space-y-2">
+            {transports.slice(0, 3).map((transport) => (
+              <li key={transport.id}>
+                <Link
+                  href={`/trips/${transport.tripId}?tab=planning`}
+                  className="flex items-start gap-2 rounded-lg px-1 py-1.5 hover:bg-muted/40"
+                >
+                  <Plane className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {transport.time ? `${transport.time} · ` : ""}
+                      {transport.title}
+                    </p>
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>
         ) : null}
 
         {stays.length > 0 ? (
-          <ul className="space-y-1.5">
-            {stays.slice(0, 2).map((stay) => (
-              <li
-                key={stay.id}
-                className="flex items-start gap-2 rounded-lg bg-muted/20 px-3 py-2 text-sm"
-              >
-                <BedDouble className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1">
-                  <span className="font-medium">{stay.title}</span>
-                  {stay.people.length > 0 ? (
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {stay.people.join(", ")}
-                    </span>
-                  ) : null}
-                </span>
+          <ul className="space-y-2">
+            {stays.slice(0, 3).map((stay) => (
+              <li key={stay.id}>
+                <Link
+                  href={`/trips/${stay.tripId}?tab=stays`}
+                  className="flex items-start gap-2 rounded-lg px-1 py-1.5 hover:bg-muted/40"
+                >
+                  <BedDouble className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{stay.title}</p>
+                    {stay.people.length > 0 ? (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {stay.people.join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>

@@ -3,6 +3,7 @@ import type { Prisma } from "@csaladi-utazas/database";
 import {
   canEditTrip,
   normalizeCollaboratorRole,
+  personNamesMatch,
   type TripRole,
 } from "@csaladi-utazas/shared";
 
@@ -124,6 +125,9 @@ export async function ensureUserFamilyMembersOnTrip(
   userId: string,
   userName: string
 ) {
+  const { ensureSelfFamilyMember } = await import("@/lib/queries/family");
+  await ensureSelfFamilyMember(userId, userName);
+
   const alreadyRepresented = await prisma.tripParticipant.findFirst({
     where: {
       tripId,
@@ -149,7 +153,7 @@ export async function ensureUserFamilyMembersOnTrip(
   for (const member of members) {
     const isSelfProfile =
       member.linkedUserId === userId ||
-      (!member.linkedUserId && member.name.trim().toLowerCase() === userName.trim().toLowerCase());
+      (!member.linkedUserId && personNamesMatch(member.name, userName));
 
     // Ha a felhasználó már szerepel linked profilként, ne duplikáljuk a saját FM-jét
     if (
@@ -170,16 +174,57 @@ export async function ensureUserFamilyMembersOnTrip(
   }
 }
 
+/**
+ * Regisztrált közreműködő gyógyítása: ha nincs linked résztvevője az utazáson,
+ * visszateszi a saját „én” profilját (nem az egész háztartást).
+ * @returns true, ha résztvevőt kellett létrehozni / pótolni
+ */
+export async function ensureCollaboratorSelfOnTrip(
+  tripId: string,
+  userId: string,
+  userName: string
+): Promise<boolean> {
+  const { ensureSelfFamilyMember } = await import("@/lib/queries/family");
+  await ensureSelfFamilyMember(userId, userName);
+
+  const hasLinkedParticipant = await prisma.tripParticipant.findFirst({
+    where: {
+      tripId,
+      familyMember: { linkedUserId: userId },
+    },
+    select: { familyMemberId: true },
+  });
+  if (hasLinkedParticipant) return false;
+
+  const self = await prisma.familyMember.findFirst({
+    where: { userId, linkedUserId: userId },
+    select: { id: true },
+  });
+  if (!self) return false;
+
+  await prisma.tripParticipant.upsert({
+    where: {
+      tripId_familyMemberId: { tripId, familyMemberId: self.id },
+    },
+    create: { tripId, familyMemberId: self.id },
+    update: {},
+  });
+  return true;
+}
+
 /** Meghívott felhasználók automatikus résztvevővé tétele (TripParticipant). */
-export async function syncCollaboratorParticipants(tripId: string) {
+export async function syncCollaboratorParticipants(tripId: string): Promise<boolean> {
   const collaborators = await prisma.tripCollaborator.findMany({
     where: { tripId },
     select: { user: { select: { id: true, name: true } } },
   });
 
-  await Promise.all(
-    collaborators.map(({ user }) => ensureUserFamilyMembersOnTrip(tripId, user.id, user.name))
+  const results = await Promise.all(
+    collaborators.map(({ user }) =>
+      ensureCollaboratorSelfOnTrip(tripId, user.id, user.name)
+    )
   );
+  return results.some(Boolean);
 }
 
 export async function verifyDocumentAccess(documentId: string, userId: string) {

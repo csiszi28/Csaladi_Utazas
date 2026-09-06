@@ -14,6 +14,42 @@ function normalizePersonName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Token-rendezett egyezés: „Csiszár Attila” ≡ „Attila Csiszár”. */
+export function personNamesMatch(a: string, b: string): boolean {
+  const tokens = (s: string) =>
+    normalizePersonName(s)
+      .split(" ")
+      .filter(Boolean)
+      .sort()
+      .join(" ");
+  const left = tokens(a);
+  const right = tokens(b);
+  return left.length > 0 && left === right;
+}
+
+/**
+ * Az aktuális felhasználó „én” családtagja az utazáson.
+ * Csak linkedUserId számít — a háztartás userId-je minden családtagra igaz lenne.
+ * Ha van átvett (más háztartásbeli) profil is, azt részesítjük előnyben a saját „én” sorral szemben.
+ */
+export function resolveCurrentFamilyMemberId(
+  participants: Array<{
+    familyMember: {
+      id: string;
+      linkedUserId?: string | null;
+      userId?: string | null;
+    };
+  }>,
+  currentUserId: string
+): string | null {
+  const linked = participants.filter(
+    (p) => p.familyMember.linkedUserId === currentUserId
+  );
+  if (linked.length === 0) return null;
+  const external = linked.find((p) => p.familyMember.userId !== currentUserId);
+  return (external ?? linked[0])!.familyMember.id;
+}
+
 export type TripPeopleParticipantInput = {
   familyMember: {
     id: string;
@@ -96,21 +132,16 @@ export function buildUniqueTripPeople(input: {
   /** fm:* sorok beolvasztása user:* kulcs alá, ha ugyanaz a személy. */
   const absorbMatchingFmEntries = (userId: string, userName: string) => {
     const targetKey = tripPersonKey({ userId });
-    const normalizedUserName = normalizePersonName(userName);
     const toAbsorb: string[] = [];
 
     for (const [key, person] of byKey) {
       if (!key.startsWith("fm:") || !person.isParticipant) continue;
 
-      const fmName = normalizePersonName(person.name);
-      const nameOverlaps =
-        fmName === normalizedUserName ||
-        (fmName.length >= 3 && normalizedUserName.includes(fmName)) ||
-        (normalizedUserName.length >= 3 && fmName.includes(normalizedUserName));
+      const nameOverlaps = personNamesMatch(person.name, userName);
 
       const ownedSelfProfile = person.ownerUserId === userId && nameOverlaps;
       const unlinkedVirtualMatch =
-        !person.userId && person.ownerUserId !== userId && fmName === normalizedUserName;
+        !person.userId && person.ownerUserId !== userId && nameOverlaps;
 
       if (ownedSelfProfile || unlinkedVirtualMatch) {
         toAbsorb.push(key);

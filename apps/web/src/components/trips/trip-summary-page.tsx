@@ -118,7 +118,12 @@ export function TripSummaryPage({ trip, coverUrl, photos }: TripSummaryPageProps
           {trip.participants.length > 0 ? (
             <div className="space-y-1.5">
               <p className="text-sm font-medium text-muted-foreground">Résztvevők</p>
-              <MonogramGroup names={trip.participants.map((p) => p.familyMember.name)} />
+              <MonogramGroup
+                members={trip.participants.map((p) => ({
+                  id: p.familyMember.id,
+                  name: p.familyMember.name,
+                }))}
+              />
             </div>
           ) : null}
         </div>

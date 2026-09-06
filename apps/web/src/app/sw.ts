@@ -62,10 +62,17 @@ const serwist = new Serwist({
     },
     {
       matcher({ url }) {
-        return url.hostname.endsWith("tile.openstreetmap.org");
+        return (
+          url.hostname.endsWith("tile.openstreetmap.org") ||
+          url.hostname.endsWith("arcgisonline.com") ||
+          url.hostname.endsWith("basemaps.cartocdn.com") ||
+          url.hostname.endsWith("api.maptiler.com") ||
+          url.hostname.endsWith("google.com") ||
+          url.hostname.endsWith("googleapis.com")
+        );
       },
       handler: new CacheFirst({
-        cacheName: "osm-tiles",
+        cacheName: "map-tiles",
         plugins: [
           new CacheableResponsePlugin({ statuses: [0, 200] }),
           new ExpirationPlugin({

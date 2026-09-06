@@ -1,10 +1,11 @@
 export const SPLASH_KEY = "app-splash-seen-v2";
 export const SPLASH_BG = "#1a365d";
 
-export const SPLASH_DISPLAY_MS = 5000;
-export const SPLASH_ENTER_MS = 1000;
-export const SPLASH_FADE_MS = 1400;
-export const SPLASH_CONTENT_FADE_MS = 1400;
+/** Rövid, érzékelhető jelenlét — ne tartsa vissza a tartalmat 5 másodpercig. */
+export const SPLASH_DISPLAY_MS = 1600;
+export const SPLASH_ENTER_MS = 400;
+export const SPLASH_FADE_MS = 500;
+export const SPLASH_CONTENT_FADE_MS = 450;
 
 export function shouldShowSplash(): boolean {
   if (typeof window === "undefined") return false;

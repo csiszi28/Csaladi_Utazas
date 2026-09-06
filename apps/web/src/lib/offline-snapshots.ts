@@ -95,3 +95,119 @@ export async function prefetchOfflineDocuments(docs: OfflineDocItem[]): Promise<
   }
   return cached;
 }
+
+type DayApiPayload = {
+  trip: { id: string; title: string; destination: string };
+  day: string;
+  days: string[];
+  items: Array<{
+    title: string;
+    time: string | null;
+    endTime?: string | null;
+    kind: string;
+    location?: string | null;
+  }>;
+  packing: OfflinePackingItem[];
+  documents: OfflineDocItem[];
+};
+
+async function fetchDayPackage(
+  tripId: string,
+  day?: string
+): Promise<DayApiPayload | null> {
+  const qs = day ? `?date=${encodeURIComponent(day)}` : "";
+  try {
+    const res = await fetch(`/api/v1/trips/${tripId}/day${qs}`, {
+      credentials: "same-origin",
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { success: boolean; data?: DayApiPayload };
+    if (!json.success || !json.data) return null;
+    return json.data;
+  } catch {
+    return null;
+  }
+}
+
+export type PrefetchTripOfflineResult = {
+  daysSaved: number;
+  docsCached: number;
+  dayCount: number;
+};
+
+/**
+ * Utazás napcsomagjainak előtöltése (SW NetworkFirst + localStorage + doksi cache).
+ * Egyszerre max `maxDays` napot tölt (alapból az összes, de legfeljebb 21).
+ */
+export async function prefetchTripOfflinePackage(
+  tripId: string,
+  options?: { maxDays?: number; concurrency?: number }
+): Promise<PrefetchTripOfflineResult> {
+  const maxDays = options?.maxDays ?? 21;
+  const concurrency = Math.max(1, options?.concurrency ?? 3);
+
+  const first = await fetchDayPackage(tripId);
+  if (!first) {
+    return { daysSaved: 0, docsCached: 0, dayCount: 0 };
+  }
+
+  const days = first.days.slice(0, maxDays);
+  const docMap = new Map<string, OfflineDocItem>();
+  let daysSaved = 0;
+
+  async function savePayload(payload: DayApiPayload) {
+    const ok = writeOfflineDaySnapshot({
+      tripId: payload.trip.id,
+      tripTitle: payload.trip.title,
+      destination: payload.trip.destination,
+      day: payload.day,
+      items: payload.items.map((item) => ({
+        title: item.title,
+        time: item.time,
+        endTime: item.endTime ?? null,
+        kind: item.kind,
+        location: item.location ?? null,
+      })),
+      packing: payload.packing,
+      documents: payload.documents,
+      savedAt: new Date().toISOString(),
+    });
+    if (ok) daysSaved += 1;
+    for (const doc of payload.documents) {
+      docMap.set(doc.id, doc);
+    }
+  }
+
+  await savePayload(first);
+
+  const remaining = days.filter((d) => d !== first.day);
+  for (let i = 0; i < remaining.length; i += concurrency) {
+    const batch = remaining.slice(i, i + concurrency);
+    const payloads = await Promise.all(batch.map((d) => fetchDayPackage(tripId, d)));
+    for (const payload of payloads) {
+      if (payload) await savePayload(payload);
+    }
+  }
+
+  const docsCached = await prefetchOfflineDocuments([...docMap.values()]);
+  return { daysSaved, docsCached, dayCount: days.length };
+}
+
+/** True, ha az utazás 14 napon belül indul, vagy már zajlik. */
+export function shouldAutoPrefetchTrip(
+  startDate: Date | string,
+  endDate: Date | string,
+  now = new Date()
+): boolean {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const msPerDay = 86_400_000;
+  const daysUntilStart = Math.round((start.getTime() - today.getTime()) / msPerDay);
+  const daysAfterEnd = Math.round((today.getTime() - end.getTime()) / msPerDay);
+  if (daysAfterEnd > 0) return false;
+  return daysUntilStart <= 14;
+}

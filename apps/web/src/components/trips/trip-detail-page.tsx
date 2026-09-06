@@ -18,7 +18,15 @@ import {
   BookmarkPlus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDate, canEditTrip, normalizeCollaboratorRole, uniqueTripPeopleCount, uniqueTripPeopleNames, type TripRole } from "@csaladi-utazas/shared";
+import {
+  formatDate,
+  canEditTrip,
+  normalizeCollaboratorRole,
+  buildUniqueTripPeople,
+  uniqueTripPeopleCount,
+  resolveCurrentFamilyMemberId,
+  type TripRole,
+} from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
 import { deleteTrip, saveTripAsTemplate } from "@/actions/trips";
@@ -29,6 +37,10 @@ import type { FamilyMemberRow } from "@/lib/queries/family";
 import type { TripDetailRow } from "@/lib/queries/trips";
 import { useTripLiveSync } from "@/hooks/use-trip-live-sync";
 import {
+  prefetchTripOfflinePackage,
+  shouldAutoPrefetchTrip,
+} from "@/lib/offline-snapshots";
+import {
   TripDetailTabs,
   TripSectionHeading,
   TRIP_DETAIL_TAB_IDS,
@@ -36,6 +48,7 @@ import {
 } from "@/components/trips/trip-detail-tabs";
 import type { DocumentItem } from "@/components/documents/document-upload";
 import { ViewerBanner } from "@/components/trips/viewer-banner";
+import { MemberAvatarHydrator } from "@/components/member-avatar-provider";
 import { cn } from "@/lib/utils";
 
 function startOfDay(d: Date) {
@@ -229,6 +242,53 @@ export function TripDetailPage({
     const timeout = setTimeout(prefetch, 1200);
     return () => clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    if (!shouldAutoPrefetchTrip(trip.startDate, trip.endDate)) return;
+
+    const key = `fam-offline-prefetch:${trip.id}`;
+    try {
+      const last = sessionStorage.getItem(key);
+      if (last) {
+        const age = Date.now() - Number(last);
+        if (Number.isFinite(age) && age < 6 * 60 * 60 * 1000) return;
+      }
+    } catch {
+      /* storage blocked */
+    }
+
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      void prefetchTripOfflinePackage(trip.id).then((result) => {
+        if (cancelled || result.daysSaved === 0) return;
+        try {
+          sessionStorage.setItem(key, String(Date.now()));
+        } catch {
+          /* ignore */
+        }
+      });
+    };
+
+    const idle = window as Window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    if (typeof idle.requestIdleCallback === "function") {
+      const id = idle.requestIdleCallback(run);
+      return () => {
+        cancelled = true;
+        idle.cancelIdleCallback?.(id);
+      };
+    }
+
+    const timeout = setTimeout(run, 2500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [trip.id, trip.startDate, trip.endDate]);
 
   useEffect(() => {
     setLocalDocuments(trip.documents);
@@ -558,11 +618,29 @@ export function TripDetailPage({
     });
   }
 
-  const peopleNames = uniqueTripPeopleNames({
+  const peopleMembers = buildUniqueTripPeople({
     participants: trip.participants,
     collaborators: trip.collaborators,
     owner: trip.user,
-  });
+  }).map((p) => ({
+    id: p.familyMemberId,
+    userId: p.userId,
+    name: p.name,
+  }));
+
+  const avatarHydrateMembers = [
+    ...trip.participants.map((p) => ({
+      id: p.familyMember.id,
+      linkedUserId: p.familyMember.linkedUserId,
+    })),
+    ...trip.collaborators.map((c) => ({
+      id: `user:${c.user.id}`,
+      linkedUserId: c.user.id,
+    })),
+    ...(trip.user
+      ? [{ id: `user:${trip.user.id}`, linkedUserId: trip.user.id }]
+      : []),
+  ];
 
   const tabCounts: Partial<Record<TripDetailTab, number>> = {
     transport: trip.transports?.length ?? 0,
@@ -578,15 +656,14 @@ export function TripDetailPage({
   };
 
   const tripParticipants = trip.participants.map((p) => p.familyMember);
-  const currentFamilyMemberId =
-    trip.participants.find(
-      (p) =>
-        p.familyMember.linkedUserId === currentUserId ||
-        p.familyMember.userId === currentUserId
-    )?.familyMember.id ?? null;
+  const currentFamilyMemberId = resolveCurrentFamilyMemberId(
+    trip.participants,
+    currentUserId
+  );
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 pb-8">
+      <MemberAvatarHydrator members={avatarHydrateMembers} />
       <section className="relative overflow-hidden rounded-2xl border shadow-sm trip-hero-enter">
         <div
           className="relative min-h-[11.5rem] bg-gradient-to-br from-[#002045] via-[#1a365d] to-[#2a4a7a] sm:min-h-[13rem]"
@@ -671,7 +748,7 @@ export function TripDetailPage({
                   </span>
                   <span
                     className={cn(
-                      "rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide",
+                      "rounded-md px-2.5 py-0.5 text-xs font-semibold tracking-wide",
                       countdownLabel === "Véget ért"
                         ? "bg-white/20 text-white/90"
                         : countdownLabel.includes("Ma") || countdownLabel.startsWith("Még")
@@ -690,7 +767,7 @@ export function TripDetailPage({
                   aria-label="Résztvevők megtekintése"
                 >
                   <MonogramGroup
-                    names={peopleNames}
+                    members={peopleMembers}
                     className="[&_*]:ring-white/40"
                   />
                 </button>
@@ -767,10 +844,12 @@ export function TripDetailPage({
       <TripClaimProfilePanel
         tripId={trip.id}
         currentUserId={currentUserId}
+        currentUserName={currentUserName}
         participants={trip.participants.map((p) => ({
           id: p.familyMember.id,
           name: p.familyMember.name,
           linkedUserId: p.familyMember.linkedUserId,
+          ownerUserId: p.familyMember.userId,
         }))}
       />
 
@@ -907,6 +986,7 @@ export function TripDetailPage({
             programTitleById={programTitleById}
             accommodationTitleById={accommodationTitleById}
             participantNameById={participantNameById}
+            childMemberIds={members.filter((m) => m.isChild).map((m) => m.id)}
             canEdit={canEdit}
             isPending={isPending}
             onAddCost={() => {
@@ -1061,7 +1141,7 @@ export function TripDetailPage({
       <Button
         type="button"
         size="icon"
-        className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 h-14 w-14 rounded-full shadow-lg sm:hidden"
+        className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 h-14 w-14 rounded-2xl shadow-lg sm:hidden"
         onClick={() => setQuickCostOpen(true)}
         aria-label="Gyors költség"
       >

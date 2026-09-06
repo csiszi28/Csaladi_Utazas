@@ -37,7 +37,7 @@ export function TripCollapsibleSection({
           />
           <span className="text-base font-semibold">{title}</span>
           {!open && (
-            <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm text-muted-foreground">
+            <span className="rounded-md bg-muted px-2.5 py-0.5 text-sm text-muted-foreground">
               {count} tétel
             </span>
           )}

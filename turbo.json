@@ -9,7 +9,8 @@
     "DIRECT_URL",
     "VERCEL_URL",
     "RESEND_API_KEY",
-    "RESEND_FROM_EMAIL"
+    "RESEND_FROM_EMAIL",
+    "NEXT_PUBLIC_MAPTILER_KEY"
   ],
   "tasks": {
     "build": {
@@ -24,7 +25,8 @@
         "DIRECT_URL",
         "VERCEL_URL",
         "RESEND_API_KEY",
-        "RESEND_FROM_EMAIL"
+        "RESEND_FROM_EMAIL",
+        "NEXT_PUBLIC_MAPTILER_KEY"
       ]
     },
     "dev": {

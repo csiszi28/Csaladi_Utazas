@@ -228,6 +228,15 @@ export async function updateAccommodation(data: {
     meta: { accommodationId: parsed.data.id },
   });
 
+  void notifyTripAudience({
+    tripId: parsed.data.tripId,
+    actorUserId: user.id,
+    kind: "accommodation_updated",
+    title: "Szállás módosítva",
+    body: `${user.name}: ${parsed.data.title}`,
+    href: `/trips/${parsed.data.tripId}?tab=accommodations`,
+  });
+
   invalidateTripAudience(parsed.data.tripId, user.id);
   return { success: true, data: undefined };
 }
@@ -258,6 +267,15 @@ export async function deleteAccommodation(id: string): Promise<ActionResult> {
     type: "ACCOMMODATION_DELETED",
     summary: `Szállás törölve: ${accommodation.title}`,
     meta: { accommodationId: id },
+  });
+
+  void notifyTripAudience({
+    tripId: accommodation.tripId,
+    actorUserId: user.id,
+    kind: "accommodation_deleted",
+    title: "Szállás törölve",
+    body: `${user.name}: ${accommodation.title}`,
+    href: `/trips/${accommodation.tripId}?tab=accommodations`,
   });
 
   invalidateTripAudience(accommodation.tripId, user.id);

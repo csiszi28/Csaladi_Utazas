@@ -82,7 +82,10 @@ export function IdeaVoteBar({
       ? withOptimisticInterest(interests, currentFamilyMemberId, myName, optimisticInterested)
       : interests;
 
-  const interestedNames = displayInterests.map((i) => i.familyMember.name);
+  const interestedMembers = displayInterests.map((i) => ({
+    id: i.familyMember.id,
+    name: i.familyMember.name,
+  }));
   const percent =
     participantCount > 0
       ? Math.round((displayInterests.length / participantCount) * 100)
@@ -130,8 +133,8 @@ export function IdeaVoteBar({
         <ProgressBar value={percent} size="md" tone="brand" showValue />
       </div>
 
-      {interestedNames.length > 0 ? (
-        <MonogramGroup names={interestedNames} />
+      {interestedMembers.length > 0 ? (
+        <MonogramGroup members={interestedMembers} />
       ) : (
         <p className="text-sm text-muted-foreground">Még senkit nem érdekel.</p>
       )}

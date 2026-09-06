@@ -213,7 +213,10 @@ export function TripAccommodationsSection({
 
           <div className="space-y-3">
             {accommodationIdeas.map((idea) => {
-              const interestedNames = idea.interests.map((i) => i.familyMember.name);
+              const interestedMembers = idea.interests.map((i) => ({
+                id: i.familyMember.id,
+                name: i.familyMember.name,
+              }));
               const isConverted = convertedIdeaIds.has(idea.id);
 
               return (
@@ -312,10 +315,10 @@ export function TripAccommodationsSection({
                   }
                 >
                   <div className="space-y-3">
-                    {interestedNames.length > 0 ? (
+                    {interestedMembers.length > 0 ? (
                       <div className="space-y-1.5">
                         <p className="text-sm font-medium text-muted-foreground">Tetszik:</p>
-                        <MonogramGroup names={interestedNames} />
+                        <MonogramGroup members={interestedMembers} />
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">Még senkinek nem tetszik.</p>
@@ -480,7 +483,10 @@ export function TripAccommodationsSection({
                 >
                   <div className="space-y-4">
                     <MonogramGroup
-                      names={accommodation.participants.map((p) => p.familyMember.name)}
+                      members={accommodation.participants.map((p) => ({
+                        id: p.familyMember.id,
+                        name: p.familyMember.name,
+                      }))}
                     />
 
                     {accommodation.note && (

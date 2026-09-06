@@ -129,7 +129,7 @@ export function ProgressBar({
         <div className="relative h-5">
           <span
             className={cn(
-              "absolute top-0 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums shadow-sm transition-[left] duration-500 ease-out sm:text-[11px]",
+              "absolute top-0 -translate-x-1/2 rounded-md px-2 py-0.5 text-[10px] font-semibold tabular-nums shadow-sm transition-[left] duration-500 ease-out sm:text-[11px]",
               BADGE[resolved]
             )}
             style={{ left: tipLeft }}

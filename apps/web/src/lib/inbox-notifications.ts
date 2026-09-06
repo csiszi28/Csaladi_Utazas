@@ -11,8 +11,28 @@ export type InboxNotificationCreateInput = {
   tripTitle?: string | null;
 };
 
+async function sendImmediatePush(
+  input: InboxNotificationCreateInput,
+  notificationId: string
+): Promise<void> {
+  try {
+    const { sendPushToUser } = await import("@/lib/web-push");
+    const { inboxKindToCategory } = await import("@/lib/notification-prefs");
+    await sendPushToUser(input.userId, {
+      title: input.title,
+      body: input.body,
+      href: input.href ?? "/",
+      // Egyedi tag: ne olvasson össze több azonos típusú eseményt, és ne írja felül
+      tag: `inbox-${notificationId}`,
+      category: inboxKindToCategory(input.kind),
+    });
+  } catch {
+    // best-effort
+  }
+}
+
 /**
- * Best-effort durable inbox write.
+ * Best-effort durable inbox write + egyszeri push a rögzítés pillanatában.
  * Never throws — collaborator removal / other mutations must still succeed
  * if the inbox table is missing or the Prisma client is stale.
  */
@@ -23,13 +43,15 @@ export async function createInboxNotification(
     const delegate = (
       prisma as unknown as {
         userInboxNotification?: {
-          create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
+          create: (args: {
+            data: Record<string, unknown>;
+          }) => Promise<{ id: string }>;
         };
       }
     ).userInboxNotification;
 
     if (delegate?.create) {
-      await delegate.create({
+      const row = await delegate.create({
         data: {
           userId: input.userId,
           kind: input.kind,
@@ -40,27 +62,17 @@ export async function createInboxNotification(
           tripTitle: input.tripTitle ?? null,
         },
       });
-      void import("@/lib/web-push")
-        .then(async (m) => {
-          const { inboxKindToCategory } = await import("@/lib/notification-prefs");
-          return m.sendPushToUser(input.userId, {
-            title: input.title,
-            body: input.body,
-            href: input.href ?? "/",
-            tag: `inbox-${input.kind}`,
-            category: inboxKindToCategory(input.kind),
-          });
-        })
-        .catch(() => undefined);
+      void sendImmediatePush(input, row.id);
       return true;
     }
 
     // Stale Prisma client without the model — try raw insert
+    const id = randomUUID();
     await prisma.$executeRawUnsafe(
       `INSERT INTO "user_inbox_notifications"
         ("id", "userId", "kind", "title", "body", "href", "tripId", "tripTitle", "createdAt")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
-      randomUUID(),
+      id,
       input.userId,
       input.kind,
       input.title,
@@ -69,18 +81,7 @@ export async function createInboxNotification(
       input.tripId ?? null,
       input.tripTitle ?? null
     );
-    void import("@/lib/web-push")
-      .then(async (m) => {
-        const { inboxKindToCategory } = await import("@/lib/notification-prefs");
-        return m.sendPushToUser(input.userId, {
-          title: input.title,
-          body: input.body,
-          href: input.href ?? "/",
-          tag: `inbox-${input.kind}`,
-          category: inboxKindToCategory(input.kind),
-        });
-      })
-      .catch(() => undefined);
+    void sendImmediatePush(input, id);
     return true;
   } catch (error) {
     console.error("[createInboxNotification] failed:", error);

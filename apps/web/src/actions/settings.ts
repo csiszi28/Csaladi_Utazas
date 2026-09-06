@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@csaladi-utazas/database";
 import { requireUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { formatAuthError } from "@/lib/auth/errors";
 import type { ActionResult } from "@/actions/auth";
 import { revalidateUserData } from "@/lib/revalidate-user-data";
@@ -48,6 +48,99 @@ export async function updateProfileName(name: string): Promise<ActionResult> {
   return { success: true, data: undefined };
 }
 
+async function persistAvatarFields(
+  userId: string,
+  avatarStoragePath: string | null,
+  avatarMimeType: string | null
+): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `UPDATE "users" SET "avatarStoragePath" = $1, "avatarMimeType" = $2 WHERE "id" = $3`,
+    avatarStoragePath,
+    avatarMimeType,
+    userId
+  );
+}
+
+async function readAvatarPath(userId: string): Promise<string | null> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ avatarStoragePath: string | null }>>(
+      `SELECT "avatarStoragePath" FROM "users" WHERE "id" = $1 LIMIT 1`,
+      userId
+    );
+    return rows[0]?.avatarStoragePath ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function uploadProfileAvatar(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const file = formData.get("file");
+
+  if (!(file instanceof File)) {
+    return { success: false, error: "Hiányzó képfájl" };
+  }
+  if (!file.type.startsWith("image/")) {
+    return { success: false, error: "Csak képfájl tölthető fel" };
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    return { success: false, error: "A kép maximum 5 MB lehet" };
+  }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const safeExt = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext) ? ext : "jpg";
+  const storagePath = `${user.id}/avatar-${Date.now()}.${safeExt}`;
+  const supabase = await createServiceClient();
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const { error } = await supabase.storage.from("trip-documents").upload(storagePath, buffer, {
+    contentType: file.type,
+    upsert: true,
+  });
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  const previousPath = await readAvatarPath(user.id);
+  if (previousPath && previousPath !== storagePath) {
+    void supabase.storage.from("trip-documents").remove([previousPath]).catch(() => undefined);
+  }
+
+  await persistAvatarFields(user.id, storagePath, file.type);
+
+  const sessionClient = await createClient();
+  await sessionClient.auth.updateUser({
+    data: { avatar_path: storagePath },
+  });
+
+  revalidateUserData(user.id);
+  revalidatePath("/settings");
+  revalidatePath("/");
+  return { success: true, data: undefined };
+}
+
+export async function removeProfileAvatar(): Promise<ActionResult> {
+  const user = await requireUser();
+  const previousPath = await readAvatarPath(user.id);
+
+  if (previousPath) {
+    const supabase = await createServiceClient();
+    void supabase.storage.from("trip-documents").remove([previousPath]).catch(() => undefined);
+  }
+
+  await persistAvatarFields(user.id, null, null);
+
+  const sessionClient = await createClient();
+  await sessionClient.auth.updateUser({
+    data: { avatar_path: null },
+  });
+
+  revalidateUserData(user.id);
+  revalidatePath("/settings");
+  revalidatePath("/");
+  return { success: true, data: undefined };
+}
+
 export async function updateAccountPassword(data: {
   password: string;
   confirmPassword: string;
@@ -89,7 +182,6 @@ export async function deleteAccount(
     };
   }
 
-  const { createServiceClient } = await import("@/lib/supabase/server");
   const admin = await createServiceClient();
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {

@@ -11,7 +11,7 @@ import {
   canManageCollaborators,
   normalizeCollaboratorRole,
 } from "../trip-roles";
-import { buildUniqueTripPeople } from "../trip-people";
+import { buildUniqueTripPeople, resolveCurrentFamilyMemberId } from "../trip-people";
 import { buildDayItinerary, listTripDays } from "../itinerary";
 import { parseIcalToProgramCandidates } from "../ical-import";
 import { buildReminders } from "../reminders";
@@ -375,5 +375,85 @@ describe("trip-people", () => {
     const attila = people.find((p) => p.userId === "u-attila");
     expect(attila?.isParticipant).toBe(true);
     expect(attila?.isCollaborator).toBe(true);
+  });
+
+  it("absorbs owner's virtual Attila when collaborator name tokens match in any order", () => {
+    const people = buildUniqueTripPeople({
+      participants: [
+        {
+          familyMember: {
+            id: "fm-virtual-attila",
+            name: "Csiszár Attila",
+            linkedUserId: null,
+            userId: "u-owner",
+          },
+        },
+      ],
+      collaborators: [
+        {
+          user: { id: "u-attila", name: "Attila Csiszár", email: "attila@pelda.hu" },
+          role: "EDITOR",
+        },
+      ],
+      owner: { id: "u-owner", name: "Dóra", email: "dora@pelda.hu" },
+    });
+
+    expect(people).toHaveLength(2);
+    const attila = people.find((p) => p.userId === "u-attila");
+    expect(attila?.isParticipant).toBe(true);
+    expect(attila?.familyMemberId).toBe("fm-virtual-attila");
+  });
+
+  it("resolveCurrentFamilyMemberId prefers external claimed profile over own self", () => {
+    const id = resolveCurrentFamilyMemberId(
+      [
+        {
+          familyMember: {
+            id: "fm-self",
+            linkedUserId: "u-attila",
+            userId: "u-attila",
+          },
+        },
+        {
+          familyMember: {
+            id: "fm-virtual",
+            linkedUserId: "u-attila",
+            userId: "u-owner",
+          },
+        },
+        {
+          familyMember: {
+            id: "fm-other-household",
+            linkedUserId: null,
+            userId: "u-owner",
+          },
+        },
+      ],
+      "u-attila"
+    );
+    expect(id).toBe("fm-virtual");
+  });
+
+  it("resolveCurrentFamilyMemberId does not match household userId alone", () => {
+    const id = resolveCurrentFamilyMemberId(
+      [
+        {
+          familyMember: {
+            id: "fm-attila-virtual",
+            linkedUserId: null,
+            userId: "u-owner",
+          },
+        },
+        {
+          familyMember: {
+            id: "fm-owner-self",
+            linkedUserId: "u-owner",
+            userId: "u-owner",
+          },
+        },
+      ],
+      "u-owner"
+    );
+    expect(id).toBe("fm-owner-self");
   });
 });

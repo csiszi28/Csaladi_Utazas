@@ -1,4 +1,4 @@
-import { formatDate, isDateInRange, isSameDay } from "./date";
+import { formatDate, isDateInRange, isSameDay, isAccommodationNight, parseDate } from "./date";
 import { toHuf, DEFAULT_HUF_RATES, type Currency } from "./currency";
 import type { TripSettlement } from "./settlement";
 
@@ -7,6 +7,8 @@ export type HufRateMap = Record<Currency, number>;
 export interface CostParticipant {
   id: string;
   name: string;
+  /** Gyerek — elszámolásban nem jelenik meg tartozásként */
+  isChild?: boolean;
 }
 
 export interface AllocCost {
@@ -107,21 +109,9 @@ function tripDayCount(start: Date, end: Date): number {
 }
 
 function accommodationNightCount(checkIn: Date, checkOut: Date): number {
-  const start = new Date(checkIn);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(checkOut);
-  end.setHours(0, 0, 0, 0);
-  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86_400_000));
-}
-
-function isAccommodationNight(day: Date, checkIn: Date, checkOut: Date): boolean {
-  const d = new Date(day);
-  d.setHours(0, 0, 0, 0);
-  const start = new Date(checkIn);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(checkOut);
-  end.setHours(0, 0, 0, 0);
-  return d >= start && d < end;
+  const start = parseDate(checkIn);
+  const end = parseDate(checkOut);
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
 }
 
 function splitAmong(ids: string[], amountHuf: number): Map<string, number> {

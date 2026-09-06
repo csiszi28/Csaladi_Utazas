@@ -26,6 +26,7 @@ import type { TripDetailTab } from "@/components/trips/trip-detail-tabs";
 import { OFFLINE_DAY_PREFIX } from "@/lib/offline-day";
 import {
   prefetchOfflineDocuments,
+  prefetchTripOfflinePackage,
   writeOfflineDaySnapshot,
   type OfflineDocItem,
 } from "@/lib/offline-snapshots";
@@ -97,6 +98,7 @@ export function TripItinerarySection({
 
   const [selectedDay, setSelectedDay] = useState(defaultDay);
   const [offlineSaved, setOfflineSaved] = useState(false);
+  const [prefetchingAll, setPrefetchingAll] = useState(false);
 
   useEffect(() => {
     if (initialDay && days.includes(initialDay)) {
@@ -194,6 +196,25 @@ export function TripItinerarySection({
         ? `Napcsomag mentve · ${packingLeft} csomagolnivaló · ${cachedDocs} doksi cache`
         : `Napcsomag mentve · ${packing.length} csomag · ${documents.length} doksi`
     );
+  }
+
+  async function saveAllDaysOffline() {
+    setPrefetchingAll(true);
+    try {
+      const result = await prefetchTripOfflinePackage(trip.id);
+      if (result.daysSaved === 0) {
+        toast.error("Nem sikerült előtölteni a napcsomagokat");
+        return;
+      }
+      setOfflineSaved(true);
+      toast.success(
+        result.docsCached > 0
+          ? `${result.daysSaved} nap mentve offline · ${result.docsCached} doksi cache`
+          : `${result.daysSaved} nap mentve offline`
+      );
+    } finally {
+      setPrefetchingAll(false);
+    }
   }
 
   function shareDay() {
@@ -302,6 +323,21 @@ export function TripItinerarySection({
               {offlineSaved ? "Mentve" : "Napcsomag"}
             </span>
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-h-[var(--touch-target)] gap-1.5 text-muted-foreground sm:min-h-8"
+            onClick={() => void saveAllDaysOffline()}
+            disabled={prefetchingAll}
+            aria-label="Összes nap offline"
+            title="Az utazás összes napjának előtöltése offline"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {prefetchingAll ? "Töltés…" : "Összes nap"}
+            </span>
+          </Button>
         </div>
       </div>
 
@@ -356,12 +392,12 @@ export function TripItinerarySection({
                 {isSelected ? (
                   <span
                     aria-hidden
-                    className="absolute inset-x-3 bottom-1.5 h-0.5 rounded-full bg-[var(--brand-accent)] shadow-[0_0_8px_rgba(255,184,102,0.55)]"
+                    className="absolute inset-x-3 bottom-1.5 h-0.5 rounded-md bg-[var(--brand-accent)] shadow-[0_0_8px_rgba(255,184,102,0.55)]"
                   />
                 ) : isToday ? (
                   <span
                     aria-hidden
-                    className="absolute inset-x-4 bottom-1.5 h-0.5 rounded-full bg-[var(--brand-accent)]/40"
+                    className="absolute inset-x-4 bottom-1.5 h-0.5 rounded-md bg-[var(--brand-accent)]/40"
                   />
                 ) : null}
               </button>

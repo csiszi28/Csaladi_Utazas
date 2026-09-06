@@ -12,7 +12,7 @@ import {
   Sparkles,
   LayoutTemplate,
 } from "lucide-react";
-import { formatDate, uniqueTripPeopleNames } from "@csaladi-utazas/shared";
+import { formatDate, buildUniqueTripPeople, uniqueTripPeopleCount } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { MonogramGroup } from "@/components/monogram";
 import { JoinTripDialog } from "@/components/trips/join-trip-dialog";
@@ -77,11 +77,15 @@ function TripCard({ trip }: { trip: TripListRow }) {
   const status = tripStatus(trip);
   const start = tripDateParts(trip.startDate);
   const accent = STATUS_ACCENT[status];
-  const participantNames = uniqueTripPeopleNames({
+  const participantMembers = buildUniqueTripPeople({
     participants: trip.participants,
     collaborators: trip.collaborators,
     owner: trip.user,
-  });
+  }).map((p) => ({
+    id: p.familyMemberId,
+    userId: p.userId,
+    name: p.name,
+  }));
 
   return (
     <article
@@ -143,13 +147,13 @@ function TripCard({ trip }: { trip: TripListRow }) {
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
             <div className="flex min-w-0 items-center gap-3">
-              <MonogramGroup names={participantNames} />
+              <MonogramGroup members={participantMembers} />
               <p className="hidden text-xs text-muted-foreground sm:block">
                 <span className="tabular-nums">{trip._count.programs}</span> program
                 <span className="mx-1.5 text-muted-foreground/60">·</span>
                 <span className="tabular-nums">{trip._count.costs}</span> költség
                 <span className="mx-1.5 text-muted-foreground/60">·</span>
-                <span className="tabular-nums">{participantNames.length}</span> fő
+                <span className="tabular-nums">{participantMembers.length}</span> fő
               </p>
             </div>
 
@@ -164,7 +168,7 @@ function TripCard({ trip }: { trip: TripListRow }) {
             <span className="mx-1.5 text-muted-foreground/60">·</span>
             <span className="tabular-nums">{trip._count.costs}</span> költség
             <span className="mx-1.5 text-muted-foreground/60">·</span>
-            <span className="tabular-nums">{participantNames.length}</span> fő
+            <span className="tabular-nums">{participantMembers.length}</span> fő
           </p>
         </div>
       </div>
@@ -262,16 +266,16 @@ export function TripsPage({
 
         {trips.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
-            <span className="rounded-full bg-background px-3 py-1 text-sm text-foreground shadow-sm">
+            <span className="rounded-md bg-background px-3 py-1 text-sm text-foreground shadow-sm">
               {trips.length} utazás
             </span>
             {grouped.active.length > 0 && (
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+              <span className="rounded-md bg-emerald-100 px-3 py-1 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
                 {grouped.active.length} folyamatban
               </span>
             )}
             {grouped.upcoming.length > 0 && (
-              <span className="rounded-full bg-[var(--brand-accent)] px-3 py-1 text-sm font-medium text-[#1a2744]">
+              <span className="rounded-md bg-[var(--brand-accent)] px-3 py-1 text-sm font-medium text-[#1a2744]">
                 {grouped.upcoming.length} közelgő
               </span>
             )}
@@ -331,13 +335,11 @@ export function TripsPage({
                   <h4 className="truncate text-base font-semibold">{trip.title}</h4>
                   <p className="text-xs text-muted-foreground">
                     {trip._count.programs} program ·{" "}
-                    {
-                      uniqueTripPeopleNames({
-                        participants: trip.participants,
-                        collaborators: trip.collaborators,
-                        owner: trip.user,
-                      }).length
-                    }{" "}
+                    {uniqueTripPeopleCount({
+                      participants: trip.participants,
+                      collaborators: trip.collaborators,
+                      owner: trip.user,
+                    })}{" "}
                     résztvevő
                   </p>
                 </div>

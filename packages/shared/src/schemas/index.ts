@@ -32,6 +32,7 @@ export const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 const familyMemberBaseSchema = z.object({
   name: z.string().min(1, "A név kötelező").max(100),
   email: z.string().trim().max(200).optional(),
+  isChild: z.boolean().optional().default(false),
 });
 
 function withFamilyMemberEmailRefine<T extends z.ZodTypeAny>(schema: T) {

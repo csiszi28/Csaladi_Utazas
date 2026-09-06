@@ -79,7 +79,10 @@ export function TripIdeasSection({
   const content = (
     <div className="space-y-3">
       {localIdeas.map((idea) => {
-          const interestedNames = idea.interests.map((i) => i.familyMember.name);
+          const interestedMembers = idea.interests.map((i) => ({
+            id: i.familyMember.id,
+            name: i.familyMember.name,
+          }));
           const isConverted = convertedIdeaIds?.has(idea.id) ?? false;
 
           return (
@@ -90,7 +93,7 @@ export function TripIdeasSection({
                 <span className="flex flex-wrap items-center gap-2">
                   {idea.title}
                   {isConverted && (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                    <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
                       Programmá alakítva
                     </span>
                   )}
@@ -161,10 +164,10 @@ export function TripIdeasSection({
               }
             >
               <div className="space-y-3">
-                {interestedNames.length > 0 ? (
+                {interestedMembers.length > 0 ? (
                   <div className="space-y-1.5">
                     <p className="text-sm font-medium text-muted-foreground">Érdekli:</p>
-                    <MonogramGroup names={interestedNames} />
+                    <MonogramGroup members={interestedMembers} />
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">Még senkit nem érdekel.</p>

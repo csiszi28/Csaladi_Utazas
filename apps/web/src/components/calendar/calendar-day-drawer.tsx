@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
-import { formatDate, isDateInRange, isSameDay, buildDayCostBreakdown, type TripCostContext, TRANSPORT_TYPE_LABELS, type TransportType } from "@csaladi-utazas/shared";
+import { formatDate, isDateInRange, isSameDay, isAccommodationNight, buildDayCostBreakdown, type TripCostContext, TRANSPORT_TYPE_LABELS, type TransportType } from "@csaladi-utazas/shared";
 import { CostAmountDisplay } from "@/components/cost-amount-display";
 import { useHufRates } from "@/components/exchange-rates-provider";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ interface CalendarDayDrawerProps {
   trips: CalendarTripRow[];
   members: FamilyMemberRow[];
   currentUserId: string;
+  participantFilterIds?: string[];
   onSaved?: () => void;
 }
 
@@ -99,16 +100,6 @@ function tripToCostContext(trip: CalendarTripRow): TripCostContext {
   };
 }
 
-function isAccommodationNight(day: Date, checkIn: Date | string, checkOut: Date | string): boolean {
-  const d = new Date(day);
-  d.setHours(0, 0, 0, 0);
-  const start = new Date(checkIn);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(checkOut);
-  end.setHours(0, 0, 0, 0);
-  return d >= start && d < end;
-}
-
 export function CalendarDayDrawer({
   open,
   onOpenChange,
@@ -116,9 +107,20 @@ export function CalendarDayDrawer({
   trips,
   members,
   currentUserId,
+  participantFilterIds = [],
   onSaved,
 }: CalendarDayDrawerProps) {
   const rates = useHufRates();
+  const filterSet = new Set(participantFilterIds);
+  const matchesFilter = (
+    participants: Array<{ familyMember: { id: string } }> | Array<{ familyMemberId: string }>
+  ) => {
+    if (filterSet.size === 0) return true;
+    return participants.some((p) => {
+      const id = "familyMemberId" in p ? p.familyMemberId : p.familyMember.id;
+      return filterSet.has(id);
+    });
+  };
   const [isPending, startTransition] = useTransition();
   const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
   const [costDrawerOpen, setCostDrawerOpen] = useState(false);
@@ -128,18 +130,41 @@ export function CalendarDayDrawer({
   const [editingProgram, setEditingProgram] = useState<CalendarProgram | null>(null);
   const [editingCost, setEditingCost] = useState<CalendarDayCost | null>(null);
 
-  const dayTrips = trips.filter((t) =>
-    isDateInRange(date, new Date(t.startDate), new Date(t.endDate))
-  );
+  const dayTrips = trips.filter((t) => {
+    if (isDateInRange(date, t.startDate, t.endDate)) return true;
+    if (t.programs.some((p) => isSameDay(new Date(p.date), date))) return true;
+    if ((t.accommodations ?? []).some((a) => isAccommodationNight(date, a.checkIn, a.checkOut))) {
+      return true;
+    }
+    if (
+      (t.transports ?? []).some(
+        (tr) =>
+          isSameDay(new Date(tr.departureDate), date) ||
+          (tr.arrivalDate != null && isSameDay(new Date(tr.arrivalDate), date))
+      )
+    ) {
+      return true;
+    }
+    return (t.ideas ?? []).some(
+      (idea) =>
+        (idea.date != null && isSameDay(new Date(idea.date), date)) ||
+        (idea.checkInDate != null && isSameDay(new Date(idea.checkInDate), date)) ||
+        (idea.checkOutDate != null && isSameDay(new Date(idea.checkOutDate), date)) ||
+        (idea.checkInDate != null &&
+          idea.checkOutDate != null &&
+          isAccommodationNight(date, idea.checkInDate, idea.checkOutDate))
+    );
+  });
 
   const dayPrograms: CalendarProgram[] = dayTrips.flatMap((t) =>
     t.programs
-      .filter((p) => isSameDay(new Date(p.date), date))
+      .filter((p) => isSameDay(new Date(p.date), date) && matchesFilter(p.participants))
       .map((p) => ({ ...p, tripId: t.id, tripTitle: t.title }))
   );
 
   const dayAccommodations: CalendarAccommodation[] = dayTrips.flatMap((t) =>
     (t.accommodations ?? []).flatMap((a) => {
+      if (!matchesFilter(a.participants)) return [];
       const items: CalendarAccommodation[] = [];
       if (isSameDay(new Date(a.checkIn), date)) {
         items.push({
@@ -175,8 +200,9 @@ export function CalendarDayDrawer({
     (t.transports ?? [])
       .filter(
         (tr) =>
-          isSameDay(new Date(tr.departureDate), date) ||
-          (tr.arrivalDate != null && isSameDay(new Date(tr.arrivalDate), date))
+          matchesFilter(tr.participants) &&
+          (isSameDay(new Date(tr.departureDate), date) ||
+            (tr.arrivalDate != null && isSameDay(new Date(tr.arrivalDate), date)))
       )
       .map((tr) => ({
         ...tr,
@@ -189,6 +215,7 @@ export function CalendarDayDrawer({
 
   const dayIdeas: CalendarIdea[] = dayTrips.flatMap((t) =>
     (t.ideas ?? []).flatMap((idea) => {
+      if (!matchesFilter(idea.interests)) return [];
       const items: CalendarIdea[] = [];
       if (idea.date && isSameDay(new Date(idea.date), date)) {
         items.push({
@@ -204,6 +231,18 @@ export function CalendarDayDrawer({
           tripId: t.id,
           tripTitle: t.title,
           ideaLabel: "Ötlet (szállás – bejelentkezés)",
+        });
+      } else if (
+        idea.checkInDate &&
+        idea.checkOutDate &&
+        isAccommodationNight(date, idea.checkInDate, idea.checkOutDate) &&
+        !isSameDay(new Date(idea.checkInDate), date)
+      ) {
+        items.push({
+          ...idea,
+          tripId: t.id,
+          tripTitle: t.title,
+          ideaLabel: "Ötlet (szállás)",
         });
       }
       if (idea.checkOutDate && isSameDay(new Date(idea.checkOutDate), date)) {
@@ -408,7 +447,10 @@ export function CalendarDayDrawer({
                         <span className="flex flex-col gap-0.5">
                           <span>{trip.destination}</span>
                           <MonogramGroup
-                            names={trip.participants.map((p) => p.familyMember.name)}
+                            members={trip.participants.map((p) => ({
+                              id: p.familyMember.id,
+                              name: p.familyMember.name,
+                            }))}
                             className="mt-1"
                           />
                         </span>
@@ -526,7 +568,12 @@ export function CalendarDayDrawer({
                     }
                   >
                     <div className="space-y-3">
-                      <MonogramGroup names={program.participants.map((p) => p.familyMember.name)} />
+                      <MonogramGroup
+                        members={program.participants.map((p) => ({
+                          id: p.familyMember.id,
+                          name: p.familyMember.name,
+                        }))}
+                      />
                     </div>
                   </CollapsiblePanel>
                 ))}
@@ -574,7 +621,10 @@ export function CalendarDayDrawer({
                         <span>{accommodation.stayLabel} ezen a napon</span>
                       </div>
                       <MonogramGroup
-                        names={accommodation.participants.map((p) => p.familyMember.name)}
+                        members={accommodation.participants.map((p) => ({
+                          id: p.familyMember.id,
+                          name: p.familyMember.name,
+                        }))}
                       />
                       {accommodation.costs.length > 0 && (
                         <div className="min-w-0 space-y-1.5">
@@ -654,7 +704,10 @@ export function CalendarDayDrawer({
                           </span>
                         </div>
                         <MonogramGroup
-                          names={transport.participants.map((p) => p.familyMember.name)}
+                          members={transport.participants.map((p) => ({
+                            id: p.familyMember.id,
+                            name: p.familyMember.name,
+                          }))}
                         />
                         {transport.costs.length > 0 && (
                           <div className="min-w-0 space-y-1.5">
@@ -717,7 +770,12 @@ export function CalendarDayDrawer({
                         <Lightbulb className="h-3.5 w-3.5 shrink-0" />
                         <span>Még nem rögzített ötlet</span>
                       </div>
-                      <MonogramGroup names={idea.interests.map((i) => i.familyMember.name)} />
+                      <MonogramGroup
+                        members={idea.interests.map((i) => ({
+                          id: i.familyMember.id,
+                          name: i.familyMember.name,
+                        }))}
+                      />
                       {idea.amount != null && (
                         <CostAmountDisplay
                           amount={idea.amount}

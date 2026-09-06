@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 function ScopeBadge({ label }: { label: string }) {
   return (
-    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+    <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
       {label}
     </span>
   );

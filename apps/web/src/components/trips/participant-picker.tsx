@@ -44,12 +44,15 @@ export function ParticipantPicker({
           >
             <Monogram
               name={member.name}
+              memberId={member.id}
               className={cn(
                 "h-7 w-7",
                 selected ? "ring-2 ring-primary/25" : "opacity-80"
               )}
             />
-            <span className="max-w-[10rem] truncate text-sm font-medium">{member.name}</span>
+            <span className="max-w-[10rem] truncate text-sm font-medium text-foreground">
+              {member.name}
+            </span>
             <span
               className={cn(
                 "ml-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md text-[10px] font-bold",

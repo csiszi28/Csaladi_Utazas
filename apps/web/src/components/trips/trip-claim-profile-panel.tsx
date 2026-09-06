@@ -3,30 +3,46 @@
 import { useTransition } from "react";
 import { UserCheck } from "lucide-react";
 import { toast } from "sonner";
+import { personNamesMatch } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { claimFamilyMemberProfile } from "@/actions/family";
 
 interface TripClaimProfilePanelProps {
   tripId: string;
   currentUserId: string;
+  currentUserName?: string;
   participants: {
     id: string;
     name: string;
     linkedUserId: string | null;
+    /** Háztartás tulajdonosa (FamilyMember.userId). */
+    ownerUserId: string;
   }[];
 }
 
 export function TripClaimProfilePanel({
   tripId,
   currentUserId,
+  currentUserName,
   participants,
 }: TripClaimProfilePanelProps) {
   const [isPending, startTransition] = useTransition();
 
-  const alreadyLinked = participants.some((p) => p.linkedUserId === currentUserId);
-  const claimable = participants.filter((p) => !p.linkedUserId);
+  // Saját háztartás „én” profilja (linkedUserId) NEM zárja ki az idegen virtuális profil átvételét
+  const linkedToExternal = participants.some(
+    (p) => p.linkedUserId === currentUserId && p.ownerUserId !== currentUserId
+  );
 
-  if (alreadyLinked || claimable.length === 0) return null;
+  const claimable = participants
+    .filter((p) => !p.linkedUserId && p.ownerUserId !== currentUserId)
+    .sort((a, b) => {
+      if (!currentUserName) return 0;
+      const aMatch = personNamesMatch(a.name, currentUserName) ? 0 : 1;
+      const bMatch = personNamesMatch(b.name, currentUserName) ? 0 : 1;
+      return aMatch - bMatch;
+    });
+
+  if (linkedToExternal || claimable.length === 0) return null;
 
   function handleClaim(familyMemberId: string) {
     startTransition(async () => {
@@ -53,9 +69,13 @@ export function TripClaimProfilePanel({
         {claimable.map((p) => (
           <Button
             key={p.id}
-            variant="outline"
+            variant={
+              currentUserName && personNamesMatch(p.name, currentUserName)
+                ? "default"
+                : "outline"
+            }
             size="sm"
-            className="w-full min-h-[var(--touch-target)] sm:w-auto sm:min-h-0"
+            className="w-full min-h-[var(--touch-target)] sm:w-auto sm:min-h-9"
             disabled={isPending}
             onClick={() => handleClaim(p.id)}
           >

@@ -50,7 +50,7 @@ export function TripSubviewNav({ items, active, onChange, ariaLabel }: TripSubvi
             {item.count != null ? (
               <span
                 className={cn(
-                  "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums transition-colors",
+                  "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tabular-nums transition-colors",
                   isActive
                     ? "bg-primary/10 text-primary dark:bg-[var(--brand-accent)]/20 dark:text-[var(--brand-accent)]"
                     : "bg-background/80 text-muted-foreground dark:bg-white/8 dark:text-white/55"

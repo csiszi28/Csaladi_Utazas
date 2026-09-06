@@ -21,6 +21,8 @@ interface TripFinancesSectionProps {
   programTitleById: Map<string, string>;
   accommodationTitleById: Map<string, string>;
   participantNameById: Map<string, string>;
+  /** Gyerekként jelölt családtagok — nem kerülnek a kiegyenlítésbe */
+  childMemberIds?: string[];
   canEdit?: boolean;
   isPending?: boolean;
   onAddCost: () => void;
@@ -51,6 +53,7 @@ export function TripFinancesSection({
   programTitleById,
   accommodationTitleById,
   participantNameById,
+  childMemberIds = [],
   canEdit = true,
   isPending = false,
   onAddCost,
@@ -146,7 +149,7 @@ export function TripFinancesSection({
                   </span>
                 }
                 badge={
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     {COST_CATEGORY_LABELS[cost.category as keyof typeof COST_CATEGORY_LABELS] ??
                       cost.category}
                   </span>
@@ -213,6 +216,7 @@ export function TripFinancesSection({
         <TripSettlementPanel
           tripId={trip.id}
           tripTitle={trip.title}
+          childMemberIds={childMemberIds}
           trip={{
             participants: trip.participants,
             programs: trip.programs.map((p) => ({

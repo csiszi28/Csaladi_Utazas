@@ -108,6 +108,21 @@ export function isSameDay(a: Date, b: Date): boolean {
   return formatDate(a) === formatDate(b);
 }
 
+/**
+ * Félnyitott intervallum: [checkIn, checkOut) — kijelentkezés napján nincs éjszaka.
+ * Naptári napokkal (formatDate), TZ-független.
+ */
+export function isAccommodationNight(
+  day: Date | string,
+  checkIn: Date | string,
+  checkOut: Date | string
+): boolean {
+  const d = formatDate(day);
+  const start = formatDate(checkIn);
+  const end = formatDate(checkOut);
+  return d >= start && d < end;
+}
+
 /** Inclusive: a trip kezdő és utolsó napja is érvényes. */
 export function isDateInRange(date: Date | string, start: Date | string, end: Date | string): boolean {
   const d = formatDate(date);
@@ -116,10 +131,14 @@ export function isDateInRange(date: Date | string, start: Date | string, end: Da
   return d >= s && d <= e;
 }
 
-export function getDaysInMonth(year: number, month: number): Date[] {
+/**
+ * Hónap napjai UTC délként.
+ * @param monthIndex 0–11 (ugyanaz, mint `Date.getMonth()`)
+ */
+export function getDaysInMonth(year: number, monthIndex: number): Date[] {
   const days: Date[] = [];
-  const date = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
-  while (date.getUTCMonth() === month - 1) {
+  const date = new Date(Date.UTC(year, monthIndex, 1, 12, 0, 0));
+  while (date.getUTCMonth() === monthIndex) {
     days.push(new Date(date));
     date.setUTCDate(date.getUTCDate() + 1);
   }

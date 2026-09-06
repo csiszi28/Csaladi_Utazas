@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@csaladi-utazas/database";
+import { personNamesMatch } from "@csaladi-utazas/shared";
 import { requireAuthUserId } from "@/lib/auth";
 import { USER_DATA_TAG } from "@/lib/revalidate-user-data";
 
@@ -10,22 +11,32 @@ export async function ensureSelfFamilyMember(userId: string, userName: string) {
   });
   if (self) return null;
 
-  const owned = await prisma.familyMember.findFirst({
+  const owned = await prisma.familyMember.findMany({
     where: { userId },
-    select: { id: true },
+    select: { id: true, name: true, linkedUserId: true },
   });
-  if (!owned) {
+
+  if (owned.length === 0) {
     return prisma.familyMember.create({
       data: { name: userName, userId, linkedUserId: userId },
     });
   }
 
-  await prisma.familyMember.updateMany({
-    where: { userId, linkedUserId: null, name: userName },
-    data: { linkedUserId: userId },
-  });
+  const nameMatch = owned.find(
+    (m) => !m.linkedUserId && personNamesMatch(m.name, userName)
+  );
+  if (nameMatch) {
+    await prisma.familyMember.update({
+      where: { id: nameMatch.id },
+      data: { linkedUserId: userId },
+    });
+    return null;
+  }
 
-  return null;
+  // Van háztartás, de nincs fiókhoz kötött „én” — ne maradjon linkedUserId nélkül
+  return prisma.familyMember.create({
+    data: { name: userName, userId, linkedUserId: userId },
+  });
 }
 
 function userDataTag(userId: string) {
@@ -34,8 +45,8 @@ function userDataTag(userId: string) {
 
 const getCachedFamilyMembers = (userId: string) =>
   unstable_cache(
-    async () =>
-      prisma.familyMember.findMany({
+    async () => {
+      const rows = await prisma.familyMember.findMany({
         where: { userId },
         orderBy: { name: "asc" },
         select: {
@@ -48,7 +59,24 @@ const getCachedFamilyMembers = (userId: string) =>
           linkedUser: { select: { id: true, email: true, name: true } },
           pendingLinkUser: { select: { id: true, email: true, name: true } },
         },
-      }),
+      });
+
+      let childFlags = new Map<string, boolean>();
+      try {
+        const flags = await prisma.$queryRawUnsafe<Array<{ id: string; isChild: boolean }>>(
+          `SELECT "id", "isChild" FROM "family_members" WHERE "userId" = $1`,
+          userId
+        );
+        childFlags = new Map(flags.map((f) => [f.id, Boolean(f.isChild)]));
+      } catch {
+        /* oszlop még nincs */
+      }
+
+      return rows.map((row) => ({
+        ...row,
+        isChild: childFlags.get(row.id) ?? false,
+      }));
+    },
     [`family-members-${userId}`],
     { revalidate: 60, tags: [userDataTag(userId)] }
   )();

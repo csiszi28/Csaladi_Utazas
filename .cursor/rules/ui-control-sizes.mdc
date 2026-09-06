@@ -1,0 +1,17 @@
+---
+description: Egységes, kompakt UI méretek — ne legyenek túl nagy mezők/gombok
+alwaysApply: true
+---
+
+# Egységes vezérlőméretek
+
+Sehol ne legyenek feltűnően nagy mezők, gombok vagy kapcsolók. Az app alapmérete:
+
+- **Input / Select / Textarea:** `h-9` (alap Input komponens)
+- **Gomb default:** `h-9`, **sm:** `h-8`, **icon:** `h-9 w-9`
+- **Switch:** max `h-7` track, kompakt thumb — ne legyen nagyobb, mint egy `h-9` input
+- Inline akciók listában (pl. elszámolás): `h-8` + `text-sm` / `text-xs`
+
+Kerüld: `h-10+` egyedi gombokat, `min-h-[var(--touch-target)]` felülírásokat ahol nem mobil-kritikus, túl mély paddinget (`py-3+` gombokon).
+
+Új UI-nál mindig a meglévő `Button` / `Input` / `Switch` méreteit használd; ne inventálj nagyobb „hero” kontrollokat formokban.

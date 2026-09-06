@@ -132,10 +132,12 @@ export function ReportsBarChart({
   data,
   height = 220,
   fill = "#3b5bdb",
+  dataKey = "összeg",
 }: {
-  data: { name: string; összeg: number }[];
+  data: Array<Record<string, string | number>>;
   height?: number;
   fill?: string;
+  dataKey?: string;
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -148,7 +150,36 @@ export function ReportsBarChart({
           tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
         />
         <Tooltip formatter={(value) => huf(Number(value ?? 0))} />
-        <Bar dataKey="összeg" fill={fill} radius={[4, 4, 0, 0]} />
+        <Bar dataKey={dataKey} fill={fill} radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function TripCompareChart({
+  data,
+}: {
+  data: Array<{
+    name: string;
+    összesen: number;
+    fejenként: number;
+    naponként: number;
+  }>;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <BarChart data={data} margin={{ left: -8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="name" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+        <YAxis
+          tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+          width={36}
+          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+        />
+        <Tooltip formatter={(value) => huf(Number(value ?? 0))} />
+        <Bar dataKey="összesen" fill="#3b5bdb" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="fejenként" fill="#51cf66" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="naponként" fill="#fcc419" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

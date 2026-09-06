@@ -238,7 +238,12 @@ export function TripPeopleSection({
                 key={person.key}
                 className="flex min-h-[var(--touch-target)] items-center gap-3 px-4 py-3"
               >
-                <Monogram name={person.name} size="md" />
+                <Monogram
+                  name={person.name}
+                  memberId={person.familyMemberId}
+                  userId={person.userId}
+                  size="md"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">
                     {person.name}
@@ -319,7 +324,7 @@ export function TripPeopleSection({
                     >
                       {active ? "✓" : ""}
                     </span>
-                    <Monogram name={member.name} size="md" />
+                    <Monogram name={member.name} memberId={member.id} size="md" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{member.name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -360,7 +365,11 @@ export function TripPeopleSection({
                   key={collaborator.id}
                   className="flex min-h-[var(--touch-target)] items-center gap-3 px-4 py-3"
                 >
-                  <Monogram name={collaborator.user.name} size="md" />
+                  <Monogram
+                    name={collaborator.user.name}
+                    userId={collaborator.user.id}
+                    size="md"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{collaborator.user.name}</p>
                     <p className="truncate text-xs text-muted-foreground">

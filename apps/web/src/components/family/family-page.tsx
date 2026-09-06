@@ -14,10 +14,11 @@ import {
   Mail,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getMonogram } from "@csaladi-utazas/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Monogram } from "@/components/monogram";
 import {
   Dialog,
   DialogContent,
@@ -55,7 +56,7 @@ const STATUS_LABELS: Record<MemberStatus, string> = {
 const STATUS_STYLES: Record<MemberStatus, string> = {
   "linked-self": "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
   "linked-other": "bg-primary/10 text-primary",
-  virtual: "bg-muted text-muted-foreground",
+  virtual: "bg-muted text-foreground",
 };
 
 function FamilyMemberCard({
@@ -72,7 +73,7 @@ function FamilyMemberCard({
   member: FamilyMemberRow;
   currentUserId: string;
   isPending: boolean;
-  onEdit: (id: string, memberName: string, memberEmail?: string | null) => void;
+  onEdit: (member: FamilyMemberRow) => void;
   onDelete: (id: string) => void;
   onLink: (id: string) => void;
   onUnlink: (id: string) => void;
@@ -86,38 +87,34 @@ function FamilyMemberCard({
     <article className="overflow-hidden rounded-2xl border bg-card shadow-sm transition-all hover:border-primary/25 hover:shadow-md">
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
         <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:justify-center sm:border-r sm:pr-5">
-          <div
-            className={cn(
-              "flex h-16 w-16 items-center justify-center rounded-xl text-lg font-bold sm:h-20 sm:w-20 sm:text-xl",
-              status === "linked-self"
-                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                : status === "linked-other"
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted text-muted-foreground"
-            )}
-          >
-            {getMonogram(member.name)}
-          </div>
+          <Monogram name={member.name} memberId={member.id} size="lg" className="h-16 w-16 sm:h-20 sm:w-20" />
         </div>
 
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="text-lg font-bold tracking-tight">{member.name}</h3>
+              <h3 className="text-lg font-bold tracking-tight">
+                {member.name}
+                {member.isChild ? (
+                  <span className="ml-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                    Gyerek
+                  </span>
+                ) : null}
+              </h3>
               {member.linkedUser && status === "linked-other" && (
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-foreground">
                   <Mail className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{member.linkedUser.email}</span>
                 </p>
               )}
               {status === "virtual" && member.email && (
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-foreground">
                   <Mail className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{member.email}</span>
                 </p>
               )}
               {status === "virtual" && (
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-foreground">
                   {member.pendingLinkUser
                     ? `${member.pendingLinkUser.name} kapott összekapcsolási kérelmet — bejelentkezéskor erősítheti meg.`
                     : member.email
@@ -126,14 +123,19 @@ function FamilyMemberCard({
                 </p>
               )}
               {isLinkedToMe && (
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-foreground">
                   Ez a profil a te bejelentkezett fiókodhoz tartozik.
                 </p>
               )}
+              {member.isChild ? (
+                <p className="mt-1 text-xs text-foreground">
+                  Nem szerepel a fennmaradó kiegyenlítésekben.
+                </p>
+              ) : null}
             </div>
             <span
               className={cn(
-                "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
+                "shrink-0 rounded-md px-2.5 py-0.5 text-xs font-medium",
                 STATUS_STYLES[status]
               )}
             >
@@ -147,7 +149,7 @@ function FamilyMemberCard({
             variant="ghost"
             size="icon"
             className="h-9 w-9"
-            onClick={() => onEdit(member.id, member.name, member.email)}
+            onClick={() => onEdit(member)}
             disabled={isPending}
             title="Szerkesztés"
           >
@@ -184,7 +186,7 @@ function FamilyMemberCard({
             <Button
               size="sm"
               variant="ghost"
-              className="min-h-[var(--touch-target)] flex-1 text-muted-foreground sm:min-h-9 sm:flex-none"
+              className="min-h-[var(--touch-target)] flex-1 text-foreground sm:min-h-9 sm:flex-none"
               onClick={() => onCancelProposal(member.id)}
               disabled={isPending}
             >
@@ -207,7 +209,7 @@ function FamilyMemberCard({
             <Button
               size="sm"
               variant="ghost"
-              className="min-h-[var(--touch-target)] flex-1 text-muted-foreground sm:min-h-9 sm:flex-none"
+              className="min-h-[var(--touch-target)] flex-1 text-foreground sm:min-h-9 sm:flex-none"
               onClick={() => onUnlink(member.id)}
               disabled={isPending}
             >
@@ -236,6 +238,7 @@ export function FamilyPage({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [isChild, setIsChild] = useState(false);
   const [proposeTarget, setProposeTarget] = useState<{
     memberId: string;
     user: { id: string; name: string; email: string };
@@ -266,20 +269,26 @@ export function FamilyPage({
     setEditingId(null);
     setName("");
     setEmail("");
+    setIsChild(false);
     setDialogOpen(true);
   }
 
-  function openEdit(id: string, memberName: string, memberEmail?: string | null) {
-    setEditingId(id);
-    setName(memberName);
-    setEmail(memberEmail ?? "");
+  function openEdit(member: FamilyMemberRow) {
+    setEditingId(member.id);
+    setName(member.name);
+    setEmail(member.email ?? "");
+    setIsChild(Boolean(member.isChild));
     setDialogOpen(true);
   }
 
   function handleSubmit() {
     if (!name.trim()) return;
     startTransition(async () => {
-      const payload = { name: name.trim(), email: email.trim() || undefined };
+      const payload = {
+        name: name.trim(),
+        email: email.trim() || undefined,
+        isChild,
+      };
       const result = editingId
         ? await updateFamilyMember({ id: editingId, ...payload })
         : await createFamilyMember(payload);
@@ -423,16 +432,16 @@ export function FamilyPage({
 
         {members.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
-            <span className="rounded-full bg-background px-3 py-1 text-sm shadow-sm">
+            <span className="rounded-md bg-background px-3 py-1 text-sm shadow-sm">
               {members.length} családtag
             </span>
             {linkedCount > 0 && (
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+              <span className="rounded-md bg-emerald-100 px-3 py-1 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
                 {linkedCount} összekapcsolt
               </span>
             )}
             {grouped.virtual.length > 0 && (
-              <span className="rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">
+              <span className="rounded-md bg-muted px-3 py-1 text-sm text-muted-foreground">
                 {grouped.virtual.length} virtuális
               </span>
             )}
@@ -522,9 +531,26 @@ export function FamilyPage({
                   if (e.key === "Enter") handleSubmit();
                 }}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-foreground">
                 Ha regisztrált fiók tartozik hozzá, összekapcsolási kérelmet küldhetsz.
               </p>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+              <div className="min-w-0">
+                <Label htmlFor="member-is-child" className="text-sm font-medium">
+                  Gyerek
+                </Label>
+                <p className="text-xs text-foreground">
+                  Nem jelenik meg a fennmaradó kiegyenlítések között.
+                </p>
+              </div>
+              <Switch
+                id="member-is-child"
+                checked={isChild}
+                onCheckedChange={setIsChild}
+                disabled={isPending}
+                aria-label="Gyerek jelölés"
+              />
             </div>
           </DialogBody>
           <DialogFooter className="grid grid-cols-2 gap-2">

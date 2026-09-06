@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { ConfigErrorPanel } from "@/components/config-error-panel";
 import { FamilyLinkNotifications } from "@/components/family/family-link-notifications";
+import { MemberAvatarProvider, MemberAvatarOwnFamilyHydrator } from "@/components/member-avatar-provider";
 import { probeDatabase, validateAppEnv } from "@/lib/env";
 import {
   fetchPendingFamilyLinkRequests,
@@ -8,6 +9,16 @@ import {
 } from "@/lib/queries/family-links";
 import { fetchTripsList } from "@/lib/queries/trips";
 import { fetchCommandPaletteIndex } from "@/lib/queries/command-palette";
+
+function isNextRedirectError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "digest" in err &&
+    typeof (err as { digest: unknown }).digest === "string" &&
+    (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
+}
 
 export default async function DashboardRouteLayout({
   children,
@@ -19,23 +30,24 @@ export default async function DashboardRouteLayout({
     return <ConfigErrorPanel message={envError} />;
   }
 
-  const dbError = await probeDatabase();
-  if (dbError) {
-    return <ConfigErrorPanel message={dbError} />;
-  }
-
   let incomingRequests: Awaited<ReturnType<typeof fetchPendingFamilyLinkRequests>> = [];
   let proposalOutcomes: Awaited<ReturnType<typeof fetchUnseenFamilyLinkProposalOutcomes>> = [];
   let tripCommands: { id: string; title: string; destination: string }[] = [];
   let searchItems: Awaited<ReturnType<typeof fetchCommandPaletteIndex>> = [];
 
   try {
-    const [requests, outcomes, trips, palette] = await Promise.all([
+    const [dbError, requests, outcomes, trips, palette] = await Promise.all([
+      probeDatabase(),
       fetchPendingFamilyLinkRequests(),
       fetchUnseenFamilyLinkProposalOutcomes(),
       fetchTripsList(),
       fetchCommandPaletteIndex(),
     ]);
+
+    if (dbError) {
+      return <ConfigErrorPanel message={dbError} />;
+    }
+
     incomingRequests = requests;
     proposalOutcomes = outcomes;
     tripCommands = trips
@@ -47,18 +59,27 @@ export default async function DashboardRouteLayout({
       }));
     searchItems = palette;
   } catch (err) {
+    if (isNextRedirectError(err)) throw err;
     console.error("[DashboardLayout] fetch failed:", err);
+    const dbError = await probeDatabase();
+    if (dbError) {
+      return <ConfigErrorPanel message={dbError} />;
+    }
   }
 
   return (
     <DashboardLayout trips={tripCommands} searchItems={searchItems}>
-      <div className="mx-auto w-full max-w-5xl space-y-6">
-        <FamilyLinkNotifications
-          incomingRequests={incomingRequests}
-          proposalOutcomes={proposalOutcomes}
-        />
-        {children}
-      </div>
+      {/* Avatar URL-ök nem-blokkolóan (MemberAvatarOwnFamilyHydrator) — layout soha ne várjon signed URL-re */}
+      <MemberAvatarProvider>
+        <MemberAvatarOwnFamilyHydrator />
+        <div className="mx-auto w-full max-w-5xl space-y-6">
+          <FamilyLinkNotifications
+            incomingRequests={incomingRequests}
+            proposalOutcomes={proposalOutcomes}
+          />
+          {children}
+        </div>
+      </MemberAvatarProvider>
     </DashboardLayout>
   );
 }

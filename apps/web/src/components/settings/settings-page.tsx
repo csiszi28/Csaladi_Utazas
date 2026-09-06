@@ -1,14 +1,21 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Bell, Eye, EyeOff, KeyRound, Palette, Settings2, Trash2, UserRound } from "lucide-react";
+import { Bell, Camera, Eye, EyeOff, KeyRound, Palette, Settings2, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { deleteAccount, updateAccountPassword, updateProfileName } from "@/actions/settings";
+import { Monogram } from "@/components/monogram";
+import {
+  deleteAccount,
+  removeProfileAvatar,
+  updateAccountPassword,
+  updateProfileName,
+  uploadProfileAvatar,
+} from "@/actions/settings";
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_LABELS,
@@ -39,6 +46,7 @@ interface SettingsPageProps {
     id: string;
     name: string;
     email: string;
+    avatarUrl?: string | null;
   };
 }
 
@@ -60,8 +68,14 @@ export function SettingsPage({ user }: SettingsPageProps) {
   const [optimisticMasterOn, setOptimisticMasterOn] = useState<boolean | null>(null);
   const [namePending, startNameTransition] = useTransition();
   const [passwordPending, startPasswordTransition] = useTransition();
+  const [avatarPending, startAvatarTransition] = useTransition();
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deletePending, startDeleteTransition] = useTransition();
+  const [previewUrl, setPreviewUrl] = useState<string | null>(user.avatarUrl ?? null);
+
+  useEffect(() => {
+    setPreviewUrl(user.avatarUrl ?? null);
+  }, [user.avatarUrl]);
 
   useEffect(() => {
     function sync() {
@@ -88,6 +102,51 @@ export function SettingsPage({ user }: SettingsPageProps) {
         toast.success("Név frissítve");
         router.refresh();
       }
+    });
+  }
+
+  function onAvatarSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Csak képfájl tölthető fel");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("A kép maximum 5 MB lehet");
+      return;
+    }
+
+    const localUrl = URL.createObjectURL(file);
+    setPreviewUrl(localUrl);
+
+    startAvatarTransition(async () => {
+      const formData = new FormData();
+      formData.set("file", file);
+      const result = await uploadProfileAvatar(formData);
+      URL.revokeObjectURL(localUrl);
+      if (!result.success) {
+        toast.error(result.error);
+        setPreviewUrl(user.avatarUrl ?? null);
+        return;
+      }
+      toast.success("Profilkép frissítve");
+      router.refresh();
+    });
+  }
+
+  function clearAvatar() {
+    startAvatarTransition(async () => {
+      const result = await removeProfileAvatar();
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      setPreviewUrl(null);
+      toast.success("Profilkép törölve");
+      router.refresh();
     });
   }
 
@@ -222,6 +281,48 @@ export function SettingsPage({ user }: SettingsPageProps) {
             <h2 className="text-sm font-semibold tracking-tight">Profil</h2>
           </div>
           <form onSubmit={saveName} className="space-y-4 p-4 sm:p-5">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+              <Monogram name={name || user.name} size="lg" imageUrl={previewUrl} />
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Profilkép</p>
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG vagy WebP — max. 5 MB.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-[var(--touch-target)] gap-1.5 sm:min-h-9"
+                    disabled={avatarPending}
+                    onClick={() => document.getElementById("settings-avatar-input")?.click()}
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    {avatarPending ? "Feltöltés…" : "Kép választása"}
+                  </Button>
+                  {previewUrl ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-[var(--touch-target)] text-muted-foreground sm:min-h-9"
+                      disabled={avatarPending}
+                      onClick={clearAvatar}
+                    >
+                      Eltávolítás
+                    </Button>
+                  ) : null}
+                  <input
+                    id="settings-avatar-input"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={onAvatarSelected}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="settings-name">Megjelenített név</Label>
               <Input
@@ -363,11 +464,11 @@ export function SettingsPage({ user }: SettingsPageProps) {
               </p>
             </div>
             {notifPermission === "unsupported" ? (
-              <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[0.65rem] font-medium text-muted-foreground">
+              <span className="shrink-0 rounded-md bg-muted px-2.5 py-1 text-[0.65rem] font-medium text-muted-foreground">
                 Nem elérhető
               </span>
             ) : notifPermission === "denied" ? (
-              <span className="shrink-0 rounded-full bg-destructive/10 px-2.5 py-1 text-[0.65rem] font-medium text-destructive">
+              <span className="shrink-0 rounded-md bg-destructive/10 px-2.5 py-1 text-[0.65rem] font-medium text-destructive">
                 Böngésző tiltja
               </span>
             ) : (

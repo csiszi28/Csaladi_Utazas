@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
   id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   email      TEXT NOT NULL UNIQUE,
   name       TEXT NOT NULL,
+  "avatarStoragePath" TEXT,
+  "avatarMimeType" TEXT,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

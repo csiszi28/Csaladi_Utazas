@@ -96,7 +96,7 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
               <span className="shrink-0 text-muted-foreground">{activeTab.icon}</span>
               <span className="truncate font-medium">{activeTab.label}</span>
               {activeCount != null ? (
-                <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold tabular-nums text-primary">
+                <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold tabular-nums text-primary">
                   {activeCount}
                 </span>
               ) : null}
@@ -111,7 +111,7 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
                     {tab.icon}
                     <span>{tab.label}</span>
                     {count != null ? (
-                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
                         {count}
                       </span>
                     ) : null}
@@ -149,7 +149,7 @@ export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps
               {showCount && (
                 <span
                   className={cn(
-                    "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+                    "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tabular-nums",
                     active === tab.id
                       ? "bg-primary/10 text-primary"
                       : "bg-muted text-muted-foreground"
@@ -232,7 +232,7 @@ export function TripFilterChips<T extends string>({
             </span>
             <span
               className={cn(
-                "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums transition-colors",
+                "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tabular-nums transition-colors",
                 isActive
                   ? "bg-primary/10 text-primary dark:bg-[var(--brand-accent)]/20 dark:text-[var(--brand-accent)]"
                   : "bg-background/80 text-muted-foreground dark:bg-white/8 dark:text-white/55"
