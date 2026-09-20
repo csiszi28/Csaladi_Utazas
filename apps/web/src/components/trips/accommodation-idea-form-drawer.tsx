@@ -33,6 +33,7 @@ import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { useCreateTripIdea, useUpdateTripIdea } from "@/hooks/use-ideas";
 import { UrlPreviewCard } from "@/components/ideas/url-preview-card";
 import { ParticipantPicker } from "@/components/trips/participant-picker";
+import { CurrencyRateHint } from "@/components/money-display";
 
 export interface AccommodationIdeaFormData {
   id: string;
@@ -218,6 +219,7 @@ export function AccommodationIdeaFormDrawer({
                   ))}
                 </SelectContent>
               </Select>
+              <CurrencyRateHint currency={currency} />
             </div>
             <div className="space-y-1.5">
               <Label>Összeg értelmezése</Label>

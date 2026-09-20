@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CurrencyRateHint } from "@/components/money-display";
 
 interface TripFormDrawerProps {
   open: boolean;
@@ -201,6 +202,7 @@ export function TripFormDrawer({
                 </SelectContent>
               </Select>
             </div>
+            <CurrencyRateHint currency={budgetCurrency} />
             <p className="text-xs text-muted-foreground">
               A terv vs. tény összehasonlításhoz használjuk. Üresen hagyva nincs limit.
             </p>

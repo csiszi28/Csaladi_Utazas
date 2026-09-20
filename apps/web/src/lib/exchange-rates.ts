@@ -3,42 +3,48 @@ import { DEFAULT_HUF_RATES, type Currency } from "@csaladi-utazas/shared";
 
 export type HufRates = Record<Currency, number>;
 
+type FrankfurterResponse = { rates?: { HUF?: number } };
+type OpenErApiResponse = { result?: string; rates?: { HUF?: number } };
+
+async function fetchFrankfurterHuf(from: "EUR" | "USD" | "THB"): Promise<number | null> {
+  const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=HUF`, {
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as FrankfurterResponse;
+  return data.rates?.HUF ?? null;
+}
+
+/** Frankfurter (ECB) nem listázza az AED-et — open.er-api napi középárfolyam. */
+async function fetchAedHuf(): Promise<number | null> {
+  const res = await fetch("https://open.er-api.com/v6/latest/AED", {
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as OpenErApiResponse;
+  if (data.result && data.result !== "success") return null;
+  return data.rates?.HUF ?? null;
+}
+
 async function fetchRatesFromApi(): Promise<HufRates> {
   try {
-    const [eurRes, usdRes, aedRes, thbRes] = await Promise.all([
-      fetch("https://api.frankfurter.app/latest?from=EUR&to=HUF", {
-        next: { revalidate: 3600 },
-      }),
-      fetch("https://api.frankfurter.app/latest?from=USD&to=HUF", {
-        next: { revalidate: 3600 },
-      }),
-      fetch("https://api.frankfurter.app/latest?from=AED&to=HUF", {
-        next: { revalidate: 3600 },
-      }),
-      fetch("https://api.frankfurter.app/latest?from=THB&to=HUF", {
-        next: { revalidate: 3600 },
-      }),
+    const [eur, usd, thb, aed] = await Promise.all([
+      fetchFrankfurterHuf("EUR"),
+      fetchFrankfurterHuf("USD"),
+      fetchFrankfurterHuf("THB"),
+      fetchAedHuf(),
     ]);
 
-    if (!eurRes.ok || !usdRes.ok) {
+    if (eur == null || usd == null) {
       return DEFAULT_HUF_RATES;
     }
 
-    const eurData = (await eurRes.json()) as { rates?: { HUF?: number } };
-    const usdData = (await usdRes.json()) as { rates?: { HUF?: number } };
-    const aedData = aedRes.ok
-      ? ((await aedRes.json()) as { rates?: { HUF?: number } })
-      : null;
-    const thbData = thbRes.ok
-      ? ((await thbRes.json()) as { rates?: { HUF?: number } })
-      : null;
-
     return {
       HUF: 1,
-      EUR: eurData.rates?.HUF ?? DEFAULT_HUF_RATES.EUR,
-      USD: usdData.rates?.HUF ?? DEFAULT_HUF_RATES.USD,
-      AED: aedData?.rates?.HUF ?? DEFAULT_HUF_RATES.AED,
-      THB: thbData?.rates?.HUF ?? DEFAULT_HUF_RATES.THB,
+      EUR: eur,
+      USD: usd,
+      AED: aed ?? DEFAULT_HUF_RATES.AED,
+      THB: thb ?? DEFAULT_HUF_RATES.THB,
     };
   } catch {
     return DEFAULT_HUF_RATES;
@@ -47,6 +53,6 @@ async function fetchRatesFromApi(): Promise<HufRates> {
 
 export const getHufExchangeRates = unstable_cache(
   fetchRatesFromApi,
-  ["huf-exchange-rates"],
+  ["huf-exchange-rates-v2"],
   { revalidate: 3600 }
 );

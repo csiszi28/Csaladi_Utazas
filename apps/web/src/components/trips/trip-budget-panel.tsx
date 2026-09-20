@@ -236,7 +236,7 @@ export function TripBudgetPanel({ trip }: TripBudgetPanelProps) {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Ft összegek az aktuális árfolyamon (Frankfurter), óránként frissítve.
+        Ft összegek az aktuális árfolyamon (EUR/USD/THB: ECB, AED: napi közép), óránként frissítve.
       </p>
 
       {summary.status === "over" && (

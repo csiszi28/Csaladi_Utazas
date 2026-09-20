@@ -656,6 +656,9 @@ export function TripDetailPage({
   };
 
   const tripParticipants = trip.participants.map((p) => p.familyMember);
+  const memberIdSet = new Set(members.map((m) => m.id));
+  /** Utazás dokumentum checklist / feltöltés: csak saját családtagok, ne a teljes résztvevőlista. */
+  const documentFamilyMembers = tripParticipants.filter((p) => memberIdSet.has(p.id));
   const currentFamilyMemberId = resolveCurrentFamilyMemberId(
     trip.participants,
     currentUserId
@@ -1041,14 +1044,14 @@ export function TripDetailPage({
             <>
               <DocumentChecklistPanel
                 documents={localDocuments}
-                participants={tripParticipants}
+                participants={documentFamilyMembers}
                 tripType={trip.tripType}
               />
               {canEdit ? (
                 <DocumentUpload
                   tripId={trip.id}
                   documents={localDocuments.filter((d) => d.category !== "PHOTO")}
-                  participantOptions={tripParticipants}
+                  participantOptions={documentFamilyMembers}
                   programTitleById={programTitleById}
                   onDocumentUploaded={handleDocumentUploaded}
                   onDocumentDeleted={handleDocumentDeleted}

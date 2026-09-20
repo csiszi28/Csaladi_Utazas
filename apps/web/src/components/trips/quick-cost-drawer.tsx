@@ -32,6 +32,7 @@ import { TRIP_DIALOG_BTN_CLASS } from "./trip-section-styles";
 import { createQuickCost } from "@/actions/costs";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { CurrencyRateHint } from "@/components/money-display";
 
 interface QuickCostDrawerProps {
   open: boolean;
@@ -130,6 +131,7 @@ export function QuickCostDrawer({
                     ))}
                   </SelectContent>
                 </Select>
+                <CurrencyRateHint currency={currency} />
               </div>
             </div>
 

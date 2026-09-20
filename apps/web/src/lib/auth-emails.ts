@@ -137,13 +137,36 @@ export function buildPasswordResetEmail(opts: { actionUrl: string }) {
 
 type LinkType = "signup" | "recovery" | "magiclink";
 
+/**
+ * A generateLink `action_link`-je a Supabase `/auth/v1/verify` végpontra mutat.
+ * Böngészőből apikey nélkül → `No API key found in request`.
+ * Ezért a hashed_tokennel az app `/auth/callback` oldalára linkelünk.
+ */
+function buildAppAuthActionUrl(opts: {
+  hashedToken: string;
+  type: LinkType;
+  next: string;
+}): string {
+  const base = `${getSiteUrl().replace(/\/$/, "")}/auth/callback`;
+  const params = new URLSearchParams({
+    token_hash: opts.hashedToken,
+    type: opts.type,
+  });
+  if (opts.next !== "/") {
+    params.set("next", opts.next);
+  }
+  return `${base}?${params.toString()}`;
+}
+
 async function generateAuthActionLink(opts: {
   type: LinkType;
   email: string;
   password?: string;
-  redirectTo: string;
+  /** App path after verify, pl. `/` vagy `/auth/reset-password` */
+  next: string;
 }): Promise<{ ok: true; actionLink: string } | { ok: false; error: string }> {
   const supabase = await createServiceClient();
+  const redirectTo = getAuthCallbackUrl(opts.next);
 
   const result =
     opts.type === "signup"
@@ -151,18 +174,18 @@ async function generateAuthActionLink(opts: {
           type: "signup",
           email: opts.email,
           password: opts.password || crypto.randomUUID(),
-          options: { redirectTo: opts.redirectTo },
+          options: { redirectTo },
         })
       : opts.type === "recovery"
         ? await supabase.auth.admin.generateLink({
             type: "recovery",
             email: opts.email,
-            options: { redirectTo: opts.redirectTo },
+            options: { redirectTo },
           })
         : await supabase.auth.admin.generateLink({
             type: "magiclink",
             email: opts.email,
-            options: { redirectTo: opts.redirectTo },
+            options: { redirectTo },
           });
 
   const { data, error } = result;
@@ -171,16 +194,19 @@ async function generateAuthActionLink(opts: {
     return { ok: false, error: error.message };
   }
 
-  const actionLink =
-    data.properties?.action_link ??
-    (data as { action_link?: string }).action_link ??
-    null;
-
-  if (!actionLink) {
+  const hashedToken = data.properties?.hashed_token ?? null;
+  if (!hashedToken) {
     return { ok: false, error: "Nem sikerült megerősítő linket generálni" };
   }
 
-  return { ok: true, actionLink };
+  return {
+    ok: true,
+    actionLink: buildAppAuthActionUrl({
+      hashedToken,
+      type: opts.type,
+      next: opts.next,
+    }),
+  };
 }
 
 /** Resend-en keresztül — nem a Supabase óránkénti e-mail kvótáját használja. */
@@ -193,12 +219,11 @@ export async function sendSignupConfirmViaResend(opts: {
     return { ok: false, error: "Resend nincs beállítva", fallbackToSupabase: true };
   }
 
-  const redirectTo = getAuthCallbackUrl("/");
   const link = await generateAuthActionLink({
     type: "signup",
     email: opts.email,
     password: opts.password,
-    redirectTo,
+    next: "/",
   });
   if (!link.ok) return { ok: false, error: link.error };
 
@@ -232,11 +257,10 @@ export async function sendPasswordResetViaResend(opts: {
     return { ok: false, error: "Resend nincs beállítva", fallbackToSupabase: true };
   }
 
-  const redirectTo = getAuthCallbackUrl("/auth/reset-password");
   const link = await generateAuthActionLink({
     type: "recovery",
     email: opts.email,
-    redirectTo,
+    next: "/auth/reset-password",
   });
   if (!link.ok) {
     // Ne szivárogtassuk, hogy létezik-e a fiók

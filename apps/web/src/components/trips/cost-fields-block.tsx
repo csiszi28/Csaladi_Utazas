@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CurrencyRateHint } from "@/components/money-display";
 
 const amountInputClassName =
   "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]";
@@ -86,6 +87,7 @@ export function CostFieldsBlock({
               ))}
             </SelectContent>
           </Select>
+          <CurrencyRateHint currency={value.currency} />
         </div>
       </div>
 
