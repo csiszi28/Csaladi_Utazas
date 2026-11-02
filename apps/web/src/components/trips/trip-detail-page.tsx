@@ -1149,7 +1149,7 @@ export function TripDetailPage({
       <Button
         type="button"
         size="icon"
-        className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[calc(3.75rem+env(safe-area-inset-bottom)*0.35+1rem)] z-30 h-14 w-14 rounded-2xl shadow-lg md:bottom-[max(1rem,env(safe-area-inset-bottom))] sm:hidden"
+        className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[5.75rem] z-30 h-14 w-14 rounded-2xl shadow-lg md:bottom-[max(1rem,env(safe-area-inset-bottom))] sm:hidden"
         onClick={() => setQuickCostOpen(true)}
         aria-label="Gyors költség"
       >
