@@ -57,7 +57,12 @@ export default async function TripDetailRoute({
 
   // Regisztrált közreműködők: ha hiányzik a linked résztvevő (elszámolás / szavazás), pótoljuk
   const { syncCollaboratorParticipants } = await import("@/lib/trip-access");
-  const healed = await syncCollaboratorParticipants(trip.id);
+  const linkedUserIds = new Set(
+    trip.participants
+      .map((p) => p.familyMember.linkedUserId)
+      .filter((id): id is string => Boolean(id))
+  );
+  const healed = await syncCollaboratorParticipants(trip.id, linkedUserIds);
   if (healed) needsRefresh = true;
 
   if (needsRefresh) {

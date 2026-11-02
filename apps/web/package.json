@@ -8,7 +8,7 @@
     "build": "next build && node scripts/append-sw-push.mjs",
     "sw:append-push": "node scripts/append-sw-push.mjs",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "icons:generate": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
@@ -46,6 +46,7 @@
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
     "@prisma/nextjs-monorepo-workaround-plugin": "^7.8.0",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/leaflet": "1.9.16",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { Menu, Search } from "lucide-react";
 import { DesktopSidebar, MobileSidebarChrome, SidebarNav } from "@/components/layout/sidebar";
@@ -16,18 +17,39 @@ import {
 } from "@/components/search/command-palette";
 import type { CommandPaletteSearchItem } from "@/lib/queries/command-palette";
 
-export function DashboardLayout({
-  children,
-  trips = [],
-  searchItems = [],
-}: {
-  children: React.ReactNode;
-  trips?: CommandPaletteTrip[];
-  searchItems?: CommandPaletteSearchItem[];
-}) {
+type SearchIndex = { trips: CommandPaletteTrip[]; items: CommandPaletteSearchItem[] };
+
+async function fetchSearchIndex(): Promise<SearchIndex> {
+  const res = await fetch("/api/v1/search-index", { credentials: "same-origin" });
+  if (!res.ok) throw new Error("search-index");
+  const body = (await res.json()) as { data: SearchIndex };
+  return body.data;
+}
+
+export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchWanted, setSearchWanted] = useState(false);
+
+  // A keresési index az első megnyitáskor (vagy hover/fókusz előtöltéskor) töltődik.
+  const { data: searchIndex } = useQuery({
+    queryKey: ["search-index"],
+    queryFn: fetchSearchIndex,
+    enabled: searchWanted || searchOpen,
+    staleTime: 60_000,
+  });
+  const trips = searchIndex?.trips ?? [];
+  const searchItems = searchIndex?.items ?? [];
+
+  useEffect(() => {
+    // Üresjárati előtöltés: a keresés az első használatkor már kész legyen.
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const id = idle ? idle(() => setSearchWanted(true)) : window.setTimeout(() => setSearchWanted(true), 2500);
+    return () => {
+      if (!idle) window.clearTimeout(id);
+    };
+  }, []);
 
   useEffect(() => {
     if (!mobileOpen) return;

@@ -87,3 +87,17 @@ node scripts/generate-icons.mjs
 Vercel → Project → Domains → add custom domain → DNS beállítás után frissítsd:
 - `NEXT_PUBLIC_SITE_URL`
 - Supabase Site URL + Redirect URLs
+
+## 6. Opcionális változók és karbantartás
+
+| Változó | Leírás |
+|---------|--------|
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Auth e-mailek (Resend) |
+| `NEXT_PUBLIC_MAPTILER_KEY` | Térképcsempék |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web push értesítések |
+| `CRON_SECRET` | A `/api/cron/*` végpontok védelme (`Authorization: Bearer <secret>`). A middleware ezeket nem irányítja át a bejelentkezésre, a végpont maga ellenőriz. |
+
+- **Adatbázis-index:** a `trips(userId, startDate)` összetett index a sémában szerepel. Élesben egyszer futtasd a Supabase SQL Editorban: `packages/database/prisma/migrate-trips-user-start-index.sql`.
+- **CI:** `.github/workflows/ci.yml` minden pushnál/PR-nál futtatja a teszteket, a típusellenőrzést, a lintet és a buildet.
+- **Sebességkorlát:** az API-k felhasználónként 120 kérés/perc (url-preview: 30/perc) korlátot kapnak, példányonként számolva. Szigorúbb, globális korláthoz Upstash Redis kell.
+- **Hibafigyelés:** a szerveroldali hibák egységes JSON-ként kerülnek a Vercel Logs-ba (`src/instrumentation.ts`). Sentry bekötéséhez ide kell a DSN és az SDK.

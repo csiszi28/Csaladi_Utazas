@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import {
-  getCachedDocumentUrl,
   prefetchDocumentUrls,
   invalidateDocumentUrl,
 } from "@/lib/document-url-cache";

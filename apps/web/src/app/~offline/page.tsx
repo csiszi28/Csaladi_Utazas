@@ -143,6 +143,8 @@ export default function OfflinePage() {
       )}
 
       <Button asChild className="min-h-[var(--touch-target)]">
+        {/* Teljes újratöltés kell: offline állapotból a router nem próbálja újra a hálózatot */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/">Újrapróbálás</a>
       </Button>
     </div>

@@ -34,17 +34,26 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims: a JWT-t helyben ellenőrzi (aszimmetrikus kulcsnál nincs hálózati hívás),
+  // szemben a getUser()-rel, ami minden kérésnél a Supabase auth szerverhez fordul.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = claimsData?.claims?.sub ? { id: claimsData.claims.sub } : null;
 
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/auth");
-  const isPublicApi = pathname === "/api/health";
+  // A cron végpontok saját CRON_SECRET-tel védettek (Vercel Cron nem hordoz süti-munkamenetet).
+  const isPublicApi = pathname === "/api/health" || pathname.startsWith("/api/cron/");
   const authRoutesWithSession = ["/auth/callback", "/auth/reset-password"];
   const allowsLoggedInUser = authRoutesWithSession.some((r) => pathname.startsWith(r));
 
   if (!user && !isAuthRoute && !isPublicApi) {
+    // API-kliensnek (fetch) JSON 401 jár, nem a bejelentkezési oldal HTML-je.
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { success: false, error: "Hitelesítés szükséges", code: "UNAUTHORIZED" },
+        { status: 401 }
+      );
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     return NextResponse.redirect(url);

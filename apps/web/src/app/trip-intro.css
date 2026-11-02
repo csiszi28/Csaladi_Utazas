@@ -1,0 +1,573 @@
+/* ───────── Nyitó utazás-animáció (TripIntro) ───────── */
+.ti-root {
+  position: absolute;
+  inset: 0;
+  z-index: 100002;
+  overflow: hidden;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  animation: ti-root-in 450ms ease-out both;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes ti-root-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.ti-bg {
+  position: absolute;
+  inset: 0;
+}
+
+.ti-bg--dusk {
+  background:
+    radial-gradient(120% 70% at 50% 108%, #3b5aa8 0%, transparent 60%),
+    linear-gradient(180deg, #0b1a3a 0%, #17306b 55%, #2a4a8f 100%);
+}
+
+.ti-bg--dawn {
+  opacity: 0;
+  background:
+    radial-gradient(110% 65% at 50% 105%, #ffb866 0%, rgb(255 140 90 / 0.55) 38%, transparent 70%),
+    linear-gradient(180deg, #10264f 0%, #3a3f86 48%, #b5607a 100%);
+  animation: ti-fade-in 1500ms ease-in-out 3700ms forwards;
+}
+
+@keyframes ti-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+.ti-orb {
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  opacity: 0.35;
+  will-change: transform;
+}
+
+.ti-orb--a {
+  top: -30vmax;
+  left: -25vmax;
+  background: radial-gradient(circle, rgb(120 160 255 / 0.55), transparent 65%);
+  animation: ti-drift-a 7s ease-in-out infinite alternate;
+}
+
+.ti-orb--b {
+  right: -30vmax;
+  bottom: -35vmax;
+  background: radial-gradient(circle, rgb(255 184 102 / 0.5), transparent 65%);
+  animation: ti-drift-b 7s ease-in-out infinite alternate;
+}
+
+@keyframes ti-drift-a {
+  to {
+    transform: translate3d(12vmax, 8vmax, 0) scale(1.15);
+  }
+}
+
+@keyframes ti-drift-b {
+  to {
+    transform: translate3d(-10vmax, -8vmax, 0) scale(1.1);
+  }
+}
+
+.ti-stars {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ti-star {
+  fill: #fff;
+  opacity: 0.15;
+  animation: ti-twinkle 3s ease-in-out infinite;
+}
+
+@keyframes ti-twinkle {
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.ti-hills {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 26svh;
+  animation: ti-hills-rise 1400ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both;
+}
+
+@keyframes ti-hills-rise {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+
+.ti-hill--far {
+  fill: rgb(8 20 52 / 0.55);
+}
+
+.ti-hill--near {
+  fill: rgb(6 14 38 / 0.85);
+}
+
+.ti-scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: max(2rem, env(safe-area-inset-top)) 1.25rem max(5rem, env(safe-area-inset-bottom));
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ti-scene--origin {
+  animation: ti-scene-origin 2700ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.ti-scene--flight {
+  animation: ti-scene-flight 2500ms cubic-bezier(0.4, 0, 0.2, 1) 2550ms both;
+}
+
+.ti-scene--dest {
+  animation: ti-scene-dest 2000ms cubic-bezier(0.22, 1, 0.36, 1) 4650ms both;
+}
+
+@keyframes ti-scene-origin {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  14%,
+  74% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes ti-scene-flight {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  14%,
+  84% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24px) scale(1.06);
+  }
+}
+
+@keyframes ti-scene-dest {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  20%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ti-kicker {
+  margin: 0 0 1.1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.42em;
+  padding-left: 0.42em;
+  text-transform: uppercase;
+  color: rgb(214 227 255 / 0.85);
+}
+
+.ti-kicker--warm {
+  color: #ffd9a8;
+  animation: ti-rise 700ms ease-out 4800ms both;
+}
+
+.ti-scene--origin .ti-kicker {
+  animation: ti-rise 700ms ease-out 250ms both;
+}
+
+.ti-title {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2.2rem, 10.5vw, 6.5rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+  text-shadow: 0 6px 40px rgb(0 0 0 / 0.35);
+}
+
+.ti-word {
+  display: inline-block;
+  white-space: nowrap;
+  margin: 0 0.12em;
+}
+
+.ti-letter {
+  display: inline-block;
+  opacity: 0;
+  animation: ti-letter 750ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@keyframes ti-letter {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em) scale(0.85) rotate(4deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A betűk saját rétegen animálnak, ezért itt nem használható background-clip:text */
+.ti-title--dest {
+  color: #fff4e2;
+  text-shadow:
+    0 0 38px rgb(255 184 102 / 0.55),
+    0 6px 40px rgb(0 0 0 / 0.35);
+}
+
+.ti-pin {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  margin-top: 2.2rem;
+}
+
+.ti-pin-dot {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #ffb866;
+  box-shadow: 0 0 22px 4px rgb(255 184 102 / 0.7);
+  animation: ti-pin-drop 700ms cubic-bezier(0.34, 1.56, 0.64, 1) 900ms both;
+}
+
+.ti-pin--dest .ti-pin-dot {
+  animation-delay: 5300ms;
+}
+
+.ti-pin-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgb(255 184 102 / 0.8);
+  opacity: 0;
+  animation: ti-ring 2000ms ease-out 1200ms infinite;
+}
+
+.ti-pin-ring--late {
+  animation-delay: 2200ms;
+}
+
+.ti-pin--dest .ti-pin-ring {
+  animation-delay: 5500ms;
+}
+
+.ti-pin--dest .ti-pin-ring--late {
+  animation-delay: 6500ms;
+}
+
+@keyframes ti-pin-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.3);
+  }
+}
+
+@keyframes ti-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(4.2);
+  }
+}
+
+.ti-dest-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 1.4rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.92);
+  animation: ti-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) 5400ms both;
+}
+
+.ti-dest-dates {
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: #ffd9a8;
+}
+
+@keyframes ti-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+.ti-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.ti-count-num {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(5.5rem, 28vw, 11rem);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #fff 20%, #ffb866 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 8px 36px rgb(0 0 0 / 0.35));
+}
+
+.ti-count-unit {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  text-transform: uppercase;
+  color: rgb(214 227 255 / 0.9);
+}
+
+.ti-count-today {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2.6rem, 13vw, 5.5rem);
+  font-weight: 800;
+  color: #ffb866;
+}
+
+.ti-arc {
+  position: relative;
+  width: min(92vw, 520px);
+}
+
+.ti-arc svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ti-arc-base {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.28);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 7;
+  stroke-linecap: round;
+}
+
+.ti-arc-trail {
+  fill: none;
+  stroke: #ffb866;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgb(255 184 102 / 0.8));
+}
+
+.ti-arc-end {
+  fill: #fff;
+}
+
+.ti-arc-end--dest {
+  fill: #ffb866;
+}
+
+.ti-plane {
+  fill: #fff;
+  filter: drop-shadow(0 0 8px rgb(255 255 255 / 0.7));
+}
+
+.ti-arc-label {
+  position: absolute;
+  top: 88%;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.85);
+  white-space: nowrap;
+}
+
+.ti-arc-label--from {
+  left: 0;
+}
+
+.ti-arc-label--to {
+  right: 0;
+  color: #ffd9a8;
+}
+
+.ti-progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.ti-progress-bar {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffb866, #ffd9a8);
+  transform-origin: left;
+  animation: ti-progress linear both;
+}
+
+@keyframes ti-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.ti-skip {
+  position: absolute;
+  right: 0;
+  bottom: max(1.1rem, env(safe-area-inset-bottom));
+  left: 0;
+  margin: 0;
+  text-align: center;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: rgb(255 255 255 / 0.4);
+  animation: ti-rise 600ms ease-out 1400ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ti-orb,
+  .ti-star {
+    animation: none !important;
+  }
+}
+
+/* Úticél borítóképe: a harmadik jelenetben úszik be, lassú nagyítással */
+.ti-cover {
+  position: absolute;
+  inset: -4%;
+  opacity: 0;
+  background-position: center;
+  background-size: cover;
+  will-change: transform, opacity;
+  animation:
+    ti-cover-in 1600ms ease-in-out 4000ms forwards,
+    ti-cover-zoom 7s linear 4000ms forwards;
+}
+
+.ti-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(8 18 46 / 0.55) 0%, rgb(8 18 46 / 0.2) 40%, rgb(8 18 46 / 0.7) 100%);
+}
+
+@keyframes ti-cover-in {
+  to {
+    opacity: 0.9;
+  }
+}
+
+@keyframes ti-cover-zoom {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.12);
+  }
+}
+
+/* ───────── Mobil finomhangolás ───────── */
+@media (max-width: 480px) {
+  .ti-scene {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .ti-kicker {
+    font-size: 0.7rem;
+    letter-spacing: 0.32em;
+    padding-left: 0.32em;
+  }
+
+  .ti-count-unit {
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+  }
+
+  .ti-arc-label {
+    font-size: 0.68rem;
+    max-width: 38%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Alacsony (fekvő telefon) nézet */
+@media (max-height: 460px) {
+  .ti-hills {
+    height: 18svh;
+  }
+
+  .ti-count-num {
+    font-size: clamp(3.5rem, 22vh, 7rem);
+  }
+
+  .ti-arc {
+    width: min(60vw, 360px);
+  }
+
+  .ti-title {
+    font-size: clamp(2rem, 16vh, 4.5rem);
+  }
+
+  .ti-skip {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ti-cover {
+    animation: ti-cover-in 400ms ease-out forwards;
+  }
+}

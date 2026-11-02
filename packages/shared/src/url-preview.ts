@@ -6,21 +6,52 @@ export interface UrlPreviewData {
   siteName: string | null;
 }
 
+const MAX_REDIRECTS = 3;
+
 const BLOCKED_HOSTS = new Set([
   "localhost",
-  "127.0.0.1",
   "0.0.0.0",
+  "[::]",
   "[::1]",
+  "metadata.google.internal",
 ]);
+
+/** SSRF ellen: belső, loopback, link-local (felhő metadata: 169.254.169.254) és privát címek tiltása. */
+function isPrivateIpv4(hostname: string): boolean {
+  const match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!match) return false;
+  const [a, b] = [Number(match[1]), Number(match[2])];
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  return a >= 224; // multicast / reserved
+}
 
 function isPrivateHost(hostname: string): boolean {
   const lower = hostname.toLowerCase();
   if (BLOCKED_HOSTS.has(lower)) return true;
-  if (lower.endsWith(".local")) return true;
-  if (/^10\./.test(lower)) return true;
-  if (/^192\.168\./.test(lower)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(lower)) return true;
-  return false;
+  if (lower.endsWith(".local") || lower.endsWith(".localhost") || lower.endsWith(".internal")) {
+    return true;
+  }
+  if (isPrivateIpv4(lower)) return true;
+
+  if (lower.startsWith("[")) {
+    // IPv6: loopback, ULA (fc00::/7), link-local (fe80::/10), IPv4-mapped (::ffff:a.b.c.d)
+    const inner = lower.slice(1, -1);
+    if (inner === "::" || inner === "::1") return true;
+    if (/^f[cd]/.test(inner) || /^fe[89ab]/.test(inner)) return true;
+    const mapped = inner.match(/^::ffff:(.+)$/);
+    if (mapped) {
+      const rest = mapped[1];
+      return isPrivateIpv4(rest) || /^[0-9a-f]{1,4}:[0-9a-f]{1,4}$/.test(rest);
+    }
+    return false;
+  }
+
+  // Pont nélküli név (pl. "intranet") csak belső hálózaton oldódik fel
+  return !lower.includes(".");
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -112,6 +143,26 @@ export function validatePreviewUrl(raw: string): URL | null {
   }
 }
 
+const MAX_HTML_BYTES = 200_000;
+
+/** Legfeljebb `limit` bájtot olvas — ne töltsön le óriási oldalakat a memóriába. */
+async function readLimitedText(response: Response, limit: number): Promise<string> {
+  if (!response.body) return (await response.text()).slice(0, limit);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = "";
+  while (received < limit) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+    received += value.byteLength;
+    text += decoder.decode(value, { stream: true });
+  }
+  void reader.cancel().catch(() => undefined);
+  return text.slice(0, limit);
+}
+
 export async function fetchUrlPreview(
   rawUrl: string,
   fetchFn: typeof fetch = fetch
@@ -125,25 +176,40 @@ export async function fetchUrlPreview(
   const timeout = setTimeout(() => controller.abort(), 6000);
 
   try {
-    const response = await fetchFn(parsed.toString(), {
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; CsaladiUtazasBot/1.0; +https://csaladi-utazas)",
-        Accept: "text/html,application/xhtml+xml",
-      },
-      redirect: "follow",
-    });
+    // Átirányítást kézzel követjük, hogy minden lépést újra ellenőrizzünk (SSRF-védelem).
+    let current = parsed;
+    let response: Response | null = null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      response = await fetchFn(current.toString(), {
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; CsaladiUtazasBot/1.0; +https://csaladi-utazas)",
+          Accept: "text/html,application/xhtml+xml",
+        },
+        redirect: "manual",
+      });
 
-    if (!response.ok) return fallback;
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        const next = location ? validatePreviewUrl(new URL(location, current).toString()) : null;
+        if (!next) return fallback;
+        current = next;
+        response = null;
+        continue;
+      }
+      break;
+    }
+
+    if (!response || !response.ok) return fallback;
 
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
       return fallback;
     }
 
-    const html = await response.text();
-    const preview = parseUrlPreviewFromHtml(html.slice(0, 200_000), parsed.toString());
+    const html = await readLimitedText(response, MAX_HTML_BYTES);
+    const preview = parseUrlPreviewFromHtml(html, parsed.toString());
 
     if (!preview.title) {
       preview.title = fallback.title;

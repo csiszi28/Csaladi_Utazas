@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@csaladi-utazas/database";
 import { tripSchema, parseDate } from "@csaladi-utazas/shared";
 import { jsonFail, jsonOk, withApiAuth } from "@/lib/api/handler";

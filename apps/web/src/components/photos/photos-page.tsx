@@ -217,6 +217,8 @@ export function PhotosPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
                           <img
                             src={urls[doc.id]}
                             alt={doc.fileName}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-cover transition-transform group-hover:scale-[1.03]"
                           />
                         ) : (

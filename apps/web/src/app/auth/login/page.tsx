@@ -27,6 +27,7 @@ function LoginForm() {
         { name: "password", label: "Jelszó", type: "password", placeholder: "••••••" },
       ]}
       submitLabel="Bejelentkezés"
+      playIntroOnSuccess
     />
   );
 }

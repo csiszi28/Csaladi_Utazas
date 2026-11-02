@@ -235,6 +235,8 @@ export function PhotoGalleryPanel({
                           <img
                             src={urls[doc.id]}
                             alt={doc.fileName}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-cover"
                           />
                         </button>

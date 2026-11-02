@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ActionResult } from "@/actions/auth";
 import { formatAuthError } from "@/lib/auth/errors";
-import { ensureAppInteractive } from "@/lib/app-splash";
+import { ensureAppInteractive, resetSplashSeen } from "@/lib/app-splash";
 
 interface AuthField {
   name: string;
@@ -24,6 +24,8 @@ interface AuthFormProps {
   submitLabel: string;
   redirectOnSuccess?: string;
   successMessage?: string;
+  /** Sikeres belépés után teljes oldalbetöltéssel újra lejátszik a nyitóanimáció. */
+  playIntroOnSuccess?: boolean;
 }
 
 export function AuthForm({
@@ -32,6 +34,7 @@ export function AuthForm({
   submitLabel,
   redirectOnSuccess,
   successMessage,
+  playIntroOnSuccess,
 }: AuthFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -71,6 +74,12 @@ export function AuthForm({
         ensureAppInteractive();
 
         const target = result.redirectTo ?? redirectOnSuccess ?? "/";
+        if (playIntroOnSuccess) {
+          // Teljes betöltés: a splash-kapu (layout boot script) így újra felépül.
+          resetSplashSeen();
+          window.location.assign(target);
+          return;
+        }
         router.replace(target);
       } catch (err) {
         const message = formatAuthError(err);

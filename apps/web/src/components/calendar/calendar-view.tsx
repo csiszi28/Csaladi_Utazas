@@ -36,7 +36,9 @@ import {
 import { Monogram, MonogramGroup } from "@/components/monogram";
 import { useHufRates } from "@/components/exchange-rates-provider";
 import { CalendarDayDrawer } from "./calendar-day-drawer";
+import Link from "next/link";
 import { TodayFamilyWidget } from "./today-family-widget";
+import { NextTripCountdown } from "./next-trip-countdown";
 import { FirstUseGuide } from "@/components/onboarding/first-use-guide";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
@@ -870,6 +872,8 @@ export function CalendarView({
         hasFamilyMembers={members.length > 0}
       />
 
+      <NextTripCountdown trips={allTrips} />
+
       <TodayFamilyWidget trips={allTrips} />
 
       <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/8 via-card to-card p-4 shadow-sm sm:p-6">
@@ -1095,7 +1099,7 @@ export function CalendarView({
           description="Hozz létre egy utazást, és itt látod majd a programokat naponta bontva."
         >
           <Button asChild className="min-h-[var(--touch-target)]">
-            <a href="/trips">Utazások megnyitása</a>
+            <Link href="/trips">Utazások megnyitása</Link>
           </Button>
         </EmptyState>
       ) : (

@@ -1,26 +1,32 @@
-export const SPLASH_KEY = "app-splash-seen-v2";
+export const SPLASH_KEY = "app-splash-seen-v3";
 export const SPLASH_BG = "#1a365d";
 
-/** Rövid, érzékelhető jelenlét — ne tartsa vissza a tartalmat 5 másodpercig. */
-export const SPLASH_DISPLAY_MS = 1600;
+/** Márkás tartalék splash (nincs közelgő út): 3 másodperc a megnyitástól. */
+export const SPLASH_DISPLAY_MS = 3000;
 export const SPLASH_ENTER_MS = 400;
-export const SPLASH_FADE_MS = 500;
-export const SPLASH_CONTENT_FADE_MS = 450;
+export const SPLASH_FADE_MS = 700;
+export const SPLASH_CONTENT_FADE_MS = 600;
 
+/** Ennyit várunk a szerverre, ha még nincs gyorsítótárazott úti adat. */
+export const SPLASH_FETCH_BUDGET_MS = 1800;
+
+/** Egy munkamenetben egyszer, minden eszközön. */
 export function shouldShowSplash(): boolean {
   if (typeof window === "undefined") return false;
-
-  const isMobile = window.matchMedia("(max-width: 767px)").matches;
-  const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    ("standalone" in navigator && (navigator as Navigator & { standalone?: boolean }).standalone);
-
-  if (!isMobile && !isStandalone) return false;
 
   try {
     return sessionStorage.getItem(SPLASH_KEY) !== "1";
   } catch {
     return true;
+  }
+}
+
+/** Belépés után újra lejátszható legyen a nyitóanimáció. */
+export function resetSplashSeen(): void {
+  try {
+    sessionStorage.removeItem(SPLASH_KEY);
+  } catch {
+    // storage blocked
   }
 }
 

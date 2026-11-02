@@ -213,14 +213,20 @@ export async function ensureCollaboratorSelfOnTrip(
 }
 
 /** Meghívott felhasználók automatikus résztvevővé tétele (TripParticipant). */
-export async function syncCollaboratorParticipants(tripId: string): Promise<boolean> {
+export async function syncCollaboratorParticipants(
+  tripId: string,
+  /** Már ismert, linked résztvevő user-ek — ezekre nincs szükség gyógyításra (megspórol 3-4 lekérdezést/oldalbetöltés). */
+  alreadyLinkedUserIds?: ReadonlySet<string>
+): Promise<boolean> {
   const collaborators = await prisma.tripCollaborator.findMany({
     where: { tripId },
     select: { user: { select: { id: true, name: true } } },
   });
 
   const results = await Promise.all(
-    collaborators.map(({ user }) =>
+    collaborators
+      .filter(({ user }) => !alreadyLinkedUserIds?.has(user.id))
+      .map(({ user }) =>
       ensureCollaboratorSelfOnTrip(tripId, user.id, user.name)
     )
   );

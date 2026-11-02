@@ -12,9 +12,11 @@ export const getAuthSession = cache(async () => {
   return user;
 });
 
+/** Csak a felhasználó azonosítója — JWT helyi ellenőrzéssel, hálózati hívás nélkül (ha lehet). */
 export const getAuthUserId = cache(async (): Promise<string | null> => {
-  const user = await getAuthSession();
-  return user?.id ?? null;
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return data?.claims?.sub ?? null;
 });
 
 export const getCurrentUser = cache(async () => {

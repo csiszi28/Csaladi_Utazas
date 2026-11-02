@@ -5,7 +5,6 @@ import {
   formatDate,
   formatTimeWhileTyping,
   normalizeTimeValue,
-  formatAmountInput,
   parseAmountInput,
   parseDate,
   TRANSPORT_TYPES,

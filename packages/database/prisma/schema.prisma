@@ -97,7 +97,7 @@ model Trip {
   settlementPayments SettlementPayment[]
   packingItems     PackingItem[]
 
-  @@index([userId])
+  @@index([userId, startDate])
   @@index([startDate, endDate])
   @@index([isTemplate])
   @@map("trips")

@@ -1,5 +1,6 @@
 "use client";
 
+import { clearIntroTripsCache } from "@/lib/trip-intro";
 import { useEffect, useState, useTransition } from "react";
 import { Bell, Camera, Eye, EyeOff, KeyRound, Palette, Settings2, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -253,6 +254,7 @@ export function SettingsPage({ user }: SettingsPageProps) {
         return;
       }
       toast.success("Fiók törölve");
+      clearIntroTripsCache();
       router.push(result.data.redirectTo);
     });
   }

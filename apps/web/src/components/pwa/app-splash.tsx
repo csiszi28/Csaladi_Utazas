@@ -1,16 +1,28 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   SPLASH_BG,
+  SPLASH_FETCH_BUDGET_MS,
   beginSplashExit,
   cleanupSplashPrep,
   getSplashDisplayMs,
   getSplashFadeMs,
   markSplashSeen,
+  prefersReducedMotion,
   shouldShowSplash,
   syncSplashDocumentState,
 } from "@/lib/app-splash";
+import {
+  buildIntroPlan,
+  fetchIntroTrips,
+  readCachedIntroTrips,
+  type IntroPlan,
+} from "@/lib/trip-intro";
+import { TRIP_INTRO_MS, TripIntro } from "@/components/pwa/trip-intro";
+
+/** Márkás splash hossza a /auth oldalakon (kijelentkezett felhasználó). */
+const AUTH_SPLASH_MS = 1000;
 
 interface AppSplashProps {
   crossfadeMs: number;
@@ -19,13 +31,17 @@ interface AppSplashProps {
 }
 
 /**
- * Csak időzítés és dokumentum-osztályok — a vizuális intro egyetlen rétege
- * a layout.tsx #app-splash-blocker (React portal nélkül, nincs dupla render).
+ * Időzítés és dokumentum-osztályok. A márkás réteg a layout.tsx #app-splash-blocker;
+ * ha van közelgő út, afölé kerül a teljes oldalas TripIntro animáció.
  */
 export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashProps) {
   const [active, setActive] = useState(false);
+  /** undefined = még döntünk, null = nincs közelgő út (márkás splash) */
+  const [plan, setPlan] = useState<IntroPlan | null | undefined>(undefined);
   const onFadeStartRef = useRef(onFadeStart);
   const onFinishedRef = useRef(onFinished);
+  const timersRef = useRef<number[]>([]);
+  const exitingRef = useRef(false);
 
   useEffect(() => {
     onFadeStartRef.current = onFadeStart;
@@ -42,29 +58,66 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
     setActive(true);
   }, []);
 
+  // Úti adat: gyorsítótárból azonnal, különben a szerverről rövid időkerettel.
   useEffect(() => {
-    if (!active || !shouldShowSplash()) return;
+    if (!active) return;
 
-    const displayMs = getSplashDisplayMs();
-    const fadeDurationMs = getSplashFadeMs();
+    if (prefersReducedMotion()) {
+      setPlan(null);
+      void fetchIntroTrips(SPLASH_FETCH_BUDGET_MS);
+      return;
+    }
 
-    const fadeTimer = window.setTimeout(() => {
-      beginSplashExit();
-      onFadeStartRef.current?.();
-    }, displayMs);
+    let cancelled = false;
+    const cachedPlan = buildIntroPlan(readCachedIntroTrips());
 
-    const hideTimer = window.setTimeout(() => {
+    if (cachedPlan) {
+      setPlan(cachedPlan);
+      void fetchIntroTrips(SPLASH_FETCH_BUDGET_MS); // háttérfrissítés a következő megnyitásra
+      return;
+    }
+
+    void fetchIntroTrips(SPLASH_FETCH_BUDGET_MS).then((trips) => {
+      if (!cancelled) setPlan(buildIntroPlan(trips));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
+
+  const startExit = useCallback(() => {
+    if (exitingRef.current) return;
+    exitingRef.current = true;
+    timersRef.current.forEach((id) => window.clearTimeout(id));
+    timersRef.current = [];
+
+    beginSplashExit();
+    onFadeStartRef.current?.();
+
+    window.setTimeout(() => {
       markSplashSeen();
       setActive(false);
       cleanupSplashPrep();
       onFinishedRef.current?.();
-    }, displayMs + Math.max(crossfadeMs, fadeDurationMs));
+    }, Math.max(crossfadeMs, getSplashFadeMs()));
+  }, [crossfadeMs]);
 
-    return () => {
-      window.clearTimeout(fadeTimer);
-      window.clearTimeout(hideTimer);
-    };
-  }, [active, crossfadeMs]);
+  // Kilépés ütemezése, amint tudjuk, melyik változat fut.
+  useEffect(() => {
+    if (!active || plan === undefined || exitingRef.current) return;
+
+    const sinceMount = performance.now();
+    // Bejelentkezési oldalon nincs mit "bemutatni" — rövid márkás villanás elég.
+    const onAuthPage = window.location.pathname.startsWith("/auth");
+    const displayMs = plan ? TRIP_INTRO_MS : onAuthPage ? AUTH_SPLASH_MS : getSplashDisplayMs();
+    // A márkás splash a megnyitástól számít (a szerverre várás beleszámít).
+    const remaining = plan ? displayMs : Math.max(0, displayMs - Math.min(sinceMount, displayMs));
+
+    const timer = window.setTimeout(startExit, remaining);
+    timersRef.current = [timer];
+    return () => window.clearTimeout(timer);
+  }, [active, plan, startExit]);
 
   useLayoutEffect(() => {
     if (!active) {
@@ -96,6 +149,10 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
       }
     };
   }, [active]);
+
+  if (active && plan) {
+    return <TripIntro plan={plan} onSkip={startExit} />;
+  }
 
   return null;
 }

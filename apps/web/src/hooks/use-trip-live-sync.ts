@@ -4,8 +4,8 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { bustTripViewCache, pullTripRevision } from "@/actions/trip-sync";
 
-const POLL_VISIBLE_MS = 1000;
-const POLL_HIDDEN_MS = 8000;
+/** Látható fülön 5 mp; rejtett fülön nincs polling, visszatéréskor azonnal frissít. */
+const POLL_VISIBLE_MS = 5000;
 
 function toRevisionIso(value: string | Date | null | undefined): string {
   if (value == null) return "";
@@ -27,8 +27,8 @@ function toRevisionIso(value: string | Date | null | undefined): string {
 }
 
 /**
- * Látható trip detailnél ~1s-enként nézi a contentUpdatedAt-et.
- * Változáskor cache bust + router.refresh() — cél: módosítás <5s alatt mindenkinél.
+ * Látható trip detailnél ~5s-enként nézi a contentUpdatedAt-et (rejtett fülön nem).
+ * Változáskor cache bust + router.refresh().
  */
 export function useTripLiveSync(tripId: string, contentUpdatedAt: string | Date | null | undefined) {
   const router = useRouter();
@@ -51,8 +51,8 @@ export function useTripLiveSync(tripId: string, contentUpdatedAt: string | Date 
     async function poll() {
       if (cancelled) return;
 
+      // Rejtett fül: nincs ütemezett kör, a visibilitychange újraindítja.
       if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        timer = setTimeout(poll, POLL_HIDDEN_MS);
         return;
       }
 
@@ -84,11 +84,7 @@ export function useTripLiveSync(tripId: string, contentUpdatedAt: string | Date 
       }
 
       if (!cancelled) {
-        const delay =
-          typeof document !== "undefined" && document.visibilityState === "visible"
-            ? POLL_VISIBLE_MS
-            : POLL_HIDDEN_MS;
-        timer = setTimeout(poll, delay);
+        timer = setTimeout(poll, POLL_VISIBLE_MS);
       }
     }
 

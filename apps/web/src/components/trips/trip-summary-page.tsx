@@ -173,6 +173,8 @@ export function TripSummaryPage({ trip, coverUrl, photos }: TripSummaryPageProps
                 <img
                   src={photo.url ?? undefined}
                   alt={photo.fileName}
+                  loading="lazy"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
               </div>
