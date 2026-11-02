@@ -11,6 +11,7 @@ import {
   markSplashSeen,
   prefersReducedMotion,
   shouldShowSplash,
+  startActivityTracking,
   syncSplashDocumentState,
 } from "@/lib/app-splash";
 import {
@@ -47,6 +48,8 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
     onFadeStartRef.current = onFadeStart;
     onFinishedRef.current = onFinished;
   }, [onFadeStart, onFinished]);
+
+  useEffect(() => startActivityTracking(), []);
 
   useLayoutEffect(() => {
     if (!shouldShowSplash()) {

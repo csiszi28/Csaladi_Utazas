@@ -10,21 +10,82 @@ export const SPLASH_CONTENT_FADE_MS = 600;
 /** Ennyit várunk a szerverre, ha még nincs gyorsítótárazott úti adat. */
 export const SPLASH_FETCH_BUDGET_MS = 1800;
 
-/** Egy munkamenetben egyszer, minden eszközön. */
+/**
+ * Utolsó aktív pillanat. iOS-en a háttérbe tett (felhúzott) app oldala eldobódhat, és a
+ * sessionStorage elvész — ilyenkor ez különbözteti meg a visszatérést a valódi újraindítástól.
+ * Keep in sync with the boot script in app/layout.tsx.
+ */
+export const LAST_ACTIVE_KEY = "app-last-active-v1";
+/** Ennyi időn belüli visszatérés "folytatás", nem új megnyitás. */
+export const RESUME_WINDOW_MS = 30 * 60 * 1000;
+
+function wasRecentlyActive(): boolean {
+  try {
+    const at = Number(localStorage.getItem(LAST_ACTIVE_KEY));
+    return at > 0 && Date.now() - at >= 0 && Date.now() - at < RESUME_WINDOW_MS;
+  } catch {
+    return false;
+  }
+}
+
+export function touchLastActive(): void {
+  try {
+    localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+  } catch {
+    // storage blocked
+  }
+}
+
+/** Csak az első megnyitáskor / bezárás utáni indításkor; háttérből visszatérve nem. */
 export function shouldShowSplash(): boolean {
   if (typeof window === "undefined") return false;
 
   try {
-    return sessionStorage.getItem(SPLASH_KEY) !== "1";
+    if (sessionStorage.getItem(SPLASH_KEY) === "1") return false;
   } catch {
-    return true;
+    return !wasRecentlyActive();
   }
+
+  if (wasRecentlyActive()) {
+    markSplashSeen();
+    return false;
+  }
+  return true;
+}
+
+/** Amíg az app nyitva van, folyamatosan frissíti az "utolsó aktív" időbélyeget. */
+export function startActivityTracking(): () => void {
+  // A nyitó animáció alatt még nem számít "megnyitottnak" (különben a splash félbeszakadna)
+  const touchIfSeen = () => {
+    try {
+      if (sessionStorage.getItem(SPLASH_KEY) === "1") touchLastActive();
+    } catch {
+      touchLastActive();
+    }
+  };
+  const onHide = touchIfSeen;
+  const onVisibility = touchIfSeen;
+  const interval = window.setInterval(() => {
+    if (document.visibilityState === "visible") touchIfSeen();
+  }, 60_000);
+  document.addEventListener("visibilitychange", onVisibility);
+  window.addEventListener("pagehide", onHide);
+  return () => {
+    window.clearInterval(interval);
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener("pagehide", onHide);
+  };
 }
 
 /** Belépés után újra lejátszható legyen a nyitóanimáció. */
 export function resetSplashSeen(): void {
   try {
     sessionStorage.removeItem(SPLASH_KEY);
+  } catch {
+    // storage blocked
+  }
+  try {
+    localStorage.removeItem(LAST_ACTIVE_KEY);
   } catch {
     // storage blocked
   }
@@ -36,6 +97,7 @@ export function markSplashSeen(): void {
   } catch {
     // storage blocked
   }
+  touchLastActive();
 }
 
 export function prefersReducedMotion(): boolean {

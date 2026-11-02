@@ -122,7 +122,10 @@ export function buildTripSettlement(
     if (ids.length === 0) ids = adultIds;
     if (ids.length === 0) continue;
 
-    const totalHuf = costTotalHuf(cost, Math.max(ids.length, 1), rates);
+    // A teljes összeg a VALÓDI résztvevőszám alapján számolódik (gyerekekkel együtt) —
+    // egy "1 főre" költség a gyerekre is kerül; a részesedésüket a felnőttek viszik.
+    const headcount = Math.max(rawIds.length, ids.length, 1);
+    const totalHuf = costTotalHuf(cost, headcount, rates);
 
     if (!cost.paidByFamilyMemberId) {
       unsettledCosts.push({ id: cost.id, title: cost.title, totalHuf });

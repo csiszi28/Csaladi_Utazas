@@ -316,15 +316,23 @@ export function TripDetailPage({
     });
   }, [documentsFingerprint, trip.documents]);
 
-  const costsFingerprint = useMemo(
-    () => trip.costs.map((c) => `${c.id}:${c.title}:${c.amount}`).join("|"),
-    [trip.costs]
-  );
+  // Teljes tartalom ujjlenyomata: bármely mező (fizető, kategória, résztvevők…) változása számít,
+  // nem csak a cím és az összeg.
+  const costsFingerprint = useMemo(() => JSON.stringify(trip.costs), [trip.costs]);
+  const prevServerCostIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
+    const serverIds = new Set(trip.costs.map((c) => c.id));
+    // Ami korábban a szerveren volt, most már nincs → máshol törölték, ne maradjon "szellem"
+    const goneOnServer = new Set(
+      [...(prevServerCostIds.current ?? [])].filter((id) => !serverIds.has(id))
+    );
+    prevServerCostIds.current = serverIds;
+
     setLocalCosts((prev) => {
-      const serverIds = new Set(trip.costs.map((c) => c.id));
-      const pending = prev.filter((c) => c.id.startsWith("temp-") || !serverIds.has(c.id));
+      const pending = prev.filter(
+        (c) => !serverIds.has(c.id) && !goneOnServer.has(c.id)
+      );
       const merged = [...pending, ...trip.costs];
       const seen = new Set<string>();
       return merged.filter((c) => {
@@ -335,21 +343,18 @@ export function TripDetailPage({
     });
   }, [costsFingerprint, trip.costs]);
 
-  const programsFingerprint = useMemo(
-    () =>
-      trip.programs
-        .map(
-          (p) =>
-            `${p.id}:${p.title}:${String(p.date)}:${p.startTime ?? ""}:${p.endTime ?? ""}:${p.location ?? ""}`
-        )
-        .join("|"),
-    [trip.programs]
-  );
+  const programsFingerprint = useMemo(() => JSON.stringify(trip.programs), [trip.programs]);
+  const prevServerProgramIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
+    const serverIds = new Set(trip.programs.map((p) => p.id));
+    const goneOnServer = new Set(
+      [...(prevServerProgramIds.current ?? [])].filter((id) => !serverIds.has(id))
+    );
+    prevServerProgramIds.current = serverIds;
+
     setLocalPrograms((prev) => {
-      const serverIds = new Set(trip.programs.map((p) => p.id));
-      const pending = prev.filter((p) => !serverIds.has(p.id));
+      const pending = prev.filter((p) => !serverIds.has(p.id) && !goneOnServer.has(p.id));
       const merged = [...pending, ...trip.programs];
       const seen = new Set<string>();
       return merged.filter((p) => {

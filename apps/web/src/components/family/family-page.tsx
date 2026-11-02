@@ -241,6 +241,7 @@ export function FamilyPage({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [isChild, setIsChild] = useState(false);
+  const [addToTrips, setAddToTrips] = useState(true);
   const [proposeTarget, setProposeTarget] = useState<{
     memberId: string;
     email: string;
@@ -276,6 +277,7 @@ export function FamilyPage({
     setName("");
     setEmail("");
     setIsChild(false);
+    setAddToTrips(true);
     setDialogOpen(true);
   }
 
@@ -297,7 +299,7 @@ export function FamilyPage({
       };
       const result = editingId
         ? await updateFamilyMember({ id: editingId, ...payload })
-        : await createFamilyMember(payload);
+        : await createFamilyMember({ ...payload, addToUpcomingTrips: addToTrips });
 
       if (!result.success) {
         toast.error(result.error);
@@ -317,7 +319,16 @@ export function FamilyPage({
         return;
       }
 
-      toast.success(editingId ? "Családtag frissítve" : "Családtag létrehozva");
+      const addedToTrips = editingId
+        ? 0
+        : ((result.data as { addedToTrips?: number }).addedToTrips ?? 0);
+      toast.success(
+        editingId
+          ? "Családtag frissítve"
+          : addedToTrips > 0
+            ? `Családtag létrehozva, ${addedToTrips} utazáshoz hozzáadva`
+            : "Családtag létrehozva"
+      );
       setDialogOpen(false);
       router.refresh();
     });
@@ -565,7 +576,8 @@ export function FamilyPage({
                   Gyerek
                 </Label>
                 <p className="text-xs text-foreground">
-                  Nem jelenik meg a fennmaradó kiegyenlítések között.
+                  Résztvevő marad, a költségek rá is számítanak — de nem fizet és nem kap
+                  vissza pénzt, a részét a felnőttek viszik.
                 </p>
               </div>
               <Switch
@@ -576,6 +588,25 @@ export function FamilyPage({
                 aria-label="Gyerek jelölés"
               />
             </div>
+            {!editingId ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+                <div className="min-w-0">
+                  <Label htmlFor="member-add-to-trips" className="text-sm font-medium">
+                    Hozzáadás a közelgő utazásokhoz
+                  </Label>
+                  <p className="text-xs text-foreground">
+                    Résztvevő lesz minden még le nem zárult utazásodon, ahol szerkeszthetsz.
+                  </p>
+                </div>
+                <Switch
+                  id="member-add-to-trips"
+                  checked={addToTrips}
+                  onCheckedChange={setAddToTrips}
+                  disabled={isPending}
+                  aria-label="Hozzáadás a közelgő utazásokhoz"
+                />
+              </div>
+            ) : null}
           </DialogBody>
           <DialogFooter className="grid grid-cols-2 gap-2">
             <Button

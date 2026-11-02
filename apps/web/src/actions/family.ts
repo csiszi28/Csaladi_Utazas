@@ -253,7 +253,9 @@ export async function createFamilyMember(data: {
   name: string;
   email?: string;
   isChild?: boolean;
-}): Promise<ActionResult<{ id: string; linkSuggestion: LinkSuggestion }>> {
+  /** Az új családtag felvétele a közelgő / folyamatban lévő utazások résztvevői közé is. */
+  addToUpcomingTrips?: boolean;
+}): Promise<ActionResult<{ id: string; linkSuggestion: LinkSuggestion; addedToTrips: number }>> {
   const user = await requireUser();
   const parsed = createFamilyMemberSchema.safeParse(data);
 
@@ -271,10 +273,41 @@ export async function createFamilyMember(data: {
       userId: user.id,
     },
   });
+  // Új családtag csak a későbbi felvételnél kerülne az utazásokra — itt kérésre azonnal rá is tesszük
+  // azokra, amelyeken szerkeszthetünk és még nem zárultak le.
+  let addedToTrips = 0;
+  if (data.addToUpcomingTrips) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const trips = await prisma.trip.findMany({
+      where: {
+        isTemplate: false,
+        endDate: { gte: today },
+        OR: [
+          { userId: user.id },
+          { collaborators: { some: { userId: user.id, role: "EDITOR" } } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (trips.length > 0) {
+      await prisma.tripParticipant.createMany({
+        data: trips.map((trip) => ({ tripId: trip.id, familyMemberId: member.id })),
+        skipDuplicates: true,
+      });
+      addedToTrips = trips.length;
+      for (const trip of trips) invalidateTripsAndReports(user.id, trip.id);
+    }
+  }
+
   invalidateFamilyAndCalendar(user.id);
   return {
     success: true,
-    data: { id: member.id, linkSuggestion: parsedEmail ? { email: parsedEmail } : null },
+    data: {
+      id: member.id,
+      linkSuggestion: parsedEmail ? { email: parsedEmail } : null,
+      addedToTrips,
+    },
   };
 }
 

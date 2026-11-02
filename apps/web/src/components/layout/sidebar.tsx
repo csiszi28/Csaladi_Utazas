@@ -1,6 +1,6 @@
 "use client";
 
-import { clearIntroTripsCache } from "@/lib/trip-intro";
+import { clearUserClientData } from "@/lib/clear-client-caches";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -95,7 +95,7 @@ export function SidebarNav({ onNavigate, showClose, onClose, mobileDrawer }: Sid
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    clearIntroTripsCache();
+    await clearUserClientData();
     window.location.assign("/auth/login");
   }
 
