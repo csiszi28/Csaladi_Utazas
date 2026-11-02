@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { Menu, Search } from "lucide-react";
 import { DesktopSidebar, MobileSidebarChrome, SidebarNav } from "@/components/layout/sidebar";
+import { BottomNav } from "@/components/layout/bottom-nav";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ExchangeRatesProvider } from "@/components/exchange-rates-provider";
 import { Button } from "@/components/ui/button";
@@ -145,6 +146,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
             </main>
+            <BottomNav onOpenMenu={() => setMobileOpen(true)} />
           </div>
         </div>
 

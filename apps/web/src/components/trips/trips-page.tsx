@@ -23,6 +23,18 @@ import type { FamilyMemberRow } from "@/lib/queries/family";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FirstUseGuide } from "@/components/onboarding/first-use-guide";
 import { cn } from "@/lib/utils";
+import { TripFilterChips } from "@/components/trips/trip-detail-tabs";
+
+type TripFilter = "all" | "active" | "upcoming" | "past";
+
+/** Hány nap van az indulásig (kliensen számolva); negatív, ha már elindult. */
+function daysUntilStart(date: Date | string) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((start.getTime() - today.getTime()) / 86_400_000);
+}
 
 function tripDateParts(date: Date | string) {
   const d = new Date(date);
@@ -51,6 +63,12 @@ const STATUS_LABELS = {
   active: "Folyamatban",
   past: "Lezárult",
 } as const;
+
+function countdownText(days: number) {
+  if (days <= 0) return "Ma indulunk";
+  if (days === 1) return "Holnap";
+  return `${days} nap múlva`;
+}
 
 const STATUS_ACCENT = {
   upcoming: {
@@ -134,7 +152,7 @@ function TripCard({ trip }: { trip: TripListRow }) {
                 accent.badge
               )}
             >
-              {STATUS_LABELS[status]}
+              {status === "upcoming" ? countdownText(daysUntilStart(trip.startDate)) : STATUS_LABELS[status]}
             </span>
           </div>
 
@@ -192,6 +210,7 @@ export function TripsPage({
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [templateDialogTrip, setTemplateDialogTrip] = useState<TripListRow | null>(null);
+  const [filter, setFilter] = useState<TripFilter>("all");
 
   const grouped = useMemo(() => {
     const active: TripListRow[] = [];
@@ -265,20 +284,18 @@ export function TripsPage({
         </div>
 
         {trips.length > 0 && (
-          <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
-            <span className="rounded-md bg-background px-3 py-1 text-sm text-foreground shadow-sm">
-              {trips.length} utazás
-            </span>
-            {grouped.active.length > 0 && (
-              <span className="rounded-md bg-emerald-100 px-3 py-1 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                {grouped.active.length} folyamatban
-              </span>
-            )}
-            {grouped.upcoming.length > 0 && (
-              <span className="rounded-md bg-[var(--brand-accent)] px-3 py-1 text-sm font-medium text-[#1a2744]">
-                {grouped.upcoming.length} közelgő
-              </span>
-            )}
+          <div className="mt-5 border-t pt-4">
+            <TripFilterChips<TripFilter>
+              ariaLabel="Utazások szűrése"
+              active={filter}
+              onChange={setFilter}
+              items={[
+                { id: "all", label: "Mind", count: grouped.active.length + grouped.upcoming.length + grouped.past.length },
+                { id: "active", label: "Folyamatban", shortLabel: "Most", count: grouped.active.length },
+                { id: "upcoming", label: "Közelgő", count: grouped.upcoming.length },
+                { id: "past", label: "Korábbi", count: grouped.past.length },
+              ]}
+            />
           </div>
         )}
       </section>
@@ -300,13 +317,24 @@ export function TripsPage({
         </EmptyState>
       ) : (
         <div className="space-y-8">
-          {renderSection(
-            "Folyamatban",
-            grouped.active,
-            "Jelenleg zajló utazások — itt érdemes naponta frissíteni a programot és költségeket."
-          )}
-          {renderSection("Közelgő utazások", grouped.upcoming)}
-          {renderSection("Korábbi utazások", grouped.past)}
+          {filter === "all" || filter === "active"
+            ? renderSection(
+                "Folyamatban",
+                grouped.active,
+                "Jelenleg zajló utazások — itt érdemes naponta frissíteni a programot és költségeket."
+              )
+            : null}
+          {filter === "all" || filter === "upcoming"
+            ? renderSection("Közelgő utazások", grouped.upcoming)
+            : null}
+          {filter === "all" || filter === "past"
+            ? renderSection("Korábbi utazások", grouped.past)
+            : null}
+          {filter !== "all" && grouped[filter].length === 0 ? (
+            <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Ebben a kategóriában még nincs utazás.
+            </p>
+          ) : null}
         </div>
       )}
 

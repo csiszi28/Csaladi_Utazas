@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   BedDouble,
   CalendarDays,
@@ -10,12 +11,6 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
 
 export type TripDetailTab =
   | "overview"
@@ -77,51 +72,56 @@ interface TripDetailTabsProps {
 }
 
 export function TripDetailTabs({ active, onChange, counts }: TripDetailTabsProps) {
-  const activeTab = TABS.find((tab) => tab.id === active) ?? TABS[0];
-  const activeCount = counts[active];
+  const railRef = useRef<HTMLElement>(null);
+
+  // Az aktív fül mindig látszódjon a görgethető sávban
+  useEffect(() => {
+    const el = railRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [active]);
 
   return (
     <>
-      {/* Mobile + narrow tablet: select — 7 tabs don't fit */}
-      <div className="sticky top-0 z-10 lg:hidden">
-        <label className="sr-only" htmlFor="trip-section-select">
-          Utazás szekció
-        </label>
-        <Select value={active} onValueChange={(value) => onChange(value as TripDetailTab)}>
-          <SelectTrigger
-            id="trip-section-select"
-            className="h-12 w-full rounded-xl border bg-card px-3 text-base shadow-sm [&>span]:line-clamp-none [&>span]:flex [&>span]:w-full [&>span]:items-center"
-          >
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              <span className="shrink-0 text-muted-foreground">{activeTab.icon}</span>
-              <span className="truncate font-medium">{activeTab.label}</span>
-              {activeCount != null ? (
-                <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold tabular-nums text-primary">
-                  {activeCount}
+      {/* Mobil + keskeny tablet: vízszintesen görgethető fülsáv */}
+      <nav
+        ref={railRef}
+        role="tablist"
+        aria-label="Utazás szekciók"
+        className="sticky top-0 z-10 -mx-[var(--app-content-padding)] flex gap-1.5 overflow-x-auto bg-[color-mix(in_oklab,var(--background)_88%,transparent)] px-[var(--app-content-padding)] py-1.5 backdrop-blur-md [-ms-overflow-style:none] [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden"
+      >
+        {TABS.map((tab) => {
+          const count = counts[tab.id];
+          const isActive = active === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(tab.id)}
+              className={cn(
+                "flex min-h-11 shrink-0 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 text-sm font-medium transition-colors",
+                isActive
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : "bg-card text-muted-foreground"
+              )}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+              {count != null ? (
+                <span
+                  className={cn(
+                    "inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tabular-nums",
+                    isActive ? "bg-white/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {count}
                 </span>
               ) : null}
-            </span>
-          </SelectTrigger>
-          <SelectContent className="w-[var(--radix-select-trigger-width)]">
-            {TABS.map((tab) => {
-              const count = counts[tab.id];
-              return (
-                <SelectItem key={tab.id} value={tab.id} className="py-3">
-                  <span className="flex items-center gap-2">
-                    {tab.icon}
-                    <span>{tab.label}</span>
-                    {count != null ? (
-                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
-                        {count}
-                      </span>
-                    ) : null}
-                  </span>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-      </div>
+            </button>
+          );
+        })}
+      </nav>
 
       {/* Large screens: content-sized tabs, evenly spaced across the bar */}
       <nav
