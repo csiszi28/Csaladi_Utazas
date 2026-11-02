@@ -119,20 +119,31 @@ function TripCard({ trip }: { trip: TripListRow }) {
         className={cn("absolute inset-y-0 left-0 w-1 rounded-l-[1.35rem]", accent.rail)}
       />
 
-      <div className="relative flex gap-4 p-4 pl-5 sm:gap-5 sm:p-5 sm:pl-6">
-        <div
-          className={cn(
-            "flex h-[4.5rem] w-[3.75rem] shrink-0 flex-col items-center justify-center rounded-2xl sm:h-[5.25rem] sm:w-[4.25rem]",
-            accent.date
-          )}
-        >
-          <span className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] opacity-80">
-            {start.month}
+      <div className="relative flex flex-col gap-3 p-4 pl-5 sm:flex-row sm:gap-5 sm:p-5 sm:pl-6">
+        <div className="flex items-center justify-between gap-3 sm:block">
+          <div
+            className={cn(
+              "flex w-fit shrink-0 items-baseline gap-1.5 rounded-xl px-3 py-1.5 sm:h-[5.25rem] sm:w-[4.25rem] sm:flex-col sm:items-center sm:justify-center sm:gap-0 sm:rounded-2xl sm:p-0",
+              accent.date
+            )}
+          >
+            <span className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] opacity-80 sm:text-[0.62rem]">
+              {start.month}
+            </span>
+            <span className="font-display text-lg font-bold leading-none tracking-tight sm:text-[1.85rem]">
+              {start.day}
+            </span>
+            <span className="text-[0.65rem] tabular-nums opacity-75 sm:mt-0.5">{start.year}</span>
+          </div>
+
+          <span
+            className={cn(
+              "text-[0.7rem] font-semibold uppercase tracking-[0.16em] sm:hidden",
+              accent.badge
+            )}
+          >
+            {status === "upcoming" ? countdownText(daysUntilStart(trip.startDate)) : STATUS_LABELS[status]}
           </span>
-          <span className="font-display text-[1.7rem] font-bold leading-none tracking-tight sm:text-[1.85rem]">
-            {start.day}
-          </span>
-          <span className="mt-0.5 text-[0.65rem] tabular-nums opacity-75">{start.year}</span>
         </div>
 
         <div className="min-w-0 flex-1 space-y-3">
@@ -148,7 +159,7 @@ function TripCard({ trip }: { trip: TripListRow }) {
             </div>
             <span
               className={cn(
-                "mt-0.5 shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.16em]",
+                "mt-0.5 hidden shrink-0 sm:block text-[0.65rem] font-semibold uppercase tracking-[0.16em]",
                 accent.badge
               )}
             >

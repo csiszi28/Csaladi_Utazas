@@ -10,7 +10,6 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ExchangeRatesProvider } from "@/components/exchange-rates-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BRAND } from "@/lib/brand";
 import { RemindersBell } from "@/components/reminders/reminders-bell";
 import {
   CommandPalette,
@@ -68,7 +67,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <ExchangeRatesProvider>
       <DashboardShell>
-        <div className="app-canvas relative flex h-svh overflow-hidden">
+        <div className="app-canvas relative flex h-dvh overflow-hidden">
           <DesktopSidebar />
 
           {mobileOpen && (
@@ -82,7 +81,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
           <aside
             className={cn(
-              "sidebar-rail fixed top-0 left-0 z-50 flex h-svh flex-col overflow-hidden shadow-2xl shadow-black/40 transition-transform duration-200 contain-paint md:hidden",
+              "sidebar-rail fixed top-0 left-0 z-50 flex h-dvh flex-col overflow-hidden shadow-2xl shadow-black/40 transition-transform duration-200 contain-paint md:hidden",
               "pt-[env(safe-area-inset-top)]",
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             )}
@@ -101,11 +100,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
             <main className="app-main-scroll min-h-0 flex-1">
               <div className="sticky top-0 z-20 flex items-center gap-2 bg-[color-mix(in_oklab,var(--background)_82%,transparent)] px-[var(--app-content-padding)] pt-[max(var(--app-content-padding),env(safe-area-inset-top))] pb-2 backdrop-blur-md md:hidden">
-                <div className="min-w-0 flex-1">
-                  <span className="font-display text-base font-bold tracking-wide text-primary">
-                    {BRAND.shortName}
-                  </span>
-                </div>
+                <div className="min-w-0 flex-1" />
                 <Button
                   variant="outline"
                   size="icon"
