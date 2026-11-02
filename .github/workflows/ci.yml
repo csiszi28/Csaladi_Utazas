@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # a verziót a gyökér package.json "packageManager" mezője adja
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prisma kliens generálása
+        run: pnpm --filter @csaladi-utazas/database exec prisma generate
+
+      - name: Egységtesztek (shared)
+        run: pnpm --filter @csaladi-utazas/shared test
+
+      - name: Típusellenőrzés
+        run: pnpm --filter @csaladi-utazas/shared lint && pnpm --filter @csaladi-utazas/web exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm --filter @csaladi-utazas/web lint
+
+      - name: Build
+        run: pnpm --filter @csaladi-utazas/web build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+          DATABASE_URL: postgresql://user:pass@localhost:5432/db
+          DIRECT_URL: postgresql://user:pass@localhost:5432/db
