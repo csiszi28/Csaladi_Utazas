@@ -446,6 +446,8 @@ export async function updateCollaboratorRole(data: {
 export async function removeCollaborator(data: {
   tripId: string;
   userId: string;
+  /** Az illetőhöz kötött résztvevői sorok törlése is (különben "szellem" résztvevő marad). */
+  removeParticipants?: boolean;
 }): Promise<ActionResult> {
   const user = await requireUser();
   const { removeCollaboratorSchema } = await import("@csaladi-utazas/shared");
@@ -476,6 +478,20 @@ export async function removeCollaborator(data: {
     return { success: false, error: "Nem sikerült eltávolítani a közreműködőt" };
   }
 
+  let removedParticipantCount = 0;
+  if (data.removeParticipants) {
+    const linked = await prisma.tripParticipant.findMany({
+      where: { tripId: owned.id, familyMember: { linkedUserId: collab.userId } },
+      select: { id: true },
+    });
+    const total = await prisma.tripParticipant.count({ where: { tripId: owned.id } });
+    // Legalább egy résztvevő mindig maradjon az utazáson
+    if (linked.length > 0 && total - linked.length >= 1) {
+      await prisma.tripParticipant.deleteMany({ where: { id: { in: linked.map((p) => p.id) } } });
+      removedParticipantCount = linked.length;
+    }
+  }
+
   const { createInboxNotification } = await import("@/lib/inbox-notifications");
   await createInboxNotification({
     userId: collab.userId,
@@ -496,6 +512,7 @@ export async function removeCollaborator(data: {
     meta: {
       removedUserId: collab.userId,
       removedUserName: collab.user.name,
+      removedParticipantCount,
     },
   });
 

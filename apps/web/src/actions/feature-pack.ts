@@ -323,6 +323,62 @@ export async function setTripParticipants(data: {
   return { success: true, data: undefined };
 }
 
+/**
+ * Egy résztvevő eltávolítása az utazásról.
+ * A tulajdonos bárkit eltávolíthat; a szerkesztők csak a saját háztartásuk családtagjait.
+ */
+export async function removeTripParticipant(data: {
+  tripId: string;
+  familyMemberId: string;
+}): Promise<ActionResult> {
+  const user = await requireUser();
+
+  const access = await requireTripEditor(data.tripId, user.id);
+  if (!access.ok) return { success: false, error: access.error };
+
+  const trip = await prisma.trip.findFirst({
+    where: { id: data.tripId },
+    select: { userId: true },
+  });
+  if (!trip) return { success: false, error: "Utazás nem található" };
+
+  const participant = await prisma.tripParticipant.findFirst({
+    where: { tripId: data.tripId, familyMemberId: data.familyMemberId },
+    select: { id: true, familyMember: { select: { name: true, userId: true } } },
+  });
+  if (!participant) return { success: false, error: "A résztvevő nem található" };
+
+  const isTripOwner = trip.userId === user.id;
+  if (!isTripOwner && participant.familyMember.userId !== user.id) {
+    return {
+      success: false,
+      error: "Csak a saját családtagjaidat távolíthatod el — a többiekhez az utazás tulajdonosa fér hozzá",
+    };
+  }
+
+  const remaining = await prisma.tripParticipant.count({ where: { tripId: data.tripId } });
+  if (remaining <= 1) {
+    return { success: false, error: "Legalább egy résztvevő kötelező" };
+  }
+
+  await prisma.tripParticipant.delete({ where: { id: participant.id } });
+
+  void recordTripActivity({
+    tripId: data.tripId,
+    actorUserId: user.id,
+    type: "PARTICIPANTS_UPDATED",
+    summary: `Résztvevők frissítve — Eltávolítva: ${participant.familyMember.name}`,
+    meta: {
+      removedIds: [data.familyMemberId],
+      removedNames: [participant.familyMember.name],
+      participantCount: remaining - 1,
+    },
+  });
+
+  invalidateTripAudience(data.tripId, user.id);
+  return { success: true, data: undefined };
+}
+
 export async function dismissReminder(reminderKey: string): Promise<ActionResult> {
   const user = await requireUser();
   const parsed = dismissReminderSchema.safeParse({ reminderKey });

@@ -36,39 +36,9 @@ export default async function TripDetailRoute({
 
   if (!initialTrip) notFound();
 
-  let trip = initialTrip;
-  let needsRefresh = false;
-
-  const displayName =
-    (authUser?.user_metadata?.name as string | undefined) ??
-    authUser?.email?.split("@")[0] ??
-    "";
-
-  if (trip.userId !== userId) {
-    const { autoClaimMatchingProfile } = await import("@/actions/family");
-    const claimed = await autoClaimMatchingProfile(
-      trip.id,
-      userId,
-      displayName,
-      authUser?.email
-    );
-    if (claimed) needsRefresh = true;
-  }
-
-  // Regisztrált közreműködők: ha hiányzik a linked résztvevő (elszámolás / szavazás), pótoljuk
-  const { syncCollaboratorParticipants } = await import("@/lib/trip-access");
-  const linkedUserIds = new Set(
-    trip.participants
-      .map((p) => p.familyMember.linkedUserId)
-      .filter((id): id is string => Boolean(id))
-  );
-  const healed = await syncCollaboratorParticipants(trip.id, linkedUserIds);
-  if (healed) needsRefresh = true;
-
-  if (needsRefresh) {
-    const refreshed = await fetchTripDetailFresh(id, userId);
-    if (refreshed) trip = refreshed;
-  }
+  // Az oldal megnyitása nem módosít adatot: profil-átvétel és résztvevő-felvétel csak
+  // csatlakozáskor / megerősített kérelemnél történik (lásd actions/invites, actions/family).
+  const trip = initialTrip;
 
   // Borító URL párhuzamosan a session névvel — ne várjon a trip után új round-tripet
   const coverUrl = await resolveCoverUrl(trip.coverStoragePath);

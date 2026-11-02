@@ -31,12 +31,14 @@ import {
   createFamilyMember,
   updateFamilyMember,
   deleteFamilyMember,
+  getFamilyMemberDeleteImpact,
   linkFamilyMemberToAccount,
   unlinkFamilyMemberFromAccount,
   proposeFamilyMemberLink,
   cancelFamilyMemberLinkProposal,
 } from "@/actions/family";
 import type { FamilyMemberRow } from "@/lib/queries/family";
+import type { FamilyMemberDeleteImpact } from "@/actions/family";
 import { cn } from "@/lib/utils";
 
 type MemberStatus = "linked-self" | "linked-other" | "virtual";
@@ -241,7 +243,11 @@ export function FamilyPage({
   const [isChild, setIsChild] = useState(false);
   const [proposeTarget, setProposeTarget] = useState<{
     memberId: string;
-    user: { id: string; name: string; email: string };
+    email: string;
+  } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    impact: FamilyMemberDeleteImpact | null;
   } | null>(null);
 
   useEffect(() => {
@@ -301,11 +307,12 @@ export function FamilyPage({
       const memberId =
         editingId ??
         ("id" in result.data ? (result.data as { id: string }).id : undefined);
-      const matched = result.data.matchedRegisteredUser;
+      const suggestion = result.data.linkSuggestion;
 
-      if (matched && memberId) {
+      // Az e-mail megadása után felajánljuk a kérelmet — azt nem áruljuk el, hogy van-e hozzá fiók.
+      if (suggestion && memberId) {
         setDialogOpen(false);
-        setProposeTarget({ memberId, user: matched });
+        setProposeTarget({ memberId, email: suggestion.email });
         router.refresh();
         return;
       }
@@ -344,9 +351,26 @@ export function FamilyPage({
     handleProposeLink(proposeTarget.memberId);
   }
 
+  /** Törlés előtt megnézzük, mi függ a családtagtól, és megerősítést kérünk. */
   function handleDelete(id: string) {
+    setDeleteTarget({ id, impact: null });
+    startTransition(async () => {
+      const result = await getFamilyMemberDeleteImpact(id);
+      if (!result.success) {
+        toast.error(result.error);
+        setDeleteTarget(null);
+        return;
+      }
+      setDeleteTarget({ id, impact: result.data });
+    });
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
     startTransition(async () => {
       const result = await deleteFamilyMember(id);
+      setDeleteTarget(null);
       if (!result.success) toast.error(result.error);
       else {
         toast.success("Családtag törölve");
@@ -570,6 +594,75 @@ export function FamilyPage({
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && !isPending && setDeleteTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Családtag törlése</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="space-y-2 text-sm text-muted-foreground">
+            {deleteTarget?.impact ? (
+              <>
+                <p>
+                  Biztosan törlöd:{" "}
+                  <strong className="text-foreground">{deleteTarget.impact.name}</strong>?
+                </p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    {deleteTarget.impact.trips > 0
+                      ? `${deleteTarget.impact.trips} utazásból is kikerül (résztvevőként, program-, szállás- és közlekedési részvételekkel együtt).`
+                      : "Egy utazásnak sem résztvevője."}
+                  </li>
+                  {deleteTarget.impact.paidCosts > 0 ? (
+                    <li>
+                      {deleteTarget.impact.paidCosts} költségnél nem marad fizető — ezek az
+                      elszámolásban fizető nélkül jelennek meg.
+                    </li>
+                  ) : null}
+                  {deleteTarget.impact.documents > 0 ? (
+                    <li>
+                      {deleteTarget.impact.documents} dokumentum nem lesz hozzá rendelve (maguk a
+                      fájlok megmaradnak).
+                    </li>
+                  ) : null}
+                </ul>
+                {deleteTarget.impact.linkedToAccount ? (
+                  <p className="font-medium text-destructive">
+                    Ez a te fiókodhoz kötött „én” profilod. Törlés után a rendszer újra létrehoz
+                    egyet, de az utazásokból kikerülsz.
+                  </p>
+                ) : null}
+                <p>A művelet nem vonható vissza.</p>
+              </>
+            ) : (
+              <p>Hatások ellenőrzése…</p>
+            )}
+          </DialogBody>
+          <DialogFooter className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isPending}
+            >
+              Mégse
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="w-full"
+              onClick={confirmDelete}
+              disabled={isPending || !deleteTarget?.impact}
+            >
+              Törlés
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={proposeTarget !== null} onOpenChange={(open) => !open && setProposeTarget(null)}>
         <DialogContent>
           <DialogHeader>
@@ -578,9 +671,10 @@ export function FamilyPage({
           <DialogBody>
             {proposeTarget && (
               <p className="text-sm text-muted-foreground">
-                A(z) <strong className="text-foreground">{proposeTarget.user.email}</strong> címhez
-                már tartozik regisztrált fiók ({proposeTarget.user.name}). Szeretnéd összekapcsolni
-                ezzel a profillal? A másik félnek bejelentkezéskor kell megerősítenie.
+                Szeretnél összekapcsolási kérelmet küldeni erre a címre:{" "}
+                <strong className="text-foreground">{proposeTarget.email}</strong>? Ha tartozik
+                hozzá regisztrált fiók, a tulajdonosa bejelentkezéskor megerősítheti vagy
+                elutasíthatja. Amíg ezt meg nem teszi, a profil nem kapcsolódik fiókhoz.
               </p>
             )}
           </DialogBody>

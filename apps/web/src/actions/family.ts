@@ -14,6 +14,18 @@ import {
 } from "@csaladi-utazas/shared";
 import type { ActionResult } from "./auth";
 import { findAccessibleTrip } from "@/lib/trip-access";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { ensureSelfFamilyMember as ensureSelfFamilyMemberShared } from "@/lib/queries/family";
+
+/** Összekapcsolással kapcsolatos műveletek: felhasználónként percenként ennyi. */
+const LINK_ACTIONS_PER_MINUTE = 20;
+
+function tooManyRequests(userId: string): ActionResult | null {
+  const limited = checkRateLimit(`family-link:${userId}`, LINK_ACTIONS_PER_MINUTE, 60_000);
+  return limited.ok
+    ? null
+    : { success: false, error: "Túl sok kérés. Próbáld újra egy perc múlva." };
+}
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -32,6 +44,10 @@ async function findUniqueAutoLinkCandidate(
   options?: { allowEmailMatch?: boolean }
 ) {
   const allowEmailMatch = options?.allowEmailMatch ?? true;
+  // Névegyezés csak egy konkrét utazáson belül (meghívóval csatlakozó) megengedett.
+  // Utazás nélküli (bejelentkezéskori) keresés kizárólag e-mail alapján működik —
+  // a név bárki számára megadható, ezért nem alkalmas azonosításra.
+  const allowNameMatch = Boolean(tripId);
   const baseWhere = {
     linkedUserId: null,
     userId: { not: userId },
@@ -54,7 +70,7 @@ async function findUniqueAutoLinkCandidate(
     if (emailCandidates.length > 1) return null;
   }
 
-  if (!userName.trim()) return null;
+  if (!allowNameMatch || !userName.trim()) return null;
 
   // Név-egyezés token-sorrendtől függetlenül („Attila Csiszár” ≡ „Csiszár Attila”)
   const namePool = await prisma.familyMember.findMany({
@@ -84,15 +100,28 @@ async function grantCollaboratorAccess(userId: string, tripIds: string[]) {
   }
 }
 
-async function findExternalLinkedProfile(userId: string, excludeMemberId?: string) {
+/**
+ * Egy fiók több háztartás profiljához is köthető (pl. nagyszülő), de egy háztartáson
+ * belül csak egyhez. Ez a háztartáson belüli ütközést keresi.
+ */
+async function findLinkedProfileInHousehold(
+  householdOwnerId: string | null | undefined,
+  accountUserId: string,
+  excludeMemberId?: string
+) {
+  if (!householdOwnerId) return null;
   return prisma.familyMember.findFirst({
     where: {
-      linkedUserId: userId,
-      userId: { not: userId },
+      userId: householdOwnerId,
+      linkedUserId: accountUserId,
       ...(excludeMemberId ? { id: { not: excludeMemberId } } : {}),
     },
+    select: { id: true },
   });
 }
+
+const ALREADY_LINKED_IN_HOUSEHOLD =
+  "Ez a fiók már hozzá van kapcsolva egy másik profilhoz ebben a családban";
 
 type MatchedRegisteredUser = { id: string; name: string; email: string };
 
@@ -113,8 +142,8 @@ async function findRegisteredUserForMemberEmail(
 
   if (!matched) return null;
 
-  const linkedElsewhere = await findExternalLinkedProfile(matched.id, forMemberId);
-  if (linkedElsewhere) return null;
+  const linkedInHousehold = await findLinkedProfileInHousehold(ownerUserId, matched.id, forMemberId);
+  if (linkedInHousehold) return null;
 
   return matched;
 }
@@ -132,7 +161,16 @@ async function getTripIdsForFamilyMember(familyMemberId: string) {
   ];
 }
 
-async function finalizeFamilyMemberLink(familyMemberId: string, userId: string) {
+/**
+ * @param options.onlyTripId ha meg van adva (utazáson belüli átvétel), a hozzáférést csak erre az
+ *   utazásra adjuk — a profil más utazásaihoz az átvétel nem jogosít fel. A tulajdonos által
+ *   kezdeményezett, megerősített összekapcsolás a profil összes utazására érvényes.
+ */
+async function finalizeFamilyMemberLink(
+  familyMemberId: string,
+  userId: string,
+  options?: { onlyTripId?: string }
+) {
   const member = await prisma.familyMember.findUnique({
     where: { id: familyMemberId },
     select: { userId: true },
@@ -140,7 +178,10 @@ async function finalizeFamilyMemberLink(familyMemberId: string, userId: string) 
   if (!member?.userId) return;
 
   const tripIds = await getTripIdsForFamilyMember(familyMemberId);
-  await grantCollaboratorAccess(userId, tripIds);
+  const accessTripIds = options?.onlyTripId
+    ? tripIds.filter((id) => id === options.onlyTripId)
+    : tripIds;
+  await grantCollaboratorAccess(userId, accessTripIds);
 
   // Duplikált saját „én” sor eltávolítása az átvett profilt tartalmazó utazásokról
   const selfProfiles = await prisma.familyMember.findMany({
@@ -181,44 +222,38 @@ export async function getFamilyMembers() {
   });
 }
 
-/** Létrehozza a bejelentkezett felhasználót családtagként, ha még nincs egy sem. */
+/** Létrehozza a bejelentkezett felhasználó „én” profilját, ha még nincs (közös implementáció). */
 export async function ensureSelfFamilyMember(userId: string, userName: string) {
-  const count = await prisma.familyMember.count({ where: { userId } });
-  if (count === 0) {
-    return prisma.familyMember.create({
-      data: { name: userName, userId, linkedUserId: userId },
-    });
-  }
-
-  await prisma.familyMember.updateMany({
-    where: { userId, linkedUserId: null, name: userName },
-    data: { linkedUserId: userId },
-  });
-
-  return null;
+  return ensureSelfFamilyMemberShared(userId, userName);
 }
 
+/** A bejelentkezett felhasználó saját, fiókjához kötött „én” profilja (szükség esetén létrehozza). */
 export async function getOrCreateSelfFamilyMemberId(): Promise<string> {
   const user = await requireUser();
-  const existing = await prisma.familyMember.findFirst({
-    where: { userId: user.id },
-    orderBy: { name: "asc" },
-  });
-  if (existing) return existing.id;
+  const findSelf = () =>
+    prisma.familyMember.findFirst({
+      where: { userId: user.id, linkedUserId: user.id },
+      select: { id: true },
+    });
+
+  const self = (await findSelf()) ?? (await ensureSelfFamilyMemberShared(user.id, user.name), await findSelf());
+  if (self) return self.id;
 
   const created = await prisma.familyMember.create({
-    data: { name: user.name, userId: user.id },
+    data: { name: user.name, userId: user.id, linkedUserId: user.id },
+    select: { id: true },
   });
   return created.id;
 }
+
+/** Az e-mail megadása után a felület felajánlhatja az összekapcsolási kérelmet — fiók létezését nem áruljuk el. */
+type LinkSuggestion = { email: string } | null;
 
 export async function createFamilyMember(data: {
   name: string;
   email?: string;
   isChild?: boolean;
-}): Promise<
-  ActionResult<{ id: string; matchedRegisteredUser: MatchedRegisteredUser | null }>
-> {
+}): Promise<ActionResult<{ id: string; linkSuggestion: LinkSuggestion }>> {
   const user = await requireUser();
   const parsed = createFamilyMemberSchema.safeParse(data);
 
@@ -227,22 +262,20 @@ export async function createFamilyMember(data: {
   }
 
   const parsedEmail = parseFamilyMemberEmail(parsed.data.email);
-  const matchedRegisteredUser = await findRegisteredUserForMemberEmail(user.id, parsedEmail);
 
   const member = await prisma.familyMember.create({
     data: {
       name: parsed.data.name,
       email: parsedEmail,
+      isChild: parsed.data.isChild ?? false,
       userId: user.id,
     },
   });
-  if (parsed.data.isChild) {
-    await prisma
-      .$executeRawUnsafe(`UPDATE "family_members" SET "isChild" = true WHERE "id" = $1`, member.id)
-      .catch(() => undefined);
-  }
   invalidateFamilyAndCalendar(user.id);
-  return { success: true, data: { id: member.id, matchedRegisteredUser } };
+  return {
+    success: true,
+    data: { id: member.id, linkSuggestion: parsedEmail ? { email: parsedEmail } : null },
+  };
 }
 
 export async function updateFamilyMember(data: {
@@ -250,7 +283,7 @@ export async function updateFamilyMember(data: {
   name: string;
   email?: string;
   isChild?: boolean;
-}): Promise<ActionResult<{ matchedRegisteredUser: MatchedRegisteredUser | null }>> {
+}): Promise<ActionResult<{ linkSuggestion: LinkSuggestion }>> {
   const user = await requireUser();
   const parsed = updateFamilyMemberSchema.safeParse(data);
 
@@ -269,30 +302,56 @@ export async function updateFamilyMember(data: {
   const parsedEmail = parseFamilyMemberEmail(parsed.data.email);
   const emailChanged =
     (existing.email ?? "").toLowerCase() !== (parsedEmail ?? "").toLowerCase();
-  const matchedRegisteredUser = await findRegisteredUserForMemberEmail(
-    user.id,
-    parsedEmail,
-    parsed.data.id
-  );
 
   await prisma.familyMember.update({
     where: { id: parsed.data.id },
     data: {
       name: parsed.data.name,
       email: parsedEmail,
+      isChild: parsed.data.isChild ?? false,
       ...(emailChanged ? { pendingLinkUserId: null } : {}),
     },
   });
-  await prisma
-    .$executeRawUnsafe(
-      `UPDATE "family_members" SET "isChild" = $1 WHERE "id" = $2`,
-      parsed.data.isChild ?? false,
-      parsed.data.id
-    )
-    .catch(() => undefined);
 
   invalidateFamilyAndCalendar(user.id);
-  return { success: true, data: { matchedRegisteredUser } };
+  // Ajánlat csak akkor, ha az e-mail új, és a profil még nincs fiókhoz kötve
+  const suggest = parsedEmail && emailChanged && !existing.linkedUserId;
+  return { success: true, data: { linkSuggestion: suggest ? { email: parsedEmail } : null } };
+}
+
+export type FamilyMemberDeleteImpact = {
+  name: string;
+  trips: number;
+  paidCosts: number;
+  documents: number;
+  linkedToAccount: boolean;
+};
+
+/** Törlés előtti hatásvizsgálat: mi veszik el / válik névtelenné. */
+export async function getFamilyMemberDeleteImpact(
+  id: string
+): Promise<ActionResult<FamilyMemberDeleteImpact>> {
+  const user = await requireUser();
+  const member = await prisma.familyMember.findFirst({
+    where: { id, userId: user.id },
+    select: {
+      name: true,
+      linkedUserId: true,
+      _count: { select: { trips: true, paidCosts: true, documents: true } },
+    },
+  });
+  if (!member) return { success: false, error: "Családtag nem található" };
+
+  return {
+    success: true,
+    data: {
+      name: member.name,
+      trips: member._count.trips,
+      paidCosts: member._count.paidCosts,
+      documents: member._count.documents,
+      linkedToAccount: member.linkedUserId === user.id,
+    },
+  };
 }
 
 export async function deleteFamilyMember(id: string): Promise<ActionResult> {
@@ -334,12 +393,9 @@ export async function linkFamilyMemberToAccount(data: {
     return { success: false, error: "Ez a profil már más fiókhoz van kapcsolva" };
   }
 
-  const existingExternal = await findExternalLinkedProfile(user.id, member.id);
-  if (existingExternal) {
-    return {
-      success: false,
-      error: "A fiókod már össze van kapcsolva egy másik virtuális profillal",
-    };
+  const existingSelf = await findLinkedProfileInHousehold(user.id, user.id, member.id);
+  if (existingSelf) {
+    return { success: false, error: ALREADY_LINKED_IN_HOUSEHOLD };
   }
 
   await prisma.familyMember.update({
@@ -382,6 +438,8 @@ export async function proposeFamilyMemberLink(data: {
   familyMemberId: string;
 }): Promise<ActionResult> {
   const user = await requireUser();
+  const limited = tooManyRequests(user.id);
+  if (limited) return limited;
   const parsed = familyMemberLinkProposalSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, error: parsed.error.errors[0]?.message ?? "Érvénytelen adatok" };
@@ -403,13 +461,13 @@ export async function proposeFamilyMemberLink(data: {
     return { success: false, error: "Add meg az e-mail címet az összekapcsolási kérelemhez" };
   }
 
+  const neutralMessage =
+    "Ha az e-mail címhez tartozik fiók, bejelentkezéskor megerősítési kérelmet kap.";
+
   const matched = await findRegisteredUserForMemberEmail(user.id, member.email, member.id);
   if (!matched) {
-    return {
-      success: false,
-      error:
-        "Nem található regisztrált fiók ehhez az e-mail címhez, vagy már össze van kapcsolva egy másik virtuális profillal",
-    };
+    // Szándékosan ugyanaz a válasz: ne derüljön ki, hogy egy e-mailhez van-e fiók.
+    return { success: true, data: undefined, message: neutralMessage };
   }
 
   await prisma.familyMember.update({
@@ -429,7 +487,7 @@ export async function proposeFamilyMemberLink(data: {
   return {
     success: true,
     data: undefined,
-    message: `${matched.name} kap egy megerősítési kérelmet bejelentkezéskor.`,
+    message: neutralMessage,
   };
 }
 
@@ -495,12 +553,9 @@ export async function acceptFamilyMemberLinkProposal(
     return { success: false, error: "Összekapcsolási kérelem nem található vagy lejárt" };
   }
 
-  const existingExternalLink = await findExternalLinkedProfile(user.id, familyMemberId);
-  if (existingExternalLink) {
-    return {
-      success: false,
-      error: "A fiókod már össze van kapcsolva egy másik virtuális profillal",
-    };
+  const existingInHousehold = await findLinkedProfileInHousehold(member.userId, user.id, familyMemberId);
+  if (existingInHousehold) {
+    return { success: false, error: ALREADY_LINKED_IN_HOUSEHOLD };
   }
 
   await prisma.familyMember.update({
@@ -617,12 +672,13 @@ export async function claimFamilyMemberProfile(data: {
     return { success: false, error: "Ez a profil már össze van kapcsolva egy fiókkal" };
   }
 
-  const existingExternal = await findExternalLinkedProfile(user.id, parsed.data.familyMemberId);
-  if (existingExternal) {
-    return {
-      success: false,
-      error: "A fiókod már össze van kapcsolva egy másik virtuális profillal",
-    };
+  const existingInHousehold = await findLinkedProfileInHousehold(
+    participant.familyMember.userId,
+    user.id,
+    parsed.data.familyMemberId
+  );
+  if (existingInHousehold) {
+    return { success: false, error: ALREADY_LINKED_IN_HOUSEHOLD };
   }
 
   await prisma.familyMember.update({
@@ -630,66 +686,84 @@ export async function claimFamilyMemberProfile(data: {
     data: { linkedUserId: user.id },
   });
 
-  await finalizeFamilyMemberLink(parsed.data.familyMemberId, user.id);
+  // Az átvétel csak erre az utazásra ad hozzáférést
+  await finalizeFamilyMemberLink(parsed.data.familyMemberId, user.id, {
+    onlyTripId: parsed.data.tripId,
+  });
   return { success: true, data: undefined };
 }
 
-/** Regisztráció / csatlakozás után: e-mail vagy név alapján automatikus profil-átvétel. */
+/**
+ * Meghívóval való csatlakozáskor: az adott utazás ki nem kötött résztvevői közül e-mail vagy
+ * (egyedi) név alapján profil-átvétel. A hozzáférés kizárólag erre az utazásra szól.
+ */
 export async function autoClaimMatchingProfile(
   tripId: string,
   userId: string,
   userName: string,
   userEmail?: string
 ) {
-  const existingExternal = await findExternalLinkedProfile(userId);
-  if (existingExternal) return null;
-
   const member = await findUniqueAutoLinkCandidate(userId, userEmail, userName, tripId);
   if (!member) return null;
+
+  const existingInHousehold = await findLinkedProfileInHousehold(member.userId, userId, member.id);
+  if (existingInHousehold) return null;
 
   const updated = await prisma.familyMember.update({
     where: { id: member.id },
     data: { linkedUserId: userId, pendingLinkUserId: null },
   });
 
-  await finalizeFamilyMemberLink(member.id, userId);
+  await finalizeFamilyMemberLink(member.id, userId, { onlyTripId: tripId });
   return updated;
 }
 
 /**
- * Bejelentkezéskor: ha a felhasználó e-mailje vagy neve megegyezik egy másik család
- * virtuális profiljával, amely már szerepel utazásban, automatikus összekapcsolás
- * és közreműködői hozzáférés az érintett utazásokhoz.
+ * Bejelentkezéskor: ha a felhasználó e-mail címe pontosan megegyezik egy másik család ki nem
+ * kötött profiljának e-mail címével (amely már szerepel utazásban), **kérelmet** hozunk létre,
+ * amelyet a felhasználó megerősít vagy elutasít. Közvetlen összekötés és hozzáférés nincs:
+ * a név bárkinek megadható, az e-mail cím beírása pedig nem bizonyítja a tulajdont.
  */
 export async function autoLinkRegisteredUserToParticipantProfiles(
   userId: string,
-  userName: string,
+  _userName: string,
   userEmail?: string,
   options?: { allowEmailMatch?: boolean }
-): Promise<{ linkedMemberId: string; tripIds: string[] } | null> {
-  const pendingCount = await prisma.familyMember.count({
-    where: { pendingLinkUserId: userId, linkedUserId: null },
+): Promise<{ proposedMemberIds: string[] } | null> {
+  if (!userEmail || options?.allowEmailMatch === false) return null;
+
+  const candidates = await prisma.familyMember.findMany({
+    where: {
+      linkedUserId: null,
+      pendingLinkUserId: null,
+      userId: { not: userId },
+      email: { equals: normalizeEmail(userEmail), mode: "insensitive" },
+      trips: { some: {} },
+    },
+    select: { id: true, userId: true },
   });
-  if (pendingCount > 0) return null;
+  if (candidates.length === 0) return null;
 
-  const existingExternal = await findExternalLinkedProfile(userId);
-  if (existingExternal) return null;
+  const proposed: string[] = [];
+  for (const candidate of candidates) {
+    const existingInHousehold = await findLinkedProfileInHousehold(candidate.userId, userId, candidate.id);
+    if (existingInHousehold) continue;
 
-  const member = await findUniqueAutoLinkCandidate(
-    userId,
-    userEmail,
-    userName,
-    undefined,
-    options
-  );
-  if (!member) return null;
+    await prisma.familyMember.update({
+      where: { id: candidate.id },
+      data: {
+        pendingLinkUserId: userId,
+        linkProposalOutcome: null,
+        linkProposalOutcomeAt: null,
+        linkProposalOutcomeSeenAt: null,
+        linkProposalRespondedUserId: null,
+      },
+    });
+    proposed.push(candidate.id);
+    if (candidate.userId) invalidateFamilyAndCalendar(candidate.userId);
+  }
+  if (proposed.length === 0) return null;
 
-  await prisma.familyMember.update({
-    where: { id: member.id },
-    data: { linkedUserId: userId, pendingLinkUserId: null },
-  });
-
-  await finalizeFamilyMemberLink(member.id, userId);
-
-  return { linkedMemberId: member.id, tripIds: await getTripIdsForFamilyMember(member.id) };
+  invalidateFamilyAndCalendar(userId);
+  return { proposedMemberIds: proposed };
 }

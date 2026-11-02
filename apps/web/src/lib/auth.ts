@@ -71,26 +71,14 @@ export async function syncUser(
     return user;
   }
 
+  // Csak kérelmet hoz létre (e-mail egyezés esetén) — közvetlen összekötés és hozzáférés nincs.
   const { autoLinkRegisteredUserToParticipantProfiles } = await import("@/actions/family");
-  const linkResult = await autoLinkRegisteredUserToParticipantProfiles(
+  await autoLinkRegisteredUserToParticipantProfiles(
     user.id,
     user.name,
     user.email,
     { allowEmailMatch: options?.allowEmailAutoLink ?? false }
   );
-  if (linkResult) {
-    const { invalidateTripsAndReports } = await import("@/lib/revalidate-app-data");
-    for (const tripId of linkResult.tripIds) {
-      invalidateTripsAndReports(user.id, tripId);
-      const trip = await prisma.trip.findUnique({
-        where: { id: tripId },
-        select: { userId: true },
-      });
-      if (trip?.userId) {
-        invalidateTripsAndReports(trip.userId, tripId);
-      }
-    }
-  }
 
   return user;
 }

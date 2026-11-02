@@ -46,7 +46,7 @@ function userDataTag(userId: string) {
 const getCachedFamilyMembers = (userId: string) =>
   unstable_cache(
     async () => {
-      const rows = await prisma.familyMember.findMany({
+      return prisma.familyMember.findMany({
         where: { userId },
         orderBy: { name: "asc" },
         select: {
@@ -56,26 +56,11 @@ const getCachedFamilyMembers = (userId: string) =>
           userId: true,
           linkedUserId: true,
           pendingLinkUserId: true,
+          isChild: true,
           linkedUser: { select: { id: true, email: true, name: true } },
           pendingLinkUser: { select: { id: true, email: true, name: true } },
         },
       });
-
-      let childFlags = new Map<string, boolean>();
-      try {
-        const flags = await prisma.$queryRawUnsafe<Array<{ id: string; isChild: boolean }>>(
-          `SELECT "id", "isChild" FROM "family_members" WHERE "userId" = $1`,
-          userId
-        );
-        childFlags = new Map(flags.map((f) => [f.id, Boolean(f.isChild)]));
-      } catch {
-        /* oszlop még nincs */
-      }
-
-      return rows.map((row) => ({
-        ...row,
-        isChild: childFlags.get(row.id) ?? false,
-      }));
     },
     [`family-members-${userId}`],
     { revalidate: 60, tags: [userDataTag(userId)] }

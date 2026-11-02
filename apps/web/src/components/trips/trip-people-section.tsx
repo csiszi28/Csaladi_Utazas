@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition, useEffect } from "react";
-import { Trash2, Users } from "lucide-react";
+import { Trash2, UserMinus, Users } from "lucide-react";
 import { Monogram } from "@/components/monogram";
 import { TripInvitePanel } from "@/components/trips/trip-invite-panel";
 import { TripSectionHeading } from "@/components/trips/trip-detail-tabs";
@@ -15,7 +15,7 @@ import {
   normalizeCollaboratorRole,
   type TripRole,
 } from "@csaladi-utazas/shared";
-import { setTripParticipants } from "@/actions/feature-pack";
+import { removeTripParticipant, setTripParticipants } from "@/actions/feature-pack";
 import { removeCollaborator, updateCollaboratorRole } from "@/actions/trips";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -54,27 +54,40 @@ function PersonRoleBadges({
   isOwner,
   isCollaborator,
   isParticipant,
+  hasAccount,
   collaboratorRole,
 }: {
   isOwner: boolean;
   isCollaborator: boolean;
   isParticipant: boolean;
+  hasAccount: boolean;
   collaboratorRole?: string;
 }) {
-  const badges: string[] = [];
-  if (isOwner) badges.push("Tulajdonos");
+  // Két külön dolog: ki fér hozzá az úthoz (szerep), és ki utazik (résztvevő)
+  const badges: { label: string; tone?: "access" | "muted" }[] = [];
+  if (isOwner) badges.push({ label: "Tulajdonos", tone: "access" });
   else if (isCollaborator) {
-    badges.push(TRIP_COLLABORATOR_ROLE_LABELS[normalizeCollaboratorRole(collaboratorRole)]);
+    badges.push({
+      label: `Hozzáférés: ${TRIP_COLLABORATOR_ROLE_LABELS[normalizeCollaboratorRole(collaboratorRole)]}`,
+      tone: "access",
+    });
   }
-  if (isParticipant) badges.push("Résztvevő");
-  if (badges.length === 0) badges.push("Az utazásban");
+  badges.push(isParticipant ? { label: "Utazik" } : { label: "Nem utazik", tone: "muted" });
+  if (!hasAccount) badges.push({ label: "Fiók nélkül", tone: "muted" });
 
   return (
     <div className="mt-0.5 flex flex-wrap gap-1">
-      {badges.map((label) => (
+      {badges.map(({ label, tone }) => (
         <span
           key={label}
-          className="rounded-md bg-muted px-1.5 py-0.5 text-[0.65rem] font-medium text-muted-foreground"
+          className={cn(
+            "rounded-md px-1.5 py-0.5 text-[0.65rem] font-medium",
+            tone === "access"
+              ? "bg-primary/10 text-primary"
+              : tone === "muted"
+                ? "bg-muted/60 text-muted-foreground"
+                : "bg-muted text-muted-foreground"
+          )}
         >
           {label}
         </span>
@@ -102,6 +115,8 @@ export function TripPeopleSection({
   const [removeTarget, setRemoveTarget] = useState<{ userId: string; name: string } | null>(
     null
   );
+  const [alsoRemoveParticipants, setAlsoRemoveParticipants] = useState(true);
+  const [participantRemovePending, startParticipantRemoveTransition] = useTransition();
   const [selected, setSelected] = useState(() =>
     new Set(participants.map((p) => p.familyMember.id))
   );
@@ -190,7 +205,27 @@ export function TripPeopleSection({
   }
 
   function handleRemoveRequest(userId: string, name: string) {
+    setAlsoRemoveParticipants(true);
     setRemoveTarget({ userId, name });
+  }
+
+  /** Egy résztvevő kivétele az útról (a tulajdonos bárkit, a szerkesztő a sajátjait). */
+  function handleRemoveParticipant(familyMemberId: string, name: string) {
+    startParticipantRemoveTransition(async () => {
+      const result = await removeTripParticipant({ tripId, familyMemberId });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${name} kikerült a résztvevők közül`);
+      router.refresh();
+    });
+  }
+
+  function canRemoveParticipant(person: (typeof uniquePeople)[number]) {
+    if (!canEdit || !person.isParticipant || !person.familyMemberId) return false;
+    if (participants.length <= 1) return false;
+    return isOwner || familyMembers.some((m) => m.id === person.familyMemberId);
   }
 
   function handleRemoveConfirm() {
@@ -198,7 +233,11 @@ export function TripPeopleSection({
     const { userId, name } = removeTarget;
 
     startRemoveTransition(async () => {
-      const result = await removeCollaborator({ tripId, userId });
+      const result = await removeCollaborator({
+        tripId,
+        userId,
+        removeParticipants: alsoRemoveParticipants,
+      });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -228,7 +267,7 @@ export function TripPeopleSection({
       <section className="space-y-4">
         <TripSectionHeading
           title="Emberek az utazásban"
-          description={`${uniquePeople.length} fő — résztvevők és közreműködők, mindenki egyszer`}
+          description={`${uniquePeople.length} fő — mindenki egyszer. A „Hozzáférés” azt jelenti, ki nyithatja meg az utat, az „Utazik” pedig azt, hogy ki van a résztvevők között.`}
         />
 
         {uniquePeople.length > 0 ? (
@@ -260,9 +299,24 @@ export function TripPeopleSection({
                     isOwner={person.isOwner}
                     isCollaborator={person.isCollaborator}
                     isParticipant={person.isParticipant}
+                    hasAccount={Boolean(person.userId)}
                     collaboratorRole={person.collaboratorRole}
                   />
                 </div>
+                {canRemoveParticipant(person) ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                    disabled={participantRemovePending || pending}
+                    aria-label={`${person.name} kivétele a résztvevők közül`}
+                    title="Kivétel a résztvevők közül"
+                    onClick={() => handleRemoveParticipant(person.familyMemberId!, person.name)}
+                  >
+                    <UserMinus className="h-4 w-4" />
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -276,10 +330,10 @@ export function TripPeopleSection({
 
       <section className="space-y-4">
         <TripSectionHeading
-          title="Saját családtagok"
+          title="A te családtagjaid ezen az úton"
           description={
             canEdit
-              ? "Kapcsold be vagy ki a saját családtagjaidat az utazásban"
+              ? "Jelöld be, kik utaznak a családodból. Más családok résztvevőit a saját gazdájuk (vagy az út tulajdonosa) kezeli."
               : "A te családtagjaid az utazásban"
           }
           action={
@@ -454,9 +508,23 @@ export function TripPeopleSection({
               ?
             </p>
             <p className="text-xs text-muted-foreground">
-              Elveszíti a hozzáférést, és erről értesítést kap. A résztvevő listát ez nem
-              módosítja automatikusan.
+              Elveszíti a hozzáférést, és erről értesítést kap.
             </p>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--primary)]"
+                checked={alsoRemoveParticipants}
+                onChange={(e) => setAlsoRemoveParticipants(e.target.checked)}
+                disabled={removePending}
+              />
+              <span>
+                A hozzá tartozó résztvevői sorokat is vedd ki az utazásról
+                <span className="block text-xs text-muted-foreground">
+                  Ha nincs bejelölve, résztvevőként (pl. az elszámolásban) tovább szerepel.
+                </span>
+              </span>
+            </label>
           </DialogBody>
           <DialogFooter className="grid grid-cols-2 gap-2">
             <Button
