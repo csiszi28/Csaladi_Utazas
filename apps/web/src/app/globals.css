@@ -101,6 +101,11 @@
   }
   html {
     -webkit-tap-highlight-color: transparent;
+    /* A webview-n kívül / a viewport alatt látszó sáv színe: egyezzen az app háttérével */
+    background-color: #dbe5f1;
+  }
+  html.dark {
+    background-color: #14345f;
   }
   @media (max-width: 767px) {
     input,
