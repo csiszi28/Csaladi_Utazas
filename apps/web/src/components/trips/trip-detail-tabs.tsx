@@ -220,13 +220,13 @@ export function TripFilterChips<T extends string>({
             aria-selected={isActive}
             onClick={() => onChange(item.id)}
             className={cn(
-              "relative flex min-h-[var(--touch-target)] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium tracking-tight transition-[color,background-color,box-shadow] duration-200 touch-manipulation sm:min-h-9 sm:flex-none sm:px-3.5",
+              "relative flex min-h-[var(--touch-target)] min-w-fit flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium tracking-tight transition-[color,background-color,box-shadow] duration-200 touch-manipulation sm:min-h-9 sm:flex-none sm:px-3.5",
               isActive
                 ? "bg-card text-foreground shadow-sm ring-1 ring-border/60 dark:bg-white/12 dark:text-white dark:ring-white/15"
                 : "text-muted-foreground hover:text-foreground dark:hover:bg-white/[0.04] dark:hover:text-white/90"
             )}
           >
-            <span className="truncate">
+            <span className="whitespace-nowrap">
               <span className="sm:hidden">{item.shortLabel ?? item.label}</span>
               <span className="hidden sm:inline">{item.label}</span>
             </span>

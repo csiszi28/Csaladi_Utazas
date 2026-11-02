@@ -13,16 +13,32 @@ const items = [
 ] as const;
 
 const itemClass =
-  "relative flex min-h-[3.5rem] flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 px-1 text-[0.68rem] font-medium transition-colors";
+  "group flex h-[3.25rem] flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 text-[0.65rem] font-medium tracking-wide transition-colors";
 
-/** Mobil alsó navigáció: a fő oldalak egy hüvelykujjnyira; a „Menü” a teljes oldalsávot nyitja. */
+function Pill({ active, children }: { active: boolean; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "flex h-7 w-12 items-center justify-center rounded-full transition-all duration-300",
+        active
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground group-active:bg-muted"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Mobil alsó navigáció: a „Menü” a teljes oldalsávot nyitja (ez az egyetlen belépési pont). */
 export function BottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
   const pathname = usePathname();
 
   return (
+    // A home-indikátor sávjának csak a töredékét hagyjuk ki, így a sáv lejjebb ül
     <nav
       aria-label="Fő navigáció"
-      className="relative z-30 flex shrink-0 border-t bg-[color-mix(in_oklab,var(--card)_92%,transparent)] pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+      className="relative z-30 flex shrink-0 border-t border-border/60 bg-[color-mix(in_oklab,var(--card)_88%,transparent)] pt-1.5 pb-[calc(env(safe-area-inset-bottom)*0.35)] backdrop-blur-xl md:hidden"
     >
       {items.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -31,15 +47,11 @@ export function BottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={cn(itemClass, active ? "text-primary" : "text-muted-foreground")}
+            className={cn(itemClass, active ? "text-foreground" : "text-muted-foreground")}
           >
-            {active ? (
-              <span
-                aria-hidden
-                className="absolute inset-x-6 top-0 h-0.5 rounded-b-full bg-[var(--brand-accent)]"
-              />
-            ) : null}
-            <Icon className={cn("h-5 w-5", active && "stroke-[2.4]")} />
+            <Pill active={active}>
+              <Icon className="h-[1.15rem] w-[1.15rem]" />
+            </Pill>
             {label}
           </Link>
         );
@@ -50,7 +62,9 @@ export function BottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
         className={cn(itemClass, "text-muted-foreground")}
         aria-label="Menü megnyitása"
       >
-        <Menu className="h-5 w-5" />
+        <Pill active={false}>
+          <Menu className="h-[1.15rem] w-[1.15rem]" />
+        </Pill>
         Menü
       </button>
     </nav>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { Menu, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { DesktopSidebar, MobileSidebarChrome, SidebarNav } from "@/components/layout/sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -101,15 +101,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
             <main className="app-main-scroll min-h-0 flex-1">
               <div className="sticky top-0 z-20 flex items-center gap-2 bg-[color-mix(in_oklab,var(--background)_82%,transparent)] px-[var(--app-content-padding)] pt-[max(var(--app-content-padding),env(safe-area-inset-top))] pb-2 backdrop-blur-md md:hidden">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setMobileOpen(true)}
-                  aria-label="Menü megnyitása"
-                  style={{ width: "var(--touch-target)", height: "var(--touch-target)" }}
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
                 <div className="min-w-0 flex-1">
                   <span className="font-display text-base font-bold tracking-wide text-primary">
                     {BRAND.shortName}
