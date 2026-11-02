@@ -294,22 +294,23 @@ export function TripsPage({
           </div>
         </div>
 
-        {trips.length > 0 && (
-          <div className="mt-5 border-t pt-4">
-            <TripFilterChips<TripFilter>
-              ariaLabel="Utazások szűrése"
-              active={filter}
-              onChange={setFilter}
-              items={[
-                { id: "all", label: "Mind", count: grouped.active.length + grouped.upcoming.length + grouped.past.length },
-                { id: "active", label: "Folyamatban", shortLabel: "Most", count: grouped.active.length },
-                { id: "upcoming", label: "Közelgő", count: grouped.upcoming.length },
-                { id: "past", label: "Korábbi", count: grouped.past.length },
-              ]}
-            />
-          </div>
-        )}
       </section>
+
+      {trips.length > 0 && (
+        <div className="-mt-4 sm:-mt-5">
+          <TripFilterChips<TripFilter>
+            ariaLabel="Utazások szűrése"
+            active={filter}
+            onChange={setFilter}
+            items={[
+              { id: "all", label: "Mind", count: grouped.active.length + grouped.upcoming.length + grouped.past.length },
+              { id: "active", label: "Folyamatban", shortLabel: "Most", count: grouped.active.length },
+              { id: "upcoming", label: "Közelgő", count: grouped.upcoming.length },
+              { id: "past", label: "Korábbi", count: grouped.past.length },
+            ]}
+          />
+        </div>
+      )}
 
       {trips.length === 0 ? (
         <EmptyState
