@@ -57,6 +57,8 @@ const SPLASH_CRITICAL_CSS = [
   "#app-splash-blocker{display:none;position:fixed;inset:0;z-index:100000;background:#1a365d;color:#fff;width:100%;height:100svh;box-sizing:border-box}",
   ".app-splash-brand{position:fixed;left:50%;top:50svh;z-index:100001;display:flex;flex-direction:column;align-items:center;text-align:center;contain:layout style;width:max-content;max-width:calc(100vw - 2rem);padding:0 1rem;box-sizing:border-box;transform:translate(-50%,-50%)}",
   "html.app-splash-active,html.app-splash-active body{background-color:#1a365d!important;overflow:hidden!important}",
+  "html.intro-pending #app-splash-blocker{background:radial-gradient(120% 70% at 50% 108%,#3b5aa8 0%,transparent 60%),linear-gradient(180deg,#0b1a3a 0%,#17306b 55%,#2a4a8f 100%)}",
+  "html.intro-pending .app-splash-brand,html.intro-pending .app-splash-footer{visibility:hidden!important}",
   "html.app-splash-exiting,html.app-splash-exiting body{background-color:#1a365d!important}",
   "html.app-ready #app-splash-blocker{display:none!important;visibility:hidden!important;pointer-events:none!important}",
   "html.app-splash-active body>*:not(#app-splash-blocker){visibility:hidden!important;pointer-events:none!important}",
@@ -73,8 +75,8 @@ const SPLASH_CRITICAL_CSS = [
   ".app-splash-progress-shimmer-bar{position:absolute;inset-block:0;width:33.333%;border-radius:9999px;background:#ffb866}",
 ].join("");
 
-// Keep in sync with SPLASH_KEY in @/lib/app-splash.ts
-const SPLASH_BOOT_SCRIPT = `(function(){try{var html=document.documentElement;var k="app-splash-seen-v3";if(sessionStorage.getItem(k)==="1"){html.classList.add("app-ready");return}html.classList.add("app-splash-active")}catch(e){document.documentElement.classList.add("app-ready")}})();`;
+// Keep in sync with SPLASH_KEY in @/lib/app-splash.ts and the cache key/window in @/lib/trip-intro.ts
+const SPLASH_BOOT_SCRIPT = `(function(){try{var html=document.documentElement;var k="app-splash-seen-v3";if(sessionStorage.getItem(k)==="1"){html.classList.add("app-ready");return}html.classList.add("app-splash-active");try{var c=JSON.parse(localStorage.getItem("app-intro-trips-v2")||"null");if(c&&c.trips&&!matchMedia("(prefers-reduced-motion: reduce)").matches){var n=new Date(),t=Math.floor(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())/864e5);for(var i=0;i<c.trips.length;i++){var p=c.trips[i].startDate.slice(0,10).split("-"),d=Math.floor(Date.UTC(+p[0],+p[1]-1,+p[2])/864e5)-t;if(d>=0&&d<=183){html.classList.add("intro-pending");break}}}}catch(e){}}catch(e){document.documentElement.classList.add("app-ready")}})();`;
 
 const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem("fam-theme");var dark=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);if(dark){document.documentElement.classList.add("dark");document.documentElement.style.colorScheme="dark"}else{document.documentElement.style.colorScheme="light"}}catch(e){}})();`;
 

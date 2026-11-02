@@ -115,7 +115,7 @@ export function buildIntroPlan(trips: IntroTrip[] | null, now = new Date()): Int
   const sorted = [...trips].sort((a, b) => a.startDate.localeCompare(b.startDate));
 
   const ongoing = sorted.find(
-    (trip) => dayNumber(trip.startDate) <= today && dayNumber(trip.endDate) >= today
+    (trip) => dayNumber(trip.startDate) < today && dayNumber(trip.endDate) >= today
   );
   const next = sorted.find((trip) => dayNumber(trip.startDate) >= today && trip !== ongoing);
   if (!next) return null;

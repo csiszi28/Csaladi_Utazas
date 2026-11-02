@@ -65,6 +65,7 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
     if (prefersReducedMotion()) {
       setPlan(null);
       void fetchIntroTrips(SPLASH_FETCH_BUDGET_MS);
+      document.documentElement.classList.remove("intro-pending");
       return;
     }
 
@@ -78,7 +79,11 @@ export function AppSplash({ crossfadeMs, onFadeStart, onFinished }: AppSplashPro
     }
 
     void fetchIntroTrips(SPLASH_FETCH_BUDGET_MS).then((trips) => {
-      if (!cancelled) setPlan(buildIntroPlan(trips));
+      if (cancelled) return;
+      const resolved = buildIntroPlan(trips);
+      // A boot script a gyorsítótár alapján "intro-pending"-et jelezhetett: ha mégsincs terv, jöhet a márkás kép.
+      if (!resolved) document.documentElement.classList.remove("intro-pending");
+      setPlan(resolved);
     });
 
     return () => {
