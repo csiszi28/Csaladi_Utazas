@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useMemo, useState, useTransition } from "react";
 import { ArrowRight, Check, CheckCircle2, Info, Printer, Trash2 } from "lucide-react";
@@ -248,7 +249,10 @@ export function TripSettlementPanel({
     });
   }
 
-  function undoPayment(id: string) {
+  const confirmDelete = useConfirmDelete();
+
+  async function undoPayment(id: string) {
+    if (!(await confirmDelete("ezt a kifizetést"))) return;
     startTransition(async () => {
       const result = await deleteSettlementPayment(id);
       if (!result.success) toast.error(result.error);

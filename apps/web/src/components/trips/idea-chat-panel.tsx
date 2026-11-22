@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pencil, Send, Smile, Trash2 } from "lucide-react";
@@ -175,7 +176,10 @@ export function IdeaChatPanel({
     });
   }
 
-  function handleDelete(messageId: string) {
+  const confirmDelete = useConfirmDelete();
+
+  async function handleDelete(messageId: string) {
+    if (!(await confirmDelete("ezt az üzenetet"))) return;
     if (editingId === messageId) cancelEdit();
 
     const previous = localMessages;

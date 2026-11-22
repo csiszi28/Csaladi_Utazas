@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, ExternalLink, CalendarPlus } from "lucide-react";
@@ -66,7 +67,10 @@ export function TripIdeasSection({
     }
   }, [openSignal]);
 
+  const confirmDelete = useConfirmDelete();
+
   async function handleDelete(id: string) {
+    if (!(await confirmDelete("ezt az ötletet"))) return;
     const result = await deleteMutation.mutateAsync(id);
     if (result.success) onRefresh();
   }

@@ -1,8 +1,8 @@
 export const SPLASH_KEY = "app-splash-seen-v3";
 export const SPLASH_BG = "#1a365d";
 
-/** Márkás tartalék splash (nincs közelgő út): 3 másodperc a megnyitástól. */
-export const SPLASH_DISPLAY_MS = 3000;
+/** Márkás tartalék splash (nincs közelgő út): 1,6 másodperc a megnyitástól. */
+export const SPLASH_DISPLAY_MS = 1600;
 export const SPLASH_ENTER_MS = 400;
 export const SPLASH_FADE_MS = 700;
 export const SPLASH_CONTENT_FADE_MS = 600;

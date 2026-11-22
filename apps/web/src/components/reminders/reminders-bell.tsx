@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -166,9 +167,12 @@ export function RemindersBell({
     toast.success("Összes olvasottnak jelölve");
   }
 
-  function handleDeleteAll() {
+  const confirmDelete = useConfirmDelete();
+
+  async function handleDeleteAll() {
     const keys = visibleReminders.map((r) => r.key);
     if (keys.length === 0) return;
+    if (!(await confirmDelete(`az összes (${keys.length}) értesítést`))) return;
     setDismissing((prev) => {
       const next = new Set(prev);
       for (const key of keys) next.add(key);

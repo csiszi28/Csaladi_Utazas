@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
@@ -256,7 +257,11 @@ export function PackingListPanel({
     });
   }
 
-  function handleDelete(id: string) {
+  const confirmDelete = useConfirmDelete();
+
+  async function handleDelete(id: string) {
+    const item = localItems.find((i) => i.id === id);
+    if (!(await confirmDelete(item ? `a(z) „${item.title}” tételt` : "ezt a tételt"))) return;
     const previous = localItems;
     setLocalItems((prev) => prev.filter((item) => item.id !== id));
     startTransition(async () => {

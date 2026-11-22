@@ -29,6 +29,9 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: BRAND.shortName,
   },
+  // A Next 15 az appleWebApp.capable-ből csak `mobile-web-app-capable`-t renderel; az iOS a
+  // teljes képernyős (safe area-ig érő) módhoz az `apple-` előtagú változatot várja.
+  other: { "apple-mobile-web-app-capable": "yes" },
   formatDetection: {
     telephone: false,
   },

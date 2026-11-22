@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useRef, useState, useEffect, useMemo } from "react";
 import { Upload, Eye } from "lucide-react";
@@ -226,9 +227,12 @@ export function DocumentUpload({
     }
   }
 
-  function handleDelete(documentId: string) {
+  const confirmDelete = useConfirmDelete();
+
+  async function handleDelete(documentId: string) {
     const deleted = documents.find((doc) => doc.id === documentId);
     if (!deleted) return;
+    if (!(await confirmDelete(`a(z) „${deleted.fileName}” dokumentumot`))) return;
 
     invalidateDocumentUrl(documentId);
     onDocumentDeleted?.(documentId);

@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
 import { formatDate, isDateInRange, isSameDay, isAccommodationNight, buildDayCostBreakdown, type TripCostContext, TRANSPORT_TYPE_LABELS, type TransportType } from "@csaladi-utazas/shared";
@@ -379,7 +380,10 @@ export function CalendarDayDrawer({
     setTripDrawerOpen(true);
   }
 
-  function handleDeleteTrip(id: string) {
+  const confirmDelete = useConfirmDelete();
+
+  async function handleDeleteTrip(id: string) {
+    if (!(await confirmDelete("ezt az utazást"))) return;
     startTransition(async () => {
       const result = await deleteTrip(id);
       if (!result.success) toast.error(result.error);
@@ -391,7 +395,8 @@ export function CalendarDayDrawer({
     });
   }
 
-  function handleDeleteProgram(id: string) {
+  async function handleDeleteProgram(id: string) {
+    if (!(await confirmDelete("ezt a programot"))) return;
     startTransition(async () => {
       const result = await deleteProgram(id);
       if (!result.success) toast.error(result.error);
@@ -402,7 +407,8 @@ export function CalendarDayDrawer({
     });
   }
 
-  function handleDeleteCost(id: string) {
+  async function handleDeleteCost(id: string) {
+    if (!(await confirmDelete("ezt a költséget"))) return;
     startTransition(async () => {
       const result = await deleteCost(id);
       if (!result.success) toast.error(result.error);

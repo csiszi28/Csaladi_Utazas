@@ -61,7 +61,8 @@ function readToastLayout(): ToastLayout {
     : 0;
   const visualWidth = vv?.width ?? document.documentElement.clientWidth ?? window.innerWidth;
 
-  const top = Math.round(visualTop + safeTop + EDGE_PADDING_PX);
+  // Mobilon közvetlenül a státuszsor / notch alatt, kompakt „pirula” elhelyezéssel
+  const top = Math.round(visualTop + safeTop + (isMobile ? 10 : EDGE_PADDING_PX));
   const left = Math.round(visualLeftGap + safeLeft + EDGE_PADDING_PX);
   const right = Math.round(visualRightGap + safeRight + EDGE_PADDING_PX);
   const maxWidthPx = Math.min(
@@ -151,7 +152,7 @@ export function AppToaster() {
       gap={8}
       visibleToasts={4}
       closeButton
-      duration={3800}
+      duration={3500}
       className="app-toaster"
       style={toasterStyle}
       icons={{

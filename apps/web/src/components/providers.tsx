@@ -10,6 +10,7 @@ import {
   shouldShowSplash,
   syncSplashDocumentState,
 } from "@/lib/app-splash";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { AppToaster } from "@/components/ui/app-toaster";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
@@ -91,7 +92,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
               : undefined
           }
         >
-          {children}
+          <ConfirmProvider>{children}</ConfirmProvider>
         </div>
         <div id="app-chrome" suppressHydrationWarning>
           <PwaRegister />

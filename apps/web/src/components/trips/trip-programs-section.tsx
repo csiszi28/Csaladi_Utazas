@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useState, useEffect } from "react";
 import {
@@ -282,7 +283,10 @@ export function TripProgramsSection({
     }
   }, [convertIdeaId]);
 
+  const confirmDelete = useConfirmDelete();
+
   async function handleDeleteIdea(id: string) {
+    if (!(await confirmDelete("ezt az ötletet"))) return;
     const result = await deleteIdeaMutation.mutateAsync(id);
     if (result.success) onRefresh();
   }

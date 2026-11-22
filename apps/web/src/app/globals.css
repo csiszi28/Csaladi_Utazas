@@ -484,64 +484,32 @@ html.app-splash-exiting body {
   position: absolute;
   display: flex !important;
   align-items: center !important;
-  gap: 0.75rem !important;
+  gap: 0.7rem !important;
   width: 100% !important;
   max-width: 100% !important;
   /* Jobb oldalon hely a close gombnak — ne takarja a szöveget */
-  padding: 0.75rem 2.35rem 0.75rem 0.9rem !important;
+  padding: 0.65rem 2.4rem 0.65rem 0.65rem !important;
   overflow: hidden !important;
-  border-radius: 1rem !important;
-  border: 1px solid rgba(26, 54, 93, 0.12) !important;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(238, 243, 250, 0.92) 100%) !important;
-  color: #1a2744 !important;
+  border-radius: 1.25rem !important;
+  border: 1px solid rgba(26, 54, 93, 0.08) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #14233d !important;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.7) inset,
-    0 8px 20px -12px rgba(26, 54, 93, 0.32),
-    0 1px 4px rgba(26, 54, 93, 0.06) !important;
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    0 12px 32px -10px rgba(15, 30, 60, 0.28),
+    0 2px 6px rgba(15, 30, 60, 0.06) !important;
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
   /* Sonner height animáció ne nyújtsa szét a tartalmat */
   height: auto !important;
 }
 
 .dark [data-sonner-toast].app-toast {
-  border-color: rgba(255, 184, 102, 0.16) !important;
-  background:
-    linear-gradient(145deg, rgba(20, 52, 95, 0.96) 0%, rgba(11, 30, 56, 0.94) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(14, 38, 70, 0.94) !important;
   color: #f2f6fc !important;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 14px 32px -14px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(255, 255, 255, 0.04) !important;
-}
-
-[data-sonner-toast].app-toast::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.65rem;
-  bottom: 0.65rem;
-  width: 3px;
-  border-radius: 999px;
-  background: #3d6bb3;
-}
-
-[data-sonner-toast].app-toast--success::before {
-  background: linear-gradient(180deg, #34d399, #10b981);
-}
-
-[data-sonner-toast].app-toast--error::before {
-  background: linear-gradient(180deg, #fb7185, #e11d48);
-}
-
-[data-sonner-toast].app-toast--warning::before {
-  background: linear-gradient(180deg, #ffb866, #f59e0b);
-}
-
-[data-sonner-toast].app-toast--info::before,
-[data-sonner-toast].app-toast--loading::before {
-  background: linear-gradient(180deg, #ffb866, #3d6bb3);
+    0 16px 36px -12px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.03) !important;
 }
 
 [data-sonner-toast].app-toast [data-content] {
@@ -581,70 +549,50 @@ html.app-splash-exiting body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 0.65rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
   flex-shrink: 0;
+  color: #fff;
 }
 
 .app-toast-icon--success {
-  color: #047857;
-  background: rgba(16, 185, 129, 0.16);
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.22);
+  background: linear-gradient(135deg, #34d399, #059669);
+  box-shadow: 0 4px 10px -3px rgba(5, 150, 105, 0.55);
 }
 
 .app-toast-icon--error {
-  color: #be123c;
-  background: rgba(244, 63, 94, 0.14);
-  box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.22);
+  background: linear-gradient(135deg, #fb7185, #e11d48);
+  box-shadow: 0 4px 10px -3px rgba(225, 29, 72, 0.5);
 }
 
 .app-toast-icon--warning {
-  color: #b45309;
-  background: rgba(255, 184, 102, 0.28);
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.28);
+  color: #3b2400;
+  background: linear-gradient(135deg, #ffcf8a, #f59e0b);
+  box-shadow: 0 4px 10px -3px rgba(245, 158, 11, 0.5);
 }
 
 .app-toast-icon--info {
-  color: #1a365d;
-  background: rgba(61, 107, 179, 0.14);
-  box-shadow: 0 0 0 1px rgba(61, 107, 179, 0.22);
+  background: linear-gradient(135deg, #6d96d6, #2f5796);
+  box-shadow: 0 4px 10px -3px rgba(47, 87, 150, 0.5);
 }
 
 .app-toast-icon--neutral {
   color: #1a365d;
   background: rgba(26, 54, 93, 0.1);
-  box-shadow: 0 0 0 1px rgba(26, 54, 93, 0.14);
 }
 
-.dark .app-toast-icon--success {
-  color: #6ee7b7;
-  background: rgba(16, 185, 129, 0.18);
-}
-
-.dark .app-toast-icon--error {
-  color: #fda4af;
-  background: rgba(244, 63, 94, 0.18);
-}
-
-.dark .app-toast-icon--warning {
-  color: #ffb866;
-  background: rgba(255, 184, 102, 0.16);
-}
-
-.dark .app-toast-icon--info,
 .dark .app-toast-icon--neutral {
   color: #ffb866;
-  background: rgba(255, 184, 102, 0.12);
-  box-shadow: 0 0 0 1px rgba(255, 184, 102, 0.2);
+  background: rgba(255, 184, 102, 0.14);
 }
 
 [data-sonner-toast].app-toast .app-toast-close {
   position: absolute !important;
-  top: 0.55rem !important;
-  right: 0.55rem !important;
+  top: 50% !important;
+  right: 0.6rem !important;
   left: auto !important;
-  transform: none !important;
+  transform: translateY(-50%) !important;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
@@ -709,23 +657,6 @@ html.app-splash-exiting body {
 
 .dark [data-sonner-toast].app-toast .app-toast-cancel {
   border-color: rgba(255, 255, 255, 0.16) !important;
-}
-
-/* Soft bottom accent */
-[data-sonner-toast].app-toast::after {
-  content: "";
-  position: absolute;
-  left: 0.95rem;
-  right: 0.95rem;
-  bottom: 0;
-  height: 2px;
-  border-radius: 999px 999px 0 0;
-  background: linear-gradient(90deg, #ffb866, #3d6bb3 60%, transparent);
-  opacity: 0.45;
-}
-
-.dark [data-sonner-toast].app-toast::after {
-  opacity: 0.55;
 }
 
 /* Main app canvas — companions the navy sidebar rail */

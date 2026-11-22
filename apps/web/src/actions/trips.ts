@@ -176,8 +176,13 @@ export async function updateTrip(data: {
     return { success: false, error: "Utazás nem található" };
   }
 
+  // A tulajdonos a közreműködők családtagjait is kezelheti
+  const collaboratorRows = await prisma.tripCollaborator.findMany({
+    where: { tripId: parsed.data.id },
+    select: { userId: true },
+  });
   const ownedMembers = await prisma.familyMember.findMany({
-    where: { userId: user.id },
+    where: { userId: { in: [user.id, ...collaboratorRows.map((c) => c.userId)] } },
     select: { id: true },
   });
   const ownedSet = new Set(ownedMembers.map((m) => m.id));

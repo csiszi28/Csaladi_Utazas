@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 import { clearUserClientData } from "@/lib/clear-client-caches";
 import { useEffect, useState, useTransition } from "react";
 import { Bell, Camera, Eye, EyeOff, KeyRound, Palette, Settings2, Trash2, UserRound } from "lucide-react";
@@ -138,7 +139,10 @@ export function SettingsPage({ user }: SettingsPageProps) {
     });
   }
 
-  function clearAvatar() {
+  const confirmDelete = useConfirmDelete();
+
+  async function clearAvatar() {
+    if (!(await confirmDelete("a profilképedet"))) return;
     startAvatarTransition(async () => {
       const result = await removeProfileAvatar();
       if (!result.success) {

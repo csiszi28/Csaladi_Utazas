@@ -18,8 +18,7 @@ export default async function DashboardRouteLayout({
 
   // Kritikus útvonal: csak hitelesítés + (60 mp-ig gyorsítótárazott) DB-próba.
   // Keresési index és családi értesítések nem blokkolnak (lásd search-index API, Suspense).
-  await requireAuthUserId();
-  const dbError = await probeDatabase();
+  const [, dbError] = await Promise.all([requireAuthUserId(), probeDatabase()]);
   if (dbError) {
     return <ConfigErrorPanel message={dbError} />;
   }

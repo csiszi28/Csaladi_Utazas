@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -138,7 +139,10 @@ export function DocumentsPage({ trips }: { trips: DocumentsOverviewTrip[] }) {
     });
   }
 
-  function handleDelete(documentId: string) {
+  const confirmDelete = useConfirmDelete();
+
+  async function handleDelete(documentId: string) {
+    if (!(await confirmDelete("ezt a dokumentumot"))) return;
     invalidateDocumentUrl(documentId);
     deleteDocument(documentId).then((result) => {
       if (!result.success) toast.error(result.error);

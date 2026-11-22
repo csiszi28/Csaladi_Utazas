@@ -242,8 +242,17 @@ export async function setTripParticipants(data: {
   const access = await requireTripEditor(parsed.data.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
 
+  // A szerkesztő a saját háztartását kezeli; a tulajdonos a közreműködők háztartásait is.
+  const tripOwnerRow = await prisma.trip.findFirst({
+    where: { id: parsed.data.tripId },
+    select: { userId: true, collaborators: { select: { userId: true } } },
+  });
+  const isTripOwner = tripOwnerRow?.userId === user.id;
+  const manageableUserIds = isTripOwner
+    ? [user.id, ...(tripOwnerRow?.collaborators.map((c) => c.userId) ?? [])]
+    : [user.id];
   const ownedMembers = await prisma.familyMember.findMany({
-    where: { userId: user.id },
+    where: { userId: { in: manageableUserIds } },
     select: { id: true },
   });
   const ownedSet = new Set(ownedMembers.map((m) => m.id));
@@ -252,7 +261,7 @@ export async function setTripParticipants(data: {
     where: { tripId: parsed.data.tripId },
     select: {
       familyMemberId: true,
-      familyMember: { select: { id: true, name: true, userId: true } },
+      familyMember: { select: { id: true, name: true, userId: true, linkedUserId: true } },
     },
   });
 
@@ -263,7 +272,18 @@ export async function setTripParticipants(data: {
   const submittedOwnedIds = parsed.data.participantIds.filter((id: string) =>
     ownedSet.has(id)
   );
-  const finalIds = [...new Set([...preservedOtherIds, ...submittedOwnedIds])];
+  // Nem tulajdonos csak saját magát veheti ki az útról — a többiek megmaradnak
+  const protectedIds = isTripOwner
+    ? []
+    : previous
+        .filter(
+          (p) =>
+            ownedSet.has(p.familyMemberId) &&
+            p.familyMember.linkedUserId !== user.id &&
+            !submittedOwnedIds.includes(p.familyMemberId)
+        )
+        .map((p) => p.familyMemberId);
+  const finalIds = [...new Set([...preservedOtherIds, ...protectedIds, ...submittedOwnedIds])];
 
   if (finalIds.length === 0) {
     return { success: false, error: "Legalább egy résztvevő kötelező" };
@@ -325,7 +345,7 @@ export async function setTripParticipants(data: {
 
 /**
  * Egy résztvevő eltávolítása az utazásról.
- * A tulajdonos bárkit eltávolíthat; a szerkesztők csak a saját háztartásuk családtagjait.
+ * A tulajdonos bárkit eltávolíthat; a többiek csak saját magukat.
  */
 export async function removeTripParticipant(data: {
   tripId: string;
@@ -344,15 +364,15 @@ export async function removeTripParticipant(data: {
 
   const participant = await prisma.tripParticipant.findFirst({
     where: { tripId: data.tripId, familyMemberId: data.familyMemberId },
-    select: { id: true, familyMember: { select: { name: true, userId: true } } },
+    select: { id: true, familyMember: { select: { name: true, userId: true, linkedUserId: true } } },
   });
   if (!participant) return { success: false, error: "A résztvevő nem található" };
 
   const isTripOwner = trip.userId === user.id;
-  if (!isTripOwner && participant.familyMember.userId !== user.id) {
+  if (!isTripOwner && participant.familyMember.linkedUserId !== user.id) {
     return {
       success: false,
-      error: "Csak a saját családtagjaidat távolíthatod el — a többiekhez az utazás tulajdonosa fér hozzá",
+      error: "Csak saját magadat távolíthatod el — a többiekhez az utazás tulajdonosa fér hozzá",
     };
   }
 

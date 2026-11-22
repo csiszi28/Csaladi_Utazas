@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -88,6 +89,7 @@ export function TripTransportsSection({
     [transports]
   );
   const deleteMutation = useDeleteTransport();
+  const confirmDelete = useConfirmDelete();
 
   useEffect(() => {
     setLocalTransports((prev) => {
@@ -265,6 +267,7 @@ export function TripTransportsSection({
                           className="h-9 w-9"
                           disabled={deleteMutation.isPending}
                           onClick={async () => {
+                            if (!(await confirmDelete("ezt az utazási szakaszt"))) return;
                             const previous = localTransports;
                             setLocalTransports((prev) => prev.filter((x) => x.id !== t.id));
                             const result = await deleteMutation.mutateAsync(t.id);

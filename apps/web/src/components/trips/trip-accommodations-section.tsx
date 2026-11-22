@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -146,12 +147,16 @@ export function TripAccommodationsSection({
     }
   }, [convertIdeaId]);
 
+  const confirmDelete = useConfirmDelete();
+
   async function handleDeleteIdea(id: string) {
+    if (!(await confirmDelete("ezt a szállásötletet"))) return;
     const result = await deleteIdeaMutation.mutateAsync(id);
     if (result.success) onRefresh();
   }
 
   async function handleDeleteAccommodation(id: string) {
+    if (!(await confirmDelete("ezt a szállást"))) return;
     const previous = localAccommodations;
     setLocalAccommodations((prev) => prev.filter((a) => a.id !== id));
     const result = await deleteAccommodationMutation.mutateAsync(id);

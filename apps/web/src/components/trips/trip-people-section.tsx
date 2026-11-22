@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition, useEffect } from "react";
-import { Trash2, UserMinus, Users } from "lucide-react";
+import { Trash2, UserMinus, UserPlus, Users } from "lucide-react";
 import { Monogram } from "@/components/monogram";
 import { TripInvitePanel } from "@/components/trips/trip-invite-panel";
 import { TripSectionHeading } from "@/components/trips/trip-detail-tabs";
@@ -35,6 +35,7 @@ import {
   DialogFooter,
   DialogBody,
 } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 
 interface TripPeopleSectionProps {
@@ -44,6 +45,8 @@ interface TripPeopleSectionProps {
   role: TripRole;
   participants: TripDetailRow["participants"];
   familyMembers: FamilyMemberRow[];
+  /** Közreműködők családtagjai (csak a tulajdonosnak). */
+  otherMembers?: { id: string; name: string; userId: string | null; linkedUserId: string | null }[];
   collaborators: TripDetailRow["collaborators"];
   owner: TripDetailRow["user"];
   currentUserId: string;
@@ -102,13 +105,44 @@ export function TripPeopleSection({
   canEdit,
   role,
   participants,
-  familyMembers,
+  familyMembers: ownFamilyMembers,
+  otherMembers = [],
   collaborators,
   owner,
   currentUserId,
   tripTitle,
 }: TripPeopleSectionProps) {
   const router = useRouter();
+  const confirm = useConfirm();
+  // A tulajdonos a közreműködők családtagjait is kezelheti; a többiek a saját háztartásukat adhatják hozzá, de csak magukat vehetik ki.
+  const familyMembers = useMemo<
+    { id: string; name: string; userId?: string | null; linkedUserId?: string | null }[]
+  >(
+    () => (isOwner ? [...ownFamilyMembers, ...otherMembers] : ownFamilyMembers),
+    [isOwner, ownFamilyMembers, otherMembers]
+  );
+  const householdLabel = (userId?: string | null) => {
+    if (!userId || userId === currentUserId) return "A te családtagjaid";
+    const name =
+      collaborators.find((c) => c.user.id === userId)?.user.name ??
+      (owner.id === userId ? owner.name : null);
+    return name ? `${name} családtagjai` : "Másik háztartás";
+  };
+  const householdGroups = useMemo(() => {
+    const groups: { key: string; label: string; members: typeof familyMembers }[] = [];
+    for (const m of familyMembers) {
+      const key = m.userId && m.userId !== currentUserId ? m.userId : "own";
+      let g = groups.find((x) => x.key === key);
+      if (!g) {
+        g = { key, label: householdLabel(m.userId), members: [] };
+        groups.push(g);
+      }
+      g.members.push(m);
+    }
+    groups.sort((a, b) => (a.key === "own" ? -1 : b.key === "own" ? 1 : 0));
+    return groups;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [familyMembers, currentUserId, collaborators, owner]);
   const [pending, startTransition] = useTransition();
   const [rolePending, startRoleTransition] = useTransition();
   const [removePending, startRemoveTransition] = useTransition();
@@ -161,6 +195,11 @@ export function TripPeopleSection({
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
+        const target = familyMembers.find((m) => m.id === id);
+        if (!isOwner && target?.linkedUserId !== currentUserId) {
+          toast.error("Csak saját magadat veheted ki — a többieket az utazás tulajdonosa kezelheti");
+          return prev;
+        }
         const remainingOwn = familyMembers.filter((m) => m.id !== id && next.has(m.id)).length;
         const othersOnTrip = participants.filter(
           (p) => !familyMembers.some((m) => m.id === p.familyMember.id)
@@ -210,7 +249,19 @@ export function TripPeopleSection({
   }
 
   /** Egy résztvevő kivétele az útról (a tulajdonos bárkit, a szerkesztő a sajátjait). */
-  function handleRemoveParticipant(familyMemberId: string, name: string) {
+  async function handleRemoveParticipant(familyMemberId: string, name: string) {
+    const ok = await confirm({
+      title: "Kivétel a résztvevők közül",
+      description: (
+        <>
+          Biztosan kiveszed <span className="font-medium text-foreground">{name}</span> az utazás
+          résztvevői közül?
+        </>
+      ),
+      confirmLabel: "Kivétel",
+      destructive: true,
+    });
+    if (!ok) return;
     startParticipantRemoveTransition(async () => {
       const result = await removeTripParticipant({ tripId, familyMemberId });
       if (!result.success) {
@@ -225,7 +276,38 @@ export function TripPeopleSection({
   function canRemoveParticipant(person: (typeof uniquePeople)[number]) {
     if (!canEdit || !person.isParticipant || !person.familyMemberId) return false;
     if (participants.length <= 1) return false;
-    return isOwner || familyMembers.some((m) => m.id === person.familyMemberId);
+    return isOwner || person.userId === currentUserId;
+  }
+
+  /** A személyhez tartozó, általam kezelhető családtag-azonosító (ha van). */
+  function manageableMemberId(person: (typeof uniquePeople)[number]): string | null {
+    if (person.familyMemberId && familyMembers.some((m) => m.id === person.familyMemberId)) {
+      return person.familyMemberId;
+    }
+    if (person.userId) {
+      return familyMembers.find((m) => m.linkedUserId === person.userId)?.id ?? null;
+    }
+    return null;
+  }
+
+  function canAddParticipant(person: (typeof uniquePeople)[number]) {
+    if (!canEdit || person.isParticipant) return false;
+    if (!isOwner && person.userId !== currentUserId) return false;
+    return manageableMemberId(person) != null;
+  }
+
+  function handleAddParticipant(memberId: string, name: string) {
+    startParticipantRemoveTransition(async () => {
+      const ids = new Set(familyMembers.filter((m) => selected.has(m.id)).map((m) => m.id));
+      ids.add(memberId);
+      const result = await setTripParticipants({ tripId, participantIds: Array.from(ids) });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${name} hozzáadva a résztvevőkhöz`);
+      router.refresh();
+    });
   }
 
   function handleRemoveConfirm() {
@@ -303,6 +385,20 @@ export function TripPeopleSection({
                     collaboratorRole={person.collaboratorRole}
                   />
                 </div>
+                {canAddParticipant(person) ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-primary"
+                    disabled={participantRemovePending || pending}
+                    aria-label={`${person.name} hozzáadása a résztvevőkhöz`}
+                    title="Hozzáadás a résztvevőkhöz"
+                    onClick={() => handleAddParticipant(manageableMemberId(person)!, person.name)}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                ) : null}
                 {canRemoveParticipant(person) ? (
                   <Button
                     type="button"
@@ -330,10 +426,12 @@ export function TripPeopleSection({
 
       <section className="space-y-4">
         <TripSectionHeading
-          title="A te családtagjaid ezen az úton"
+          title={isOwner && otherMembers.length > 0 ? "Résztvevők kezelése" : "A te családtagjaid ezen az úton"}
           description={
             canEdit
-              ? "Jelöld be, kik utaznak a családodból. Más családok résztvevőit a saját gazdájuk (vagy az út tulajdonosa) kezeli."
+              ? isOwner
+                ? "Tulajdonosként bárkit hozzáadhatsz vagy kivehetsz az útról — a saját és a közreműködők családtagjait is. Mentés után lép életbe."
+                : "Jelöld be, kik utaznak a családodból. Más családok résztvevőit a saját gazdájuk (vagy az út tulajdonosa) kezeli."
               : "A te családtagjaid az utazásban"
           }
           action={
@@ -352,45 +450,56 @@ export function TripPeopleSection({
         />
 
         {familyMembers.length > 0 ? (
-          <ul className="divide-y rounded-xl border">
-            {familyMembers.map((member) => {
-              const active = selected.has(member.id);
-              const linked = linkedById.get(member.id) ?? Boolean(member.linkedUserId);
-              return (
-                <li key={member.id}>
-                  <button
-                    type="button"
-                    disabled={!canEdit || pending}
-                    onClick={() => toggle(member.id)}
-                    className={cn(
-                      "flex w-full min-h-[var(--touch-target)] items-center gap-3 px-4 py-3 text-left transition-colors",
-                      canEdit && "hover:bg-muted/40",
-                      active ? "bg-primary/5" : "opacity-60"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-xs font-bold",
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground/40"
-                      )}
-                    >
-                      {active ? "✓" : ""}
-                    </span>
-                    <Monogram name={member.name} memberId={member.id} size="md" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {linked ? "Csatlakozott fiókkal" : "Nincs csatlakozott fiók"}
-                        {active ? null : " · nincs az utazásban"}
-                      </p>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="space-y-4">
+            {householdGroups.map((group) => (
+              <div key={group.key} className="space-y-1.5">
+                {householdGroups.length > 1 ? (
+                  <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </p>
+                ) : null}
+                <ul className="divide-y rounded-xl border">
+                  {group.members.map((member) => {
+                    const active = selected.has(member.id);
+                    const linked = linkedById.get(member.id) ?? Boolean(member.linkedUserId);
+                    return (
+                      <li key={member.id}>
+                        <button
+                          type="button"
+                          disabled={!canEdit || pending}
+                          onClick={() => toggle(member.id)}
+                          className={cn(
+                            "flex w-full min-h-[var(--touch-target)] items-center gap-3 px-4 py-3 text-left transition-colors",
+                            canEdit && "hover:bg-muted/40",
+                            active ? "bg-primary/5" : "opacity-60"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-xs font-bold",
+                              active
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-muted-foreground/40"
+                            )}
+                          >
+                            {active ? "✓" : ""}
+                          </span>
+                          <Monogram name={member.name} memberId={member.id} size="md" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">{member.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {linked ? "Csatlakozott fiókkal" : "Nincs csatlakozott fiók"}
+                              {active ? null : " · nincs az utazásban"}
+                            </p>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
         ) : (
           <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
             <Users className="mx-auto mb-2 h-5 w-5 opacity-50" />

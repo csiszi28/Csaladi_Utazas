@@ -4,6 +4,7 @@ import { TripDetailPage } from "@/components/trips/trip-detail-page";
 import { fetchFamilyMembers } from "@/lib/queries/family";
 import { fetchTripDetailFresh } from "@/lib/queries/trips";
 import { getAuthSession, requireAuthUserId } from "@/lib/auth";
+import { prisma } from "@csaladi-utazas/database";
 import { createServiceClient } from "@/lib/supabase/server";
 
 /** Mutációk / collaborator sync után ne ragadjon Full Route Cache-ben */
@@ -40,8 +41,21 @@ export default async function TripDetailRoute({
   // csatlakozáskor / megerősített kérelemnél történik (lásd actions/invites, actions/family).
   const trip = initialTrip;
 
-  // Borító URL párhuzamosan a session névvel — ne várjon a trip után új round-tripet
-  const coverUrl = await resolveCoverUrl(trip.coverStoragePath);
+  // A tulajdonos a közreműködők családtagjait is kezelheti (hozzáadás / kivétel)
+  const otherMembersPromise =
+    trip.user.id === userId && trip.collaborators.length > 0
+      ? prisma.familyMember.findMany({
+          where: { userId: { in: trip.collaborators.map((c) => c.user.id) } },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, userId: true, linkedUserId: true },
+        })
+      : Promise.resolve([]);
+
+  // Borító URL és közreműködők családtagjai párhuzamosan
+  const [coverUrl, otherMembers] = await Promise.all([
+    resolveCoverUrl(trip.coverStoragePath),
+    otherMembersPromise,
+  ]);
 
   const currentUserName =
     (authUser?.user_metadata?.name as string | undefined) ??
@@ -53,6 +67,7 @@ export default async function TripDetailRoute({
       <TripDetailPage
         trip={trip}
         members={members}
+        otherMembers={otherMembers}
         currentUserId={userId}
         currentUserName={currentUserName}
         coverUrl={coverUrl}

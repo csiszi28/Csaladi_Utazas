@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useState, useTransition, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
@@ -147,12 +148,15 @@ function isTripDetailTab(value: string | null): value is TripDetailTab {
 export function TripDetailPage({
   trip,
   members,
+  otherMembers = [],
   currentUserId,
   currentUserName,
   coverUrl,
 }: {
   trip: TripDetailRow;
   members: FamilyMemberRow[];
+  /** Közreműködők családtagjai — csak a tulajdonosnak töltjük be. */
+  otherMembers?: { id: string; name: string; userId: string | null; linkedUserId: string | null }[];
   currentUserId: string;
   currentUserName: string;
   coverUrl?: string | null;
@@ -577,7 +581,10 @@ export function TripDetailPage({
     });
   }
 
-  function handleDeleteTrip() {
+  const confirmDelete = useConfirmDelete();
+
+  async function handleDeleteTrip() {
+    if (!(await confirmDelete(`a(z) „${trip.title}” utazást`))) return;
     startTransition(async () => {
       const result = await deleteTrip(trip.id);
       if (!result.success) toast.error(result.error);
@@ -588,7 +595,8 @@ export function TripDetailPage({
     });
   }
 
-  function handleDeleteProgram(id: string) {
+  async function handleDeleteProgram(id: string) {
+    if (!(await confirmDelete("ezt a programot"))) return;
     const previousPrograms = localPrograms;
     const previousCosts = localCosts;
     setLocalPrograms((prev) => prev.filter((p) => p.id !== id));
@@ -607,7 +615,8 @@ export function TripDetailPage({
     });
   }
 
-  function handleDeleteCost(id: string) {
+  async function handleDeleteCost(id: string) {
+    if (!(await confirmDelete("ezt a költséget"))) return;
     const previous = localCosts;
     setLocalCosts((prev) => prev.filter((c) => c.id !== id));
 
@@ -1101,6 +1110,7 @@ export function TripDetailPage({
             role={role}
             participants={trip.participants}
             familyMembers={members}
+            otherMembers={otherMembers}
             collaborators={trip.collaborators}
             owner={trip.user}
             currentUserId={currentUserId}
@@ -1115,7 +1125,10 @@ export function TripDetailPage({
         open={tripDrawerOpen}
         onOpenChange={setTripDrawerOpen}
         trip={trip}
-        members={members}
+        members={[
+          ...members,
+          ...otherMembers.map((m) => ({ ...m, email: null, pendingLinkUserId: null, isChild: false, linkedUser: null, pendingLinkUser: null })),
+        ]}
         onSaved={refresh}
       />
       <CostFormDrawer

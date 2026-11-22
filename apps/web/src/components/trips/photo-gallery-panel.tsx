@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
 import { useRef, useState, useTransition, useEffect, useMemo } from "react";
 import { Camera, Trash2 } from "lucide-react";
@@ -142,7 +143,10 @@ export function PhotoGalleryPanel({
     });
   }
 
-  function handleDelete(id: string) {
+  const confirmDelete = useConfirmDelete();
+
+  async function handleDelete(id: string) {
+    if (!(await confirmDelete("ezt a fotót"))) return;
     startTransition(async () => {
       const result = await deleteDocument(id);
       if (!result.success) toast.error(result.error);
