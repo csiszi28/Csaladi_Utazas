@@ -164,6 +164,14 @@ export function TripSettlementPanel({
     [settlement.transfers, payments]
   );
 
+  const tripChildren = useMemo(
+    () =>
+      trip.participants
+        .map((p) => p.familyMember)
+        .filter((m) => m.isChild ?? childSet.has(m.id)),
+    [trip.participants, childSet]
+  );
+
   /** Kiegyenlítés utáni nettó egyenleg személyenként */
   const liveBalances = useMemo(() => {
     return settlement.balances.map((b) => {
@@ -303,6 +311,12 @@ export function TripSettlementPanel({
           <p className="mt-0.5 text-xs text-foreground">
             A „kap” sáv akkor telik meg, ahogy a többiek rendezik a tartozásukat.
           </p>
+          {tripChildren.length > 0 ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Gyerek: {tripChildren.map((c) => c.name).join(", ")} — a költségek számolásánál
+              szerepel, de tartozás nem kerül hozzá, a részét a felnőttek viszik.
+            </p>
+          ) : null}
         </div>
         <ul className="divide-y">
           {liveBalances.map((balance) => {

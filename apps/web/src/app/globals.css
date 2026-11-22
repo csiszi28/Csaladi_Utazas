@@ -107,6 +107,17 @@
   html.dark {
     background-color: #14345f;
   }
+  /* iOS PWA: a dokumentum töltse ki a teljes (safe area-t is tartalmazó) képernyőt,
+     különben az alján üres sáv marad, mert minden tartalom fixed pozíciójú. */
+  html,
+  body {
+    height: 100%;
+    min-height: 100%;
+  }
+  body {
+    min-height: 100lvh;
+    overscroll-behavior: none;
+  }
   @media (max-width: 767px) {
     input,
     select,

@@ -59,12 +59,14 @@ function PersonRoleBadges({
   isParticipant,
   hasAccount,
   collaboratorRole,
+  isChild,
 }: {
   isOwner: boolean;
   isCollaborator: boolean;
   isParticipant: boolean;
   hasAccount: boolean;
   collaboratorRole?: string;
+  isChild?: boolean;
 }) {
   // Két külön dolog: ki fér hozzá az úthoz (szerep), és ki utazik (résztvevő)
   const badges: { label: string; tone?: "access" | "muted" }[] = [];
@@ -76,6 +78,7 @@ function PersonRoleBadges({
     });
   }
   badges.push(isParticipant ? { label: "Utazik" } : { label: "Nem utazik", tone: "muted" });
+  if (isChild) badges.push({ label: "Gyerek" });
   if (!hasAccount) badges.push({ label: "Fiók nélkül", tone: "muted" });
 
   return (
@@ -158,6 +161,16 @@ export function TripPeopleSection({
   useEffect(() => {
     setSelected(new Set(participants.map((p) => p.familyMember.id)));
   }, [participants]);
+
+  const childFamilyMemberIds = useMemo(
+    () =>
+      new Set(
+        participants
+          .filter((p) => (p.familyMember as { isChild?: boolean }).isChild)
+          .map((p) => p.familyMember.id)
+      ),
+    [participants]
+  );
 
   const uniquePeople = useMemo(
     () =>
@@ -383,6 +396,7 @@ export function TripPeopleSection({
                     isParticipant={person.isParticipant}
                     hasAccount={Boolean(person.userId)}
                     collaboratorRole={person.collaboratorRole}
+                    isChild={childFamilyMemberIds.has(person.familyMemberId ?? "")}
                   />
                 </div>
                 {canAddParticipant(person) ? (
