@@ -57,6 +57,7 @@ export type TripPeopleParticipantInput = {
     linkedUserId?: string | null;
     /** A családtag rekord tulajdonosa (háztartás). */
     userId?: string | null;
+    isChild?: boolean;
   };
 };
 
@@ -86,6 +87,9 @@ export type UniqueTripPerson = {
   isCollaborator: boolean;
   isOwner: boolean;
   collaboratorRole?: string;
+  isChild?: boolean;
+  /** Más háztartásban vezetett (átvett) profil — pl. a szülő által felvett gyerek. */
+  isExternalProfile?: boolean;
 };
 
 /**
@@ -108,8 +112,15 @@ export function buildUniqueTripPeople(input: {
     existing.isParticipant = existing.isParticipant || next.isParticipant;
     existing.isCollaborator = existing.isCollaborator || next.isCollaborator;
     existing.isOwner = existing.isOwner || next.isOwner;
-    if (!existing.familyMemberId && next.familyMemberId) {
+    // Ha ugyanahhoz a fiókhoz több profil is tartozik, az átvett (pl. gyerek) profil az elsődleges
+    if (
+      next.familyMemberId &&
+      (!existing.familyMemberId || (next.isExternalProfile && !existing.isExternalProfile))
+    ) {
       existing.familyMemberId = next.familyMemberId;
+      existing.isExternalProfile = next.isExternalProfile;
+      if (next.isChild !== undefined) existing.isChild = next.isChild;
+      if (next.isExternalProfile && next.isParticipant) existing.name = next.name;
     }
     if (!existing.userId && next.userId) {
       existing.userId = next.userId;
@@ -124,7 +135,7 @@ export function buildUniqueTripPeople(input: {
       existing.collaboratorRole = next.collaboratorRole;
     }
     // Preferáljuk a fiókhoz kötött nevet, ha a közreműködő / tulajdonos pontosabb
-    if (next.userId && next.name) {
+    if (next.userId && next.name && !existing.isExternalProfile) {
       existing.name = next.name;
     }
   };
@@ -180,6 +191,10 @@ export function buildUniqueTripPeople(input: {
       isParticipant: true,
       isCollaborator: false,
       isOwner: false,
+      isChild: fm.isChild,
+      isExternalProfile: Boolean(
+        fm.linkedUserId && fm.userId && fm.userId !== fm.linkedUserId
+      ),
     });
   }
 

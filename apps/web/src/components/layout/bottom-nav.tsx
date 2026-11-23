@@ -50,7 +50,7 @@ export function BottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
   const centerActive = isActive(pathname, center.href);
 
   return (
-    <nav aria-label="Fő navigáció" className="relative z-30 shrink-0 px-3 pb-1 pt-1 md:hidden">
+    <nav aria-label="Fő navigáció" className="relative z-30 shrink-0 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom)*0.3)] pt-1 md:hidden">
       <div className="relative flex items-end rounded-[1.75rem] border border-border/70 bg-[color-mix(in_oklab,var(--card)_85%,transparent)] px-1 shadow-[0_8px_30px_-8px_rgba(15,30,60,0.35)] backdrop-blur-xl dark:border-white/10 dark:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.7)]">
         {left.map((item) => (
           <Slot key={item.href} item={item} pathname={pathname} />

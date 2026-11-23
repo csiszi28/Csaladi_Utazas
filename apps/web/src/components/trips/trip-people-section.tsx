@@ -396,7 +396,7 @@ export function TripPeopleSection({
                     isParticipant={person.isParticipant}
                     hasAccount={Boolean(person.userId)}
                     collaboratorRole={person.collaboratorRole}
-                    isChild={childFamilyMemberIds.has(person.familyMemberId ?? "")}
+                    isChild={Boolean(person.isChild) || childFamilyMemberIds.has(person.familyMemberId ?? "")}
                   />
                 </div>
                 {canAddParticipant(person) ? (
