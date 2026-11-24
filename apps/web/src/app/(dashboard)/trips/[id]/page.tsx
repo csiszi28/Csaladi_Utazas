@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { TripDetailPage } from "@/components/trips/trip-detail-page";
 import { fetchFamilyMembers } from "@/lib/queries/family";
 import { fetchTripDetailFresh } from "@/lib/queries/trips";
-import { getAuthSession, requireAuthUserId } from "@/lib/auth";
+import { getAuthClaims, requireAuthUserId } from "@/lib/auth";
 import { prisma } from "@csaladi-utazas/database";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -29,7 +29,7 @@ export default async function TripDetailRoute({
   const tripPromise = userIdPromise.then((uid) => fetchTripDetailFresh(id, uid));
 
   const [authUser, userId, initialTrip, members] = await Promise.all([
-    getAuthSession(),
+    getAuthClaims(),
     userIdPromise,
     tripPromise,
     fetchFamilyMembers(),
@@ -58,7 +58,7 @@ export default async function TripDetailRoute({
   ]);
 
   const currentUserName =
-    (authUser?.user_metadata?.name as string | undefined) ??
+    ((authUser?.user_metadata as { name?: string } | undefined)?.name) ??
     authUser?.email?.split("@")[0] ??
     "";
 

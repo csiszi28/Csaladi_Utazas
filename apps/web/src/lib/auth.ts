@@ -19,6 +19,13 @@ export const getAuthUserId = cache(async (): Promise<string | null> => {
   return data?.claims?.sub ?? null;
 });
 
+/** JWT claims (helyi ellenőrzés, hálózati hívás nélkül): név és e-mail megjelenítéshez. */
+export const getAuthClaims = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return data?.claims ?? null;
+});
+
 export const getCurrentUser = cache(async () => {
   const authUser = await getAuthSession();
   if (!authUser) return null;
