@@ -1,7 +1,7 @@
 "use client";
 import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { ArrowRight, Check, CheckCircle2, Info, Printer, Trash2 } from "lucide-react";
 import {
   applySettlementPayments,
@@ -125,7 +125,12 @@ export function TripSettlementPanel({
   const [partialAmounts, setPartialAmounts] = useState<Record<string, string>>({});
   const childSet = useMemo(() => new Set(childMemberIds), [childMemberIds]);
 
-  const payments = trip.settlementPayments ?? [];
+  // Helyi másolat: a kifizetés rögzítése/törlése azonnal látszik, a szerver-frissítés háttérben fut
+  const serverPayments = trip.settlementPayments;
+  const [payments, setPayments] = useState(serverPayments ?? []);
+  useEffect(() => {
+    setPayments(serverPayments ?? []);
+  }, [serverPayments]);
 
   const settlement = useMemo(
     () =>
@@ -263,6 +268,20 @@ export function TripSettlementPanel({
       });
       if (!result.success) toast.error(result.error);
       else {
+        const nameOf = (id: string) =>
+          trip.participants.find((p) => p.familyMember.id === id)?.familyMember.name ?? "?";
+        setPayments((prev) => [
+          {
+            id: result.data.id,
+            fromFamilyMemberId: fromId,
+            toFamilyMemberId: toId,
+            amountHuf: amount,
+            paidAt: new Date().toISOString(),
+            fromMember: { name: nameOf(fromId) },
+            toMember: { name: nameOf(toId) },
+          },
+          ...prev,
+        ]);
         toast.success("Kifizetés rögzítve");
         setPartialAmounts((prev) => {
           const next = { ...prev };
@@ -282,6 +301,7 @@ export function TripSettlementPanel({
       const result = await deleteSettlementPayment(id);
       if (!result.success) toast.error(result.error);
       else {
+        setPayments((prev) => prev.filter((p) => p.id !== id));
         toast.success("Kifizetés törölve");
         router.refresh();
       }

@@ -39,7 +39,15 @@ interface QuickCostDrawerProps {
   onOpenChange: (open: boolean) => void;
   tripId: string;
   participantOptions: { id: string; name: string }[];
-  onSaved?: () => void;
+  onSaved?: (cost: {
+    id: string;
+    tripId: string;
+    amount: number;
+    currency: string;
+    category: string;
+    title: string;
+    paidByFamilyMemberId: string | null;
+  }) => void;
 }
 
 export function QuickCostDrawer({
@@ -49,7 +57,6 @@ export function QuickCostDrawer({
   participantOptions,
   onSaved,
 }: QuickCostDrawerProps) {
-  const router = useRouter();
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("HUF");
   const [category, setCategory] = useState<CostCategory>("OTHER");
@@ -89,8 +96,15 @@ export function QuickCostDrawer({
       }
       toast.success("Költség rögzítve");
       onOpenChange(false);
-      onSaved?.();
-      router.refresh();
+      onSaved?.({
+        id: result.data.id,
+        tripId,
+        amount: parsed,
+        currency,
+        category,
+        title: title.trim() || "Költség",
+        paidByFamilyMemberId: paidBy || null,
+      });
     } finally {
       setPending(false);
     }
