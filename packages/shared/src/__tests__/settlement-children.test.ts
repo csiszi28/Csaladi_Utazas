@@ -119,3 +119,29 @@ describe("elszámolás azonos fiókhoz kötött profilokkal", () => {
     expect(rest[0]!.amountHuf).toBe(600);
   });
 });
+
+describe("gyerek részét a szülő viszi", () => {
+  const family = [
+    { id: "zsolt", name: "Zsolt", linkedUserId: "u-zsolt", ownerUserId: "u-zsolt" },
+    { id: "gyerek", name: "Gyerek", isChild: true, ownerUserId: "u-zsolt" },
+    { id: "b1", name: "B1", linkedUserId: "u-b1", ownerUserId: "u-b1" },
+    { id: "b2", name: "B2", linkedUserId: "u-b2", ownerUserId: "u-b2" },
+  ];
+
+  it("a többiek a teljes létszámmal osztott összeget fizetik, a gyerek része a szülőé", () => {
+    const s = buildTripSettlement(
+      {
+        participants: family,
+        programs: [],
+        costs: [
+          { id: "c1", title: "Szállás", amount: 4000, currency: "HUF", paidByFamilyMemberId: "zsolt" },
+        ],
+      },
+      rates
+    );
+    // 4 fő × 1000: Zsolt fizette 4000, magára + gyerekre 2000 jut → +2000
+    expect(s.balances.find((b) => b.id === "zsolt")!.balanceHuf).toBe(2000);
+    expect(s.balances.find((b) => b.id === "b1")!.balanceHuf).toBe(-1000);
+    expect(s.balances.find((b) => b.id === "b2")!.balanceHuf).toBe(-1000);
+  });
+});

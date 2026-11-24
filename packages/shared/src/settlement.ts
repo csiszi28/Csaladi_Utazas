@@ -156,6 +156,15 @@ export function buildTripSettlement(
   const balanceMap = new Map<string, number>();
   for (const p of adults) balanceMap.set(p.id, 0);
 
+  // Gyerek → szülő: az a felnőtt résztvevő, akinek a fiókja a gyerek háztartásának tulajdonosa
+  const guardianOf = new Map<string, string>();
+  for (const child of ctx.participants.filter((p) => p.isChild)) {
+    const guardian = adults.find(
+      (a) => a.linkedUserId && a.linkedUserId === child.ownerUserId
+    );
+    if (guardian) guardianOf.set(child.id, guardian.id);
+  }
+
   const unsettledCosts: UnsettledCost[] = [];
   let settledCostCount = 0;
 
@@ -183,7 +192,6 @@ export function buildTripSettlement(
     }
 
     settledCostCount += 1;
-    const shares = splitShare(totalHuf, Math.max(ids.length, 1));
 
     // Ha gyerek „fizetett”, a tartozás nem náluk landol — első felnőtt kapja a creditet
     const payerId = adultIdSet.has(cost.paidByFamilyMemberId)
@@ -192,8 +200,36 @@ export function buildTripSettlement(
 
     balanceMap.set(payerId, (balanceMap.get(payerId) ?? 0) + totalHuf);
 
-    ids.forEach((id, index) => {
-      balanceMap.set(id, (balanceMap.get(id) ?? 0) - (shares[index] ?? 0));
+    const hasAdultOnCost = rawIds.some((id) => adultIdSet.has(id));
+    if (!hasAdultOnCost) {
+      // Csak gyerekek szerepelnek a költségen — egyenlően a felnőttek viszik
+      const shares = splitShare(totalHuf, ids.length);
+      ids.forEach((id, index) => {
+        balanceMap.set(id, (balanceMap.get(id) ?? 0) - (shares[index] ?? 0));
+      });
+      continue;
+    }
+
+    // Fejenkénti részesedés a valódi létszám szerint; a gyerek részét a szülő (a gyerek
+    // háztartásának tulajdonosa) viszi, a többiek nem terhelődnek vele.
+    const shares = splitShare(totalHuf, rawIds.length);
+    const adultsOnCost = rawIds.filter((id) => adultIdSet.has(id));
+    rawIds.forEach((id, index) => {
+      const share = shares[index] ?? 0;
+      if (adultIdSet.has(id)) {
+        balanceMap.set(id, (balanceMap.get(id) ?? 0) - share);
+        return;
+      }
+      const guardianId = guardianOf.get(id);
+      if (guardianId) {
+        balanceMap.set(guardianId, (balanceMap.get(guardianId) ?? 0) - share);
+        return;
+      }
+      // Nincs ismert szülő: a költségen szereplő felnőttek között egyenlően
+      const split = splitShare(share, adultsOnCost.length);
+      adultsOnCost.forEach((adultId, i) => {
+        balanceMap.set(adultId, (balanceMap.get(adultId) ?? 0) - (split[i] ?? 0));
+      });
     });
   }
 
