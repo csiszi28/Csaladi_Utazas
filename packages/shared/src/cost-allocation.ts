@@ -9,6 +9,10 @@ export interface CostParticipant {
   name: string;
   /** Gyerek — elszámolásban nem jelenik meg tartozásként */
   isChild?: boolean;
+  /** A profil fiókja — ha két profilnak azonos, ugyanaz a személy. */
+  linkedUserId?: string | null;
+  /** A profil háztartása (tulajdonos fiók). */
+  ownerUserId?: string | null;
 }
 
 export interface AllocCost {

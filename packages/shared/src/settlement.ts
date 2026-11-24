@@ -64,6 +64,37 @@ export interface TripSettlement {
   totalCostCount: number;
 }
 
+/**
+ * Azonos fiókhoz kötött profilok (több háztartás) → egy kanonikus azonosító.
+ * A névsorral egyezően az átvett (más háztartásbeli) profil az elsődleges.
+ * Csak a nem azonos azonosítók szerepelnek a térképben.
+ */
+export function buildSettlementAliasMap(
+  participants: CostParticipant[]
+): Map<string, string> {
+  const groups = new Map<string, CostParticipant[]>();
+  for (const p of participants) {
+    if (!p.linkedUserId) continue;
+    const list = groups.get(p.linkedUserId) ?? [];
+    list.push(p);
+    groups.set(p.linkedUserId, list);
+  }
+  const aliases = new Map<string, string>();
+  for (const [userId, list] of groups) {
+    if (list.length < 2) continue;
+    const canonical =
+      list.find((p) => p.ownerUserId && p.ownerUserId !== userId) ?? list[0]!;
+    for (const p of list) {
+      if (p.id !== canonical.id) aliases.set(p.id, canonical.id);
+    }
+  }
+  return aliases;
+}
+
+function uniq(ids: string[]): string[] {
+  return Array.from(new Set(ids));
+}
+
 function participantIdsForCost(
   cost: SettlementCost,
   programs: SettlementProgram[],
@@ -95,9 +126,28 @@ function splitShare(totalHuf: number, count: number): number[] {
 }
 
 export function buildTripSettlement(
-  ctx: SettlementContext,
+  rawCtx: SettlementContext,
   rates: HufRateMap
 ): TripSettlement {
+  const aliases = buildSettlementAliasMap(rawCtx.participants);
+  const canon = (id: string) => aliases.get(id) ?? id;
+  const canonIds = (ids: string[]) => uniq(ids.map(canon));
+  const ctx: SettlementContext = {
+    participants: rawCtx.participants.filter((p) => !aliases.has(p.id)),
+    programs: rawCtx.programs.map((x) => ({ ...x, participantIds: canonIds(x.participantIds) })),
+    accommodations: rawCtx.accommodations?.map((x) => ({
+      ...x,
+      participantIds: canonIds(x.participantIds),
+    })),
+    transports: rawCtx.transports?.map((x) => ({
+      ...x,
+      participantIds: canonIds(x.participantIds),
+    })),
+    costs: rawCtx.costs.map((c) => ({
+      ...c,
+      paidByFamilyMemberId: c.paidByFamilyMemberId ? canon(c.paidByFamilyMemberId) : c.paidByFamilyMemberId,
+    })),
+  };
   const adults = ctx.participants.filter((p) => !p.isChild);
   const adultIdSet = new Set(adults.map((p) => p.id));
   const allIds = ctx.participants.map((p) => p.id);
@@ -105,6 +155,15 @@ export function buildTripSettlement(
 
   const balanceMap = new Map<string, number>();
   for (const p of adults) balanceMap.set(p.id, 0);
+
+  // Gyerek → szülő: az a felnőtt résztvevő, akinek a fiókja a gyerek háztartásának tulajdonosa
+  const guardianOf = new Map<string, string>();
+  for (const child of ctx.participants.filter((p) => p.isChild)) {
+    const guardian = adults.find(
+      (a) => a.linkedUserId && a.linkedUserId === child.ownerUserId
+    );
+    if (guardian) guardianOf.set(child.id, guardian.id);
+  }
 
   const unsettledCosts: UnsettledCost[] = [];
   let settledCostCount = 0;
@@ -133,7 +192,6 @@ export function buildTripSettlement(
     }
 
     settledCostCount += 1;
-    const shares = splitShare(totalHuf, Math.max(ids.length, 1));
 
     // Ha gyerek „fizetett”, a tartozás nem náluk landol — első felnőtt kapja a creditet
     const payerId = adultIdSet.has(cost.paidByFamilyMemberId)
@@ -142,8 +200,36 @@ export function buildTripSettlement(
 
     balanceMap.set(payerId, (balanceMap.get(payerId) ?? 0) + totalHuf);
 
-    ids.forEach((id, index) => {
-      balanceMap.set(id, (balanceMap.get(id) ?? 0) - (shares[index] ?? 0));
+    const hasAdultOnCost = rawIds.some((id) => adultIdSet.has(id));
+    if (!hasAdultOnCost) {
+      // Csak gyerekek szerepelnek a költségen — egyenlően a felnőttek viszik
+      const shares = splitShare(totalHuf, ids.length);
+      ids.forEach((id, index) => {
+        balanceMap.set(id, (balanceMap.get(id) ?? 0) - (shares[index] ?? 0));
+      });
+      continue;
+    }
+
+    // Fejenkénti részesedés a valódi létszám szerint; a gyerek részét a szülő (a gyerek
+    // háztartásának tulajdonosa) viszi, a többiek nem terhelődnek vele.
+    const shares = splitShare(totalHuf, rawIds.length);
+    const adultsOnCost = rawIds.filter((id) => adultIdSet.has(id));
+    rawIds.forEach((id, index) => {
+      const share = shares[index] ?? 0;
+      if (adultIdSet.has(id)) {
+        balanceMap.set(id, (balanceMap.get(id) ?? 0) - share);
+        return;
+      }
+      const guardianId = guardianOf.get(id);
+      if (guardianId) {
+        balanceMap.set(guardianId, (balanceMap.get(guardianId) ?? 0) - share);
+        return;
+      }
+      // Nincs ismert szülő: a költségen szereplő felnőttek között egyenlően
+      const split = splitShare(share, adultsOnCost.length);
+      adultsOnCost.forEach((adultId, i) => {
+        balanceMap.set(adultId, (balanceMap.get(adultId) ?? 0) - (split[i] ?? 0));
+      });
     });
   }
 

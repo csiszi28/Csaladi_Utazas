@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { ArrowRight, Check, CheckCircle2, Info, Printer, Trash2 } from "lucide-react";
 import {
   applySettlementPayments,
+  buildSettlementAliasMap,
   buildTripSettlement,
   formatAmountInput,
   parseAmountInput,
@@ -30,7 +31,13 @@ interface TripSettlementPanelProps {
   tripTitle: string;
   trip: {
     participants: {
-      familyMember: { id: string; name: string; isChild?: boolean };
+      familyMember: {
+        id: string;
+        name: string;
+        isChild?: boolean;
+        linkedUserId?: string | null;
+        userId?: string | null;
+      };
     }[];
     programs: {
       id: string;
@@ -128,6 +135,8 @@ export function TripSettlementPanel({
             id: p.familyMember.id,
             name: p.familyMember.name,
             isChild: p.familyMember.isChild ?? childSet.has(p.familyMember.id),
+            linkedUserId: p.familyMember.linkedUserId,
+            ownerUserId: p.familyMember.userId,
           })),
           programs: trip.programs.map((p) => ({
             id: p.id,
@@ -159,9 +168,17 @@ export function TripSettlementPanel({
           fromFamilyMemberId: p.fromFamilyMemberId,
           toFamilyMemberId: p.toFamilyMemberId,
           amountHuf: p.amountHuf,
-        }))
+        })),
+        buildSettlementAliasMap(
+          trip.participants.map((p) => ({
+            id: p.familyMember.id,
+            name: p.familyMember.name,
+            linkedUserId: p.familyMember.linkedUserId,
+            ownerUserId: p.familyMember.userId,
+          }))
+        )
       ),
-    [settlement.transfers, payments]
+    [settlement.transfers, payments, trip.participants]
   );
 
   const tripChildren = useMemo(

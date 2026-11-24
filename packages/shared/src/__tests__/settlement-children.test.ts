@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildTripSettlement } from "../settlement";
+import { buildSettlementAliasMap, buildTripSettlement } from "../settlement";
+import { applySettlementPayments } from "../settlement-payments";
 
 const rates = { HUF: 1 } as Parameters<typeof buildTripSettlement>[1];
 
@@ -56,5 +57,91 @@ describe("elszámolás gyerekkel", () => {
       rates
     );
     expect(settlement.balances.find((b) => b.id === "apa")!.balanceHuf).toBe(-1500);
+  });
+});
+
+describe("elszámolás azonos fiókhoz kötött profilokkal", () => {
+  // Két háztartás ugyanazt a személyt (fiók "u-anya") külön profilként tartja számon
+  const dup = [
+    { id: "anya-a", name: "Anya", linkedUserId: "u-anya", ownerUserId: "u-anya" },
+    { id: "anya-b", name: "Anya", linkedUserId: "u-anya", ownerUserId: "u-apa" },
+    { id: "apa", name: "Apa", linkedUserId: "u-apa", ownerUserId: "u-apa" },
+  ];
+
+  it("egy személyként számol, és az '1 főre' költség nem duplázódik", () => {
+    const s = buildTripSettlement(
+      {
+        participants: dup,
+        programs: [],
+        costs: [
+          {
+            id: "c1",
+            title: "Belépő",
+            amount: 1000,
+            currency: "HUF",
+            amountScope: "PER_PERSON",
+            paidByFamilyMemberId: "anya-a",
+          },
+        ],
+      },
+      rates
+    );
+    expect(s.balances).toHaveLength(2);
+    expect(s.balances.find((b) => b.id === "anya-b")!.balanceHuf).toBe(1000);
+    expect(s.balances.find((b) => b.id === "apa")!.balanceHuf).toBe(-1000);
+    expect(s.transfers).toEqual([
+      expect.objectContaining({ fromId: "apa", toId: "anya-b", amountHuf: 1000 }),
+    ]);
+  });
+
+  it("a szállás résztvevői nem számolódnak kétszer", () => {
+    const s = buildTripSettlement(
+      {
+        participants: dup,
+        programs: [],
+        accommodations: [{ id: "a1", participantIds: ["anya-a", "anya-b", "apa"] }],
+        costs: [
+          { id: "c1", title: "Szállás", amount: 2000, currency: "HUF", accommodationId: "a1", paidByFamilyMemberId: "apa" },
+        ],
+      },
+      rates
+    );
+    expect(s.balances.find((b) => b.id === "apa")!.balanceHuf).toBe(1000);
+  });
+
+  it("a másik profilra rögzített kifizetés is levonódik", () => {
+    const aliases = buildSettlementAliasMap(dup);
+    const rest = applySettlementPayments(
+      [{ fromId: "apa", fromName: "Apa", toId: "anya-b", toName: "Anya", amountHuf: 1000 }],
+      [{ fromFamilyMemberId: "apa", toFamilyMemberId: "anya-a", amountHuf: 400 }],
+      aliases
+    );
+    expect(rest[0]!.amountHuf).toBe(600);
+  });
+});
+
+describe("gyerek részét a szülő viszi", () => {
+  const family = [
+    { id: "zsolt", name: "Zsolt", linkedUserId: "u-zsolt", ownerUserId: "u-zsolt" },
+    { id: "gyerek", name: "Gyerek", isChild: true, ownerUserId: "u-zsolt" },
+    { id: "b1", name: "B1", linkedUserId: "u-b1", ownerUserId: "u-b1" },
+    { id: "b2", name: "B2", linkedUserId: "u-b2", ownerUserId: "u-b2" },
+  ];
+
+  it("a többiek a teljes létszámmal osztott összeget fizetik, a gyerek része a szülőé", () => {
+    const s = buildTripSettlement(
+      {
+        participants: family,
+        programs: [],
+        costs: [
+          { id: "c1", title: "Szállás", amount: 4000, currency: "HUF", paidByFamilyMemberId: "zsolt" },
+        ],
+      },
+      rates
+    );
+    // 4 fő × 1000: Zsolt fizette 4000, magára + gyerekre 2000 jut → +2000
+    expect(s.balances.find((b) => b.id === "zsolt")!.balanceHuf).toBe(2000);
+    expect(s.balances.find((b) => b.id === "b1")!.balanceHuf).toBe(-1000);
+    expect(s.balances.find((b) => b.id === "b2")!.balanceHuf).toBe(-1000);
   });
 });

@@ -95,7 +95,11 @@ async function buildReportsForUser(userId: string) {
         startDate: true,
         endDate: true,
         participants: {
-          select: { familyMember: { select: { id: true, name: true } } },
+          select: {
+            familyMember: {
+              select: { id: true, name: true, isChild: true, linkedUserId: true, userId: true },
+            },
+          },
         },
         programs: {
           select: {
@@ -144,6 +148,9 @@ async function buildReportsForUser(userId: string) {
     const participants = trip.participants.map((p) => ({
       id: p.familyMember.id,
       name: p.familyMember.name,
+      isChild: p.familyMember.isChild,
+      linkedUserId: p.familyMember.linkedUserId,
+      ownerUserId: p.familyMember.userId,
     }));
 
     const ctx: TripCostContext = {
