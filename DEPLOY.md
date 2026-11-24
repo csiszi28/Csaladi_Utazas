@@ -78,7 +78,7 @@ node scripts/generate-icons.mjs
 | Build failed (turbo/pnpm) | Root Directory = `apps/web`, vercel.json: `pnpm build` |
 | Server Components render error | Vercel env változók + Redeploy; Supabase migrációk |
 | `missingEnv` a health válaszban | Add hozzá a 6 env változót, pipáld: Production + Preview |
-| `database.ok: false` | DATABASE_URL (6543 pooler), jelszó URL-kódolás, init.sql + rls.sql |
+| `database.ok: false` | DATABASE_URL (6543 pooler), jelszó URL-kódolás, `db:migrate:deploy` lefutott-e |
 | Prisma `rhel-openssl-3.0.x` engine not found | `binaryTargets` a schema.prisma-ban + redeploy (automatikusan javítva a repóban) |
 | Manifest / CORS hiba preview URL-en | Használd a production domaint (`*.vercel.app`), ne a `-xxx-projects.vercel.app` preview linket; vagy kapcsold ki a Deployment Protection-t |
 
@@ -97,7 +97,7 @@ Vercel → Project → Domains → add custom domain → DNS beállítás után 
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web push értesítések |
 | `CRON_SECRET` | A `/api/cron/*` végpontok védelme (`Authorization: Bearer <secret>`). A middleware ezeket nem irányítja át a bejelentkezésre, a végpont maga ellenőriz. |
 
-- **Adatbázis-index:** a `trips(userId, startDate)` összetett index a sémában szerepel. Élesben egyszer futtasd a Supabase SQL Editorban: `packages/database/prisma/migrate-trips-user-start-index.sql`.
+- **Adatbázis-index:** a `trips(userId, startDate)` összetett index a sémában szerepel. Élesben a `db:migrate:deploy` hozza létre.
 - **CI:** `.github/workflows/ci.yml` minden pushnál/PR-nál futtatja a teszteket, a típusellenőrzést, a lintet és a buildet.
 - **Sebességkorlát:** az API-k felhasználónként 120 kérés/perc (url-preview: 30/perc) korlátot kapnak, példányonként számolva. Szigorúbb, globális korláthoz Upstash Redis kell.
 - **Hibafigyelés:** a szerveroldali hibák egységes JSON-ként kerülnek a Vercel Logs-ba (`src/instrumentation.ts`). Sentry bekötéséhez ide kell a DSN és az SDK.

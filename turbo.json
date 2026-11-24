@@ -49,6 +49,10 @@
       "cache": false,
       "env": ["DATABASE_URL", "DIRECT_URL"]
     },
+    "db:migrate:deploy": {
+      "cache": false,
+      "env": ["DATABASE_URL", "DIRECT_URL"]
+    },
     "test": {
       "dependsOn": ["^build"]
     }

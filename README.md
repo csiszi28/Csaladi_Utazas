@@ -24,15 +24,11 @@ DATABASE_URL=
 DIRECT_URL=
 ```
 
-## Adatbázis (Supabase SQL Editor)
+## Adatbázis (Prisma Migrate)
 
-**Fontos sorrend:**
+A séma változásait a [`packages/database/prisma/migrations`](packages/database/prisma/migrations) mappa követi (Prisma Migrate, az állapot a `_prisma_migrations` táblában). A régi, kézzel futtatott SQL fájlok a [`legacy-sql`](packages/database/prisma/legacy-sql) mappában vannak, archívumként.
 
-1. Futtasd az [`packages/database/prisma/init.sql`](packages/database/prisma/init.sql) fájlt a Supabase SQL Editorban (táblák létrehozása).
-2. Ezután futtasd az [`packages/database/prisma/rls.sql`](packages/database/prisma/rls.sql) fájlt (biztonsági policy-k).
-3. Ha már létező adatbázisod van, futtasd a migrációs fájlokat is sorrendben (pl. [`migrate-budget-settlement.sql`](packages/database/prisma/migrate-budget-settlement.sql), [`migrate-features-7-12.sql`](packages/database/prisma/migrate-features-7-12.sql), [`migrate-expansion-pack.sql`](packages/database/prisma/migrate-expansion-pack.sql), [`migrate-user-avatar.sql`](packages/database/prisma/migrate-user-avatar.sql)).
-
-**Alternatíva (Prisma CLI):** Add hozzá a `DATABASE_URL` és `DIRECT_URL` értékeket az `apps/web/.env.local` fájlhoz és a `packages/database/.env` fájlba is (ugyanazok az értékek). A jelszót a Supabase Dashboard → Project Settings → Database → Connection string menüpontban találod.
+Add meg a `DATABASE_URL` és `DIRECT_URL` értékeket az `apps/web/.env.local` és a `packages/database/.env` fájlban is (a jelszót a Supabase Dashboard → Project Settings → Database → Connection string alatt találod).
 
 ```env
 # Pooler (port 6543) – alkalmazás használja
@@ -42,11 +38,11 @@ DATABASE_URL=postgresql://postgres.[PROJECT_REF]:[JELSZO]@aws-0-eu-central-1.poo
 DIRECT_URL=postgresql://postgres.[PROJECT_REF]:[JELSZO]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
 ```
 
-```bash
-npx pnpm db:generate
-npx pnpm db:push
-# majd rls.sql a Supabase SQL Editorban
-```
+**Új, üres adatbázis:** `npx pnpm db:migrate:deploy` (minden migrációt sorrendben lefuttat, az RLS-t és az auth triggert is).
+
+**Séma módosítása:** szerkeszd a `schema.prisma`-t, majd lokális/fejlesztői adatbázison `npx pnpm db:migrate` (új migrációt generál), commitold a `migrations` mappát. Élesben: `npx pnpm db:migrate:deploy`. Ne használj `db:push`-t élesre.
+
+**Meglévő éles adatbázis (egyszeri átállás):** lásd [`packages/database/prisma/migrations/README.md`](packages/database/prisma/migrations/README.md).
 
 Hozd létre a Storage bucket-et a Supabase Dashboardon:
 - Név: `trip-documents`
@@ -88,12 +84,6 @@ Lásd: [`DEPLOY.md`](DEPLOY.md)
 - REST API (`/api/v1/trips`, programs/costs/ideas/documents/day, `/api/v1/family`)
 - URL előnézet ötleteknél (Open Graph)
 - Unit tesztek a kritikus üzleti logikára (`packages/shared`)
-
-### Adatbázis bővítés (expansion pack)
-
-Futtasd a [`packages/database/prisma/migrate-expansion-pack.sql`](packages/database/prisma/migrate-expansion-pack.sql) fájlt a Supabase SQL Editorban (szerepkörök, sablonok, szavazás, geo, fotó mezők).
-
-Ha a térképcsomag külön kell (közlekedés végpontok + fotó koordináták): [`migrate-map-pack.sql`](packages/database/prisma/migrate-map-pack.sql).
 
 ## Monorepo struktúra
 
