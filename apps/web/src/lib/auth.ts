@@ -27,11 +27,12 @@ export const getAuthClaims = cache(async () => {
 });
 
 export const getCurrentUser = cache(async () => {
-  const authUser = await getAuthSession();
-  if (!authUser) return null;
+  // JWT helyi ellenőrzése — nincs külön hálózati hívás az auth szerver felé
+  const authUserId = await getAuthUserId();
+  if (!authUserId) return null;
 
   const dbUser = await prisma.user.findUnique({
-    where: { id: authUser.id },
+    where: { id: authUserId },
   });
 
   return dbUser;

@@ -1156,7 +1156,9 @@ export function TripDetailPage({
         onOpenChange={setQuickCostOpen}
         tripId={trip.id}
         participantOptions={trip.participants.map((p) => p.familyMember)}
-        onSaved={refresh}
+        onSaved={(cost) =>
+          handleCostSaved({ ...cost, amountScope: "TOTAL", programId: null })
+        }
       />
 
       <Button
