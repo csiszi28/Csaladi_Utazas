@@ -64,6 +64,37 @@ export interface TripSettlement {
   totalCostCount: number;
 }
 
+/**
+ * Azonos fiókhoz kötött profilok (több háztartás) → egy kanonikus azonosító.
+ * A névsorral egyezően az átvett (más háztartásbeli) profil az elsődleges.
+ * Csak a nem azonos azonosítók szerepelnek a térképben.
+ */
+export function buildSettlementAliasMap(
+  participants: CostParticipant[]
+): Map<string, string> {
+  const groups = new Map<string, CostParticipant[]>();
+  for (const p of participants) {
+    if (!p.linkedUserId) continue;
+    const list = groups.get(p.linkedUserId) ?? [];
+    list.push(p);
+    groups.set(p.linkedUserId, list);
+  }
+  const aliases = new Map<string, string>();
+  for (const [userId, list] of groups) {
+    if (list.length < 2) continue;
+    const canonical =
+      list.find((p) => p.ownerUserId && p.ownerUserId !== userId) ?? list[0]!;
+    for (const p of list) {
+      if (p.id !== canonical.id) aliases.set(p.id, canonical.id);
+    }
+  }
+  return aliases;
+}
+
+function uniq(ids: string[]): string[] {
+  return Array.from(new Set(ids));
+}
+
 function participantIdsForCost(
   cost: SettlementCost,
   programs: SettlementProgram[],
@@ -95,9 +126,28 @@ function splitShare(totalHuf: number, count: number): number[] {
 }
 
 export function buildTripSettlement(
-  ctx: SettlementContext,
+  rawCtx: SettlementContext,
   rates: HufRateMap
 ): TripSettlement {
+  const aliases = buildSettlementAliasMap(rawCtx.participants);
+  const canon = (id: string) => aliases.get(id) ?? id;
+  const canonIds = (ids: string[]) => uniq(ids.map(canon));
+  const ctx: SettlementContext = {
+    participants: rawCtx.participants.filter((p) => !aliases.has(p.id)),
+    programs: rawCtx.programs.map((x) => ({ ...x, participantIds: canonIds(x.participantIds) })),
+    accommodations: rawCtx.accommodations?.map((x) => ({
+      ...x,
+      participantIds: canonIds(x.participantIds),
+    })),
+    transports: rawCtx.transports?.map((x) => ({
+      ...x,
+      participantIds: canonIds(x.participantIds),
+    })),
+    costs: rawCtx.costs.map((c) => ({
+      ...c,
+      paidByFamilyMemberId: c.paidByFamilyMemberId ? canon(c.paidByFamilyMemberId) : c.paidByFamilyMemberId,
+    })),
+  };
   const adults = ctx.participants.filter((p) => !p.isChild);
   const adultIdSet = new Set(adults.map((p) => p.id));
   const allIds = ctx.participants.map((p) => p.id);

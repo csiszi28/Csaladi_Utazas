@@ -12,8 +12,11 @@ export interface RecordedSettlementPayment {
  */
 export function applySettlementPayments(
   transfers: SettlementTransfer[],
-  payments: RecordedSettlementPayment[]
+  payments: RecordedSettlementPayment[],
+  /** Azonos fiókhoz kötött profilok → kanonikus azonosító (buildSettlementAliasMap). */
+  aliases?: Map<string, string>
 ): SettlementTransfer[] {
+  const canon = (id: string) => aliases?.get(id) ?? id;
   const remaining = transfers.map((t) => ({ ...t }));
 
   for (const payment of payments) {
@@ -21,8 +24,8 @@ export function applySettlementPayments(
     for (const transfer of remaining) {
       if (left <= 0) break;
       if (
-        transfer.fromId !== payment.fromFamilyMemberId ||
-        transfer.toId !== payment.toFamilyMemberId
+        transfer.fromId !== canon(payment.fromFamilyMemberId) ||
+        transfer.toId !== canon(payment.toFamilyMemberId)
       ) {
         continue;
       }

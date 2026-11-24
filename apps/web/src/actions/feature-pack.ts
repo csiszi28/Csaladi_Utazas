@@ -521,6 +521,7 @@ export async function getUserReminders() {
   const {
     buildReminders,
     buildTripSettlement,
+    buildSettlementAliasMap,
     applySettlementPayments,
     DEFAULT_HUF_RATES,
     mapInboxNotificationsToReminders,
@@ -587,6 +588,9 @@ export async function getUserReminders() {
         participants: trip.participants.map((p) => ({
           id: p.familyMember.id,
           name: p.familyMember.name,
+          isChild: p.familyMember.isChild,
+          linkedUserId: p.familyMember.linkedUserId,
+          ownerUserId: p.familyMember.userId,
         })),
         programs: trip.programs.map((p) => ({
           id: p.id,
@@ -611,7 +615,15 @@ export async function getUserReminders() {
         fromFamilyMemberId: p.fromFamilyMemberId,
         toFamilyMemberId: p.toFamilyMemberId,
         amountHuf: p.amountHuf,
-      }))
+      })),
+      buildSettlementAliasMap(
+        trip.participants.map((p) => ({
+          id: p.familyMember.id,
+          name: p.familyMember.name,
+          linkedUserId: p.familyMember.linkedUserId,
+          ownerUserId: p.familyMember.userId,
+        }))
+      )
     );
 
     return {
