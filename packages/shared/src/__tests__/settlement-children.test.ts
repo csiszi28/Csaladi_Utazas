@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSettlementAliasMap, buildTripSettlement } from "../settlement";
+import { buildCostSettlementStatuses, buildSettlementAliasMap, buildTripSettlement } from "../settlement";
 import { applySettlementPayments } from "../settlement-payments";
 
 const rates = { HUF: 1 } as Parameters<typeof buildTripSettlement>[1];
@@ -143,5 +143,40 @@ describe("gyerek részét a szülő viszi", () => {
     expect(s.balances.find((b) => b.id === "zsolt")!.balanceHuf).toBe(2000);
     expect(s.balances.find((b) => b.id === "b1")!.balanceHuf).toBe(-1000);
     expect(s.balances.find((b) => b.id === "b2")!.balanceHuf).toBe(-1000);
+  });
+});
+
+describe("költségenkénti állapot", () => {
+  const two = [
+    { id: "a", name: "A" },
+    { id: "b", name: "B" },
+  ];
+  const costs = [
+    { id: "c1", title: "Egy", amount: 1000, currency: "HUF", paidByFamilyMemberId: "a" },
+    { id: "c2", title: "Kettő", amount: 3000, currency: "HUF", paidByFamilyMemberId: "a" },
+  ];
+  const ctx = { participants: two, programs: [], costs };
+
+  it("a kifizetés sorrendben fedezi a költségeket", () => {
+    const st = buildCostSettlementStatuses(ctx, rates, [
+      { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 500 },
+    ]);
+    expect(st.map((s) => s.status)).toEqual(["settled", "open"]);
+    expect(st[1]!.owedHuf).toBe(1500);
+  });
+
+  it("részleges kifizetés", () => {
+    const st = buildCostSettlementStatuses(ctx, rates, [
+      { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 1000 },
+    ]);
+    expect(st.map((s) => s.status)).toEqual(["settled", "partial"]);
+    expect(st[1]!.paidHuf).toBe(500);
+  });
+
+  it("ha minden rendezett, minden költség rendezett", () => {
+    const st = buildCostSettlementStatuses(ctx, rates, [
+      { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 2000 },
+    ]);
+    expect(st.every((s) => s.status === "settled")).toBe(true);
   });
 });

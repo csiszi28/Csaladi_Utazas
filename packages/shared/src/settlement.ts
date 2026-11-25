@@ -1,4 +1,5 @@
 import { costTotalHuf, type CostParticipant, type HufRateMap } from "./cost-allocation";
+import { applySettlementPayments } from "./settlement-payments";
 
 export interface SettlementCost {
   id: string;
@@ -125,10 +126,24 @@ function splitShare(totalHuf: number, count: number): number[] {
   return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0));
 }
 
-export function buildTripSettlement(
-  rawCtx: SettlementContext,
-  rates: HufRateMap
-): TripSettlement {
+interface CostAllocation {
+  costId: string;
+  title: string;
+  totalHuf: number;
+  payerId: string;
+  /** Ki mennyit visel a költségből (a fizetőt is beleértve). */
+  debits: Map<string, number>;
+}
+
+interface PreparedSettlement {
+  adults: CostParticipant[];
+  allocations: CostAllocation[];
+  unsettledCosts: UnsettledCost[];
+  totalCostCount: number;
+  aliases: Map<string, string>;
+}
+
+function prepareSettlement(rawCtx: SettlementContext, rates: HufRateMap): PreparedSettlement {
   const aliases = buildSettlementAliasMap(rawCtx.participants);
   const canon = (id: string) => aliases.get(id) ?? id;
   const canonIds = (ids: string[]) => uniq(ids.map(canon));
@@ -153,9 +168,6 @@ export function buildTripSettlement(
   const allIds = ctx.participants.map((p) => p.id);
   const adultIds = adults.map((p) => p.id);
 
-  const balanceMap = new Map<string, number>();
-  for (const p of adults) balanceMap.set(p.id, 0);
-
   // Gyerek → szülő: az a felnőtt résztvevő, akinek a fiókja a gyerek háztartásának tulajdonosa
   const guardianOf = new Map<string, string>();
   for (const child of ctx.participants.filter((p) => p.isChild)) {
@@ -166,7 +178,7 @@ export function buildTripSettlement(
   }
 
   const unsettledCosts: UnsettledCost[] = [];
-  let settledCostCount = 0;
+  const allocations: CostAllocation[] = [];
 
   for (const cost of ctx.costs) {
     const rawIds = participantIdsForCost(
@@ -191,46 +203,55 @@ export function buildTripSettlement(
       continue;
     }
 
-    settledCostCount += 1;
-
     // Ha gyerek „fizetett”, a tartozás nem náluk landol — első felnőtt kapja a creditet
     const payerId = adultIdSet.has(cost.paidByFamilyMemberId)
       ? cost.paidByFamilyMemberId
       : ids[0];
 
-    balanceMap.set(payerId, (balanceMap.get(payerId) ?? 0) + totalHuf);
+    const debits = new Map<string, number>();
+    const debit = (id: string, amount: number) =>
+      debits.set(id, (debits.get(id) ?? 0) + amount);
 
     const hasAdultOnCost = rawIds.some((id) => adultIdSet.has(id));
     if (!hasAdultOnCost) {
       // Csak gyerekek szerepelnek a költségen — egyenlően a felnőttek viszik
       const shares = splitShare(totalHuf, ids.length);
-      ids.forEach((id, index) => {
-        balanceMap.set(id, (balanceMap.get(id) ?? 0) - (shares[index] ?? 0));
+      ids.forEach((id, index) => debit(id, shares[index] ?? 0));
+    } else {
+      // Fejenkénti részesedés a valódi létszám szerint; a gyerek részét a szülő (a gyerek
+      // háztartásának tulajdonosa) viszi, a többiek nem terhelődnek vele.
+      const shares = splitShare(totalHuf, rawIds.length);
+      const adultsOnCost = rawIds.filter((id) => adultIdSet.has(id));
+      rawIds.forEach((id, index) => {
+        const share = shares[index] ?? 0;
+        if (adultIdSet.has(id)) return debit(id, share);
+        const guardianId = guardianOf.get(id);
+        if (guardianId) return debit(guardianId, share);
+        // Nincs ismert szülő: a költségen szereplő felnőttek között egyenlően
+        const split = splitShare(share, adultsOnCost.length);
+        adultsOnCost.forEach((adultId, i) => debit(adultId, split[i] ?? 0));
       });
-      continue;
     }
 
-    // Fejenkénti részesedés a valódi létszám szerint; a gyerek részét a szülő (a gyerek
-    // háztartásának tulajdonosa) viszi, a többiek nem terhelődnek vele.
-    const shares = splitShare(totalHuf, rawIds.length);
-    const adultsOnCost = rawIds.filter((id) => adultIdSet.has(id));
-    rawIds.forEach((id, index) => {
-      const share = shares[index] ?? 0;
-      if (adultIdSet.has(id)) {
-        balanceMap.set(id, (balanceMap.get(id) ?? 0) - share);
-        return;
-      }
-      const guardianId = guardianOf.get(id);
-      if (guardianId) {
-        balanceMap.set(guardianId, (balanceMap.get(guardianId) ?? 0) - share);
-        return;
-      }
-      // Nincs ismert szülő: a költségen szereplő felnőttek között egyenlően
-      const split = splitShare(share, adultsOnCost.length);
-      adultsOnCost.forEach((adultId, i) => {
-        balanceMap.set(adultId, (balanceMap.get(adultId) ?? 0) - (split[i] ?? 0));
-      });
-    });
+    allocations.push({ costId: cost.id, title: cost.title, totalHuf, payerId, debits });
+  }
+
+  return { adults, allocations, unsettledCosts, totalCostCount: ctx.costs.length, aliases };
+}
+
+export function buildTripSettlement(
+  rawCtx: SettlementContext,
+  rates: HufRateMap
+): TripSettlement {
+  const { adults, allocations, unsettledCosts, totalCostCount } = prepareSettlement(rawCtx, rates);
+
+  const balanceMap = new Map<string, number>();
+  for (const p of adults) balanceMap.set(p.id, 0);
+  for (const alloc of allocations) {
+    balanceMap.set(alloc.payerId, (balanceMap.get(alloc.payerId) ?? 0) + alloc.totalHuf);
+    for (const [id, amount] of alloc.debits) {
+      balanceMap.set(id, (balanceMap.get(id) ?? 0) - amount);
+    }
   }
 
   const balances: PersonBalance[] = adults.map((p) => ({
@@ -239,15 +260,89 @@ export function buildTripSettlement(
     balanceHuf: Math.round(balanceMap.get(p.id) ?? 0),
   }));
 
-  const transfers = simplifyTransfers(balances);
-
   return {
     balances,
-    transfers,
+    transfers: simplifyTransfers(balances),
     unsettledCosts,
-    settledCostCount,
-    totalCostCount: ctx.costs.length,
+    settledCostCount: allocations.length,
+    totalCostCount,
   };
+}
+
+export type CostPaymentStatus = "settled" | "partial" | "open";
+
+export interface CostSettlementDebtor {
+  id: string;
+  name: string;
+  amountHuf: number;
+  paidHuf: number;
+}
+
+export interface CostSettlementStatus {
+  costId: string;
+  title: string;
+  totalHuf: number;
+  payerId: string;
+  payerName: string;
+  status: CostPaymentStatus;
+  /** Amit a többiek a fizetőnek tartoznak ezért a költségért. */
+  owedHuf: number;
+  /** Ebből már rendezve. */
+  paidHuf: number;
+  debtors: CostSettlementDebtor[];
+}
+
+/**
+ * Költségenkénti állapot: ki fizette, ki mennyivel tartozik érte, és mennyi van már rendezve.
+ * A rögzített kifizetések (fizető → kedvezményezett páronként) a költségeket sorrendben fedezik.
+ * Ha az egész elszámolás már nulla (nincs fennmaradó átutalás), minden költség rendezett.
+ */
+export function buildCostSettlementStatuses(
+  rawCtx: SettlementContext,
+  rates: HufRateMap,
+  payments: RecordedSettlementPaymentLike[] = []
+): CostSettlementStatus[] {
+  const { adults, allocations, aliases } = prepareSettlement(rawCtx, rates);
+  const canon = (id: string) => aliases.get(id) ?? id;
+  const nameOf = new Map(adults.map((p) => [p.id, p.name]));
+
+  const pools = new Map<string, number>();
+  for (const pay of payments) {
+    const key = `${canon(pay.fromFamilyMemberId)}->${canon(pay.toFamilyMemberId)}`;
+    pools.set(key, (pools.get(key) ?? 0) + pay.amountHuf);
+  }
+
+  const everythingSettled = (() => {
+    const settlement = buildTripSettlement(rawCtx, rates);
+    return settlement.transfers.length > 0 && applyAll(settlement.transfers, payments, aliases);
+  })();
+
+  return allocations.map((alloc) => {
+    const debtors: CostSettlementDebtor[] = [];
+    for (const [id, amount] of alloc.debits) {
+      if (id === alloc.payerId || amount <= 0) continue;
+      const key = `${id}->${alloc.payerId}`;
+      const available = pools.get(key) ?? 0;
+      const covered = everythingSettled ? amount : Math.min(amount, available);
+      if (!everythingSettled) pools.set(key, available - covered);
+      debtors.push({ id, name: nameOf.get(id) ?? "?", amountHuf: amount, paidHuf: covered });
+    }
+    const owedHuf = debtors.reduce((sum, d) => sum + d.amountHuf, 0);
+    const paidHuf = debtors.reduce((sum, d) => sum + d.paidHuf, 0);
+    const status: CostPaymentStatus =
+      paidHuf >= owedHuf ? "settled" : paidHuf > 0 ? "partial" : "open";
+    return {
+      costId: alloc.costId,
+      title: alloc.title,
+      totalHuf: alloc.totalHuf,
+      payerId: alloc.payerId,
+      payerName: nameOf.get(alloc.payerId) ?? "?",
+      status,
+      owedHuf,
+      paidHuf,
+      debtors,
+    };
+  });
 }
 
 function simplifyTransfers(balances: PersonBalance[]): SettlementTransfer[] {
@@ -289,4 +384,19 @@ function simplifyTransfers(balances: PersonBalance[]): SettlementTransfer[] {
   }
 
   return transfers;
+}
+
+export interface RecordedSettlementPaymentLike {
+  fromFamilyMemberId: string;
+  toFamilyMemberId: string;
+  amountHuf: number;
+}
+
+/** Igaz, ha a kifizetések után nem marad fennmaradó átutalás. */
+function applyAll(
+  transfers: SettlementTransfer[],
+  payments: RecordedSettlementPaymentLike[],
+  aliases: Map<string, string>
+): boolean {
+  return applySettlementPayments(transfers, payments, aliases).length === 0;
 }

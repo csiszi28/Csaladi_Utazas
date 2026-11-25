@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { ArrowRight, Check, CheckCircle2, Info, Printer, Trash2 } from "lucide-react";
 import {
   applySettlementPayments,
+  buildCostSettlementStatuses,
   buildSettlementAliasMap,
   buildTripSettlement,
   formatAmountInput,
@@ -132,37 +133,52 @@ export function TripSettlementPanel({
     setPayments(serverPayments ?? []);
   }, [serverPayments]);
 
+  const settlementCtx = useMemo(
+    () => ({
+      participants: trip.participants.map((p) => ({
+        id: p.familyMember.id,
+        name: p.familyMember.name,
+        isChild: p.familyMember.isChild ?? childSet.has(p.familyMember.id),
+        linkedUserId: p.familyMember.linkedUserId,
+        ownerUserId: p.familyMember.userId,
+      })),
+      programs: trip.programs.map((p) => ({
+        id: p.id,
+        participantIds: p.participants.map((x) => x.familyMemberId),
+      })),
+      accommodations: (trip.accommodations ?? []).map((a) => ({
+        id: a.id,
+        participantIds: a.participants.map((x) => x.familyMemberId),
+      })),
+      transports: (trip.transports ?? []).map((t) => ({
+        id: t.id,
+        participantIds: t.participants.map((x) => x.familyMemberId),
+      })),
+      costs: trip.costs.map((c) => ({
+        ...c,
+        amountScope: c.amountScope ?? "TOTAL",
+      })),
+    }),
+    [trip, childSet]
+  );
+
   const settlement = useMemo(
+    () => buildTripSettlement(settlementCtx, rates),
+    [settlementCtx, rates]
+  );
+
+  const costStatuses = useMemo(
     () =>
-      buildTripSettlement(
-        {
-          participants: trip.participants.map((p) => ({
-            id: p.familyMember.id,
-            name: p.familyMember.name,
-            isChild: p.familyMember.isChild ?? childSet.has(p.familyMember.id),
-            linkedUserId: p.familyMember.linkedUserId,
-            ownerUserId: p.familyMember.userId,
-          })),
-          programs: trip.programs.map((p) => ({
-            id: p.id,
-            participantIds: p.participants.map((x) => x.familyMemberId),
-          })),
-          accommodations: (trip.accommodations ?? []).map((a) => ({
-            id: a.id,
-            participantIds: a.participants.map((x) => x.familyMemberId),
-          })),
-          transports: (trip.transports ?? []).map((t) => ({
-            id: t.id,
-            participantIds: t.participants.map((x) => x.familyMemberId),
-          })),
-          costs: trip.costs.map((c) => ({
-            ...c,
-            amountScope: c.amountScope ?? "TOTAL",
-          })),
-        },
-        rates
+      buildCostSettlementStatuses(
+        settlementCtx,
+        rates,
+        payments.map((p) => ({
+          fromFamilyMemberId: p.fromFamilyMemberId,
+          toFamilyMemberId: p.toFamilyMemberId,
+          amountHuf: p.amountHuf,
+        }))
       ),
-    [trip, rates, childSet]
+    [settlementCtx, rates, payments]
   );
 
   const remainingTransfers = useMemo(
@@ -452,6 +468,65 @@ export function TripSettlementPanel({
         <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-foreground">
           Minden rögzített költség kiegyenlített — nincs tartozás.
         </p>
+      ) : null}
+
+      {costStatuses.length > 0 ? (
+        <section className="overflow-hidden rounded-xl border bg-card">
+          <div className="border-b px-4 py-3">
+            <h3 className="text-sm font-semibold tracking-tight">Költségek állapota</h3>
+            <p className="mt-0.5 text-xs text-foreground">
+              Melyik költséget fizették már ki. A kifizetések a költségeket sorrendben fedezik.
+            </p>
+          </div>
+          <ul className="divide-y">
+            {costStatuses.map((cost) => {
+              const remaining = cost.owedHuf - cost.paidHuf;
+              const badge =
+                cost.status === "settled"
+                  ? { label: "Kifizetve", className: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300" }
+                  : cost.status === "partial"
+                    ? { label: "Részben", className: "bg-amber-500/15 text-amber-800 dark:text-amber-300" }
+                    : { label: "Nyitott", className: "bg-destructive/10 text-destructive" };
+              return (
+                <li key={cost.costId} className="space-y-1.5 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate text-sm font-medium">{cost.title}</p>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-md px-2 py-0.5 text-xs font-medium",
+                        badge.className
+                      )}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-foreground">
+                    {huf(cost.totalHuf)} · fizette: {cost.payerName}
+                    {cost.status !== "settled"
+                      ? ` · még hátra: ${huf(remaining)}`
+                      : cost.owedHuf > 0
+                        ? ` · ${huf(cost.owedHuf)} rendezve`
+                        : ""}
+                  </p>
+                  {cost.debtors.length > 0 ? (
+                    <ul className="space-y-0.5 text-xs text-muted-foreground">
+                      {cost.debtors.map((d) => (
+                        <li key={d.id} className="flex justify-between gap-2">
+                          <span className="truncate">{d.name}</span>
+                          <span className="tabular-nums">
+                            {d.paidHuf >= d.amountHuf
+                              ? `${huf(d.amountHuf)} ✓`
+                              : `${huf(d.paidHuf)} / ${huf(d.amountHuf)}`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       ) : null}
 
       {payments.length > 0 ? (
