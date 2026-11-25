@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCostSettlementStatuses, buildSettlementAliasMap, buildTripSettlement } from "../settlement";
+import { buildCostSettlementStatuses, buildRemainingTransfers, buildSettlementAliasMap, buildTripSettlement } from "../settlement";
 import { applySettlementPayments } from "../settlement-payments";
 
 const rates = { HUF: 1 } as Parameters<typeof buildTripSettlement>[1];
@@ -178,5 +178,46 @@ describe("költségenkénti állapot", () => {
       { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 2000 },
     ]);
     expect(st.every((s) => s.status === "settled")).toBe(true);
+  });
+});
+
+describe("költséghez rendelt kifizetés", () => {
+  const two = [
+    { id: "a", name: "A" },
+    { id: "b", name: "B" },
+  ];
+  const ctx = {
+    participants: two,
+    programs: [],
+    costs: [
+      { id: "c1", title: "Egy", amount: 1000, currency: "HUF", paidByFamilyMemberId: "a" },
+      { id: "c2", title: "Kettő", amount: 3000, currency: "HUF", paidByFamilyMemberId: "a" },
+    ],
+  };
+
+  it("a második költség kifizetése nem a sorrendben elsőt jelöli", () => {
+    const st = buildCostSettlementStatuses(ctx, rates, [
+      { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 1500, costId: "c2" },
+    ]);
+    expect(st.map((s) => s.status)).toEqual(["open", "settled"]);
+  });
+
+  it("a költség tartozásán felüli rész az általános kifizetésekhez kerül", () => {
+    const st = buildCostSettlementStatuses(ctx, rates, [
+      { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 700, costId: "c1" },
+    ]);
+    expect(st[0]!.status).toBe("settled");
+    expect(st[1]!.paidHuf).toBe(200);
+  });
+
+  it("a fennmaradó átutalás a kifizetett egyenleg szerint számolódik", () => {
+    const balances = [
+      { id: "a", name: "A", balanceHuf: 2000 },
+      { id: "b", name: "B", balanceHuf: -2000 },
+    ];
+    const rest = buildRemainingTransfers(balances, [
+      { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 500, costId: "c1" },
+    ]);
+    expect(rest).toEqual([expect.objectContaining({ fromId: "b", toId: "a", amountHuf: 1500 })]);
   });
 });

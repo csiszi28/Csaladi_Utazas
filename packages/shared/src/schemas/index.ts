@@ -280,6 +280,7 @@ export const settlementPaymentSchema = z.object({
   fromFamilyMemberId: z.string().uuid(),
   toFamilyMemberId: z.string().uuid(),
   amountHuf: z.number().int().positive("Az összegnek pozitívnak kell lennie"),
+  costId: z.string().uuid().optional().nullable(),
   note: optionalNoteSchema,
 });
 

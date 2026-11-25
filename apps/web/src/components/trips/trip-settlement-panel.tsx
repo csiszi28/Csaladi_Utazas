@@ -4,7 +4,7 @@ import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { ArrowRight, Check, CheckCircle2, Info, Printer, Trash2 } from "lucide-react";
 import {
-  applySettlementPayments,
+  buildRemainingTransfers,
   buildCostSettlementStatuses,
   buildSettlementAliasMap,
   buildTripSettlement,
@@ -69,6 +69,7 @@ interface TripSettlementPanelProps {
       toFamilyMemberId: string;
       amountHuf: number;
       paidAt: Date | string;
+      costId?: string | null;
       fromMember?: { name: string };
       toMember?: { name: string };
     }[];
@@ -176,30 +177,38 @@ export function TripSettlementPanel({
           fromFamilyMemberId: p.fromFamilyMemberId,
           toFamilyMemberId: p.toFamilyMemberId,
           amountHuf: p.amountHuf,
+          costId: p.costId,
         }))
       ),
     [settlementCtx, rates, payments]
   );
 
+  const paymentAliases = useMemo(
+    () =>
+      buildSettlementAliasMap(
+        trip.participants.map((p) => ({
+          id: p.familyMember.id,
+          name: p.familyMember.name,
+          linkedUserId: p.familyMember.linkedUserId,
+          ownerUserId: p.familyMember.userId,
+        }))
+      ),
+    [trip.participants]
+  );
+
   const remainingTransfers = useMemo(
     () =>
-      applySettlementPayments(
-        settlement.transfers,
+      buildRemainingTransfers(
+        settlement.balances,
         payments.map((p) => ({
           fromFamilyMemberId: p.fromFamilyMemberId,
           toFamilyMemberId: p.toFamilyMemberId,
           amountHuf: p.amountHuf,
+          costId: p.costId,
         })),
-        buildSettlementAliasMap(
-          trip.participants.map((p) => ({
-            id: p.familyMember.id,
-            name: p.familyMember.name,
-            linkedUserId: p.familyMember.linkedUserId,
-            ownerUserId: p.familyMember.userId,
-          }))
-        )
+        paymentAliases
       ),
-    [settlement.transfers, payments, trip.participants]
+    [settlement.balances, payments, paymentAliases]
   );
 
   const tripChildren = useMemo(
@@ -258,12 +267,12 @@ export function TripSettlementPanel({
     });
   }, [settlement.balances, settlement.transfers, remainingTransfers]);
 
-  function transferKey(fromId: string, toId: string) {
-    return `${fromId}->${toId}`;
+  function transferKey(fromId: string, toId: string, costId?: string) {
+    return costId ? `${costId}:${fromId}->${toId}` : `${fromId}->${toId}`;
   }
 
-  function markPaid(fromId: string, toId: string, maxAmount: number) {
-    const key = transferKey(fromId, toId);
+  function markPaid(fromId: string, toId: string, maxAmount: number, costId?: string) {
+    const key = transferKey(fromId, toId, costId);
     const raw = partialAmounts[key];
     const amount = raw?.trim() ? Math.round(parseAmountInput(raw)) : maxAmount;
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -281,6 +290,7 @@ export function TripSettlementPanel({
         fromFamilyMemberId: fromId,
         toFamilyMemberId: toId,
         amountHuf: amount,
+        costId: costId ?? null,
       });
       if (!result.success) toast.error(result.error);
       else {
@@ -292,6 +302,7 @@ export function TripSettlementPanel({
             fromFamilyMemberId: fromId,
             toFamilyMemberId: toId,
             amountHuf: amount,
+            costId: costId ?? null,
             paidAt: new Date().toISOString(),
             fromMember: { name: nameOf(fromId) },
             toMember: { name: nameOf(toId) },
@@ -509,17 +520,53 @@ export function TripSettlementPanel({
                         : ""}
                   </p>
                   {cost.debtors.length > 0 ? (
-                    <ul className="space-y-0.5 text-xs text-muted-foreground">
-                      {cost.debtors.map((d) => (
-                        <li key={d.id} className="flex justify-between gap-2">
-                          <span className="truncate">{d.name}</span>
-                          <span className="tabular-nums">
-                            {d.paidHuf >= d.amountHuf
-                              ? `${huf(d.amountHuf)} ✓`
-                              : `${huf(d.paidHuf)} / ${huf(d.amountHuf)}`}
-                          </span>
-                        </li>
-                      ))}
+                    <ul className="space-y-1.5 pt-0.5">
+                      {cost.debtors.map((d) => {
+                        const left = d.amountHuf - d.paidHuf;
+                        const key = transferKey(d.id, cost.payerId, cost.costId);
+                        return (
+                          <li
+                            key={d.id}
+                            className="flex flex-wrap items-center justify-between gap-2 text-xs"
+                          >
+                            <span className="min-w-0 truncate text-muted-foreground">
+                              {d.name}:{" "}
+                              <span className="tabular-nums">
+                                {left <= 0
+                                  ? `${huf(d.amountHuf)} ✓`
+                                  : `${huf(d.paidHuf)} / ${huf(d.amountHuf)}`}
+                              </span>
+                            </span>
+                            {left > 0 ? (
+                              <span className="flex shrink-0 items-center gap-1.5 print:hidden">
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder={huf(left)}
+                                  value={partialAmounts[key] ?? ""}
+                                  onChange={(e) =>
+                                    setPartialAmounts((prev) => ({
+                                      ...prev,
+                                      [key]: formatAmountInput(e.target.value),
+                                    }))
+                                  }
+                                  className="h-7 w-24 rounded-md text-xs"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-7 gap-1 rounded-md px-2 text-xs"
+                                  disabled={pending}
+                                  onClick={() => markPaid(d.id, cost.payerId, left, cost.costId)}
+                                >
+                                  <Check className="h-3 w-3" />
+                                  Kifizetve
+                                </Button>
+                              </span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
                     </ul>
                   ) : null}
                 </li>
@@ -552,6 +599,11 @@ export function TripSettlementPanel({
                     <span className="mx-1.5 text-foreground/40">→</span>
                     {p.toMember?.name ?? "?"}
                   </p>
+                  {p.costId ? (
+                    <p className="truncate text-[11px] text-foreground">
+                      Költség: {trip.costs.find((c) => c.id === p.costId)?.title ?? "törölt költség"}
+                    </p>
+                  ) : null}
                   <p className="text-[11px] text-foreground">
                     {new Date(p.paidAt).toLocaleString("hu-HU", {
                       year: "numeric",

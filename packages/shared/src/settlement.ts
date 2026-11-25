@@ -1,5 +1,4 @@
 import { costTotalHuf, type CostParticipant, type HufRateMap } from "./cost-allocation";
-import { applySettlementPayments } from "./settlement-payments";
 
 export interface SettlementCost {
   id: string;
@@ -306,25 +305,47 @@ export function buildCostSettlementStatuses(
   const canon = (id: string) => aliases.get(id) ?? id;
   const nameOf = new Map(adults.map((p) => [p.id, p.name]));
 
+  // 1) Költséghez rendelt kifizetések: közvetlenül arra a költségre számítanak
+  const directPaid = new Map<string, Map<string, number>>(); // costId -> debtorId -> paid
   const pools = new Map<string, number>();
+  const addPool = (key: string, amount: number) =>
+    pools.set(key, (pools.get(key) ?? 0) + amount);
+
   for (const pay of payments) {
-    const key = `${canon(pay.fromFamilyMemberId)}->${canon(pay.toFamilyMemberId)}`;
-    pools.set(key, (pools.get(key) ?? 0) + pay.amountHuf);
+    const from = canon(pay.fromFamilyMemberId);
+    const to = canon(pay.toFamilyMemberId);
+    const alloc = pay.costId ? allocations.find((a) => a.costId === pay.costId) : undefined;
+    if (!alloc) {
+      addPool(`${from}->${to}`, pay.amountHuf);
+      continue;
+    }
+    const owed = alloc.debits.get(from) ?? 0;
+    const byDebtor = directPaid.get(alloc.costId) ?? new Map<string, number>();
+    const already = byDebtor.get(from) ?? 0;
+    const applied = alloc.payerId === to ? Math.min(Math.max(owed - already, 0), pay.amountHuf) : 0;
+    byDebtor.set(from, already + applied);
+    directPaid.set(alloc.costId, byDebtor);
+    // Ami a költség tartozásán felül van, az általános kifizetésként számít
+    if (pay.amountHuf - applied > 0) addPool(`${from}->${to}`, pay.amountHuf - applied);
   }
 
-  const everythingSettled = (() => {
-    const settlement = buildTripSettlement(rawCtx, rates);
-    return settlement.transfers.length > 0 && applyAll(settlement.transfers, payments, aliases);
-  })();
+  // 2) Ha az egész elszámolás már nulla, minden költség rendezett
+  const settlementAll = buildTripSettlement(rawCtx, rates);
+  const everythingSettled =
+    settlementAll.transfers.length > 0 &&
+    buildRemainingTransfers(settlementAll.balances, payments, aliases).length === 0;
 
+  // 3) A fennmaradó (költség nélküli) kifizetések sorrendben fedezik a költségeket
   return allocations.map((alloc) => {
     const debtors: CostSettlementDebtor[] = [];
     for (const [id, amount] of alloc.debits) {
       if (id === alloc.payerId || amount <= 0) continue;
+      const direct = Math.min(directPaid.get(alloc.costId)?.get(id) ?? 0, amount);
       const key = `${id}->${alloc.payerId}`;
       const available = pools.get(key) ?? 0;
-      const covered = everythingSettled ? amount : Math.min(amount, available);
-      if (!everythingSettled) pools.set(key, available - covered);
+      const fromPool = everythingSettled ? 0 : Math.min(amount - direct, available);
+      if (!everythingSettled) pools.set(key, available - fromPool);
+      const covered = everythingSettled ? amount : direct + fromPool;
       debtors.push({ id, name: nameOf.get(id) ?? "?", amountHuf: amount, paidHuf: covered });
     }
     const owedHuf = debtors.reduce((sum, d) => sum + d.amountHuf, 0);
@@ -343,6 +364,29 @@ export function buildCostSettlementStatuses(
       debtors,
     };
   });
+}
+
+/**
+ * A fennmaradó átutalások: a rögzített kifizetések az egyenlegeket módosítják
+ * (a fizető tartozása csökken, a kedvezményezett követelése is), majd újra egyszerűsítünk.
+ * Így akkor is helyes, ha a kifizetés nem pontosan az ajánlott átutalás párosa.
+ */
+export function buildRemainingTransfers(
+  balances: PersonBalance[],
+  payments: RecordedSettlementPaymentLike[],
+  aliases: Map<string, string> = new Map()
+): SettlementTransfer[] {
+  const canon = (id: string) => aliases.get(id) ?? id;
+  const adjusted = new Map(balances.map((b) => [b.id, b.balanceHuf]));
+  for (const pay of payments) {
+    const from = canon(pay.fromFamilyMemberId);
+    const to = canon(pay.toFamilyMemberId);
+    if (adjusted.has(from)) adjusted.set(from, adjusted.get(from)! + pay.amountHuf);
+    if (adjusted.has(to)) adjusted.set(to, adjusted.get(to)! - pay.amountHuf);
+  }
+  return simplifyTransfers(
+    balances.map((b) => ({ ...b, balanceHuf: adjusted.get(b.id) ?? b.balanceHuf }))
+  );
 }
 
 function simplifyTransfers(balances: PersonBalance[]): SettlementTransfer[] {
@@ -390,13 +434,5 @@ export interface RecordedSettlementPaymentLike {
   fromFamilyMemberId: string;
   toFamilyMemberId: string;
   amountHuf: number;
-}
-
-/** Igaz, ha a kifizetések után nem marad fennmaradó átutalás. */
-function applyAll(
-  transfers: SettlementTransfer[],
-  payments: RecordedSettlementPaymentLike[],
-  aliases: Map<string, string>
-): boolean {
-  return applySettlementPayments(transfers, payments, aliases).length === 0;
+  costId?: string | null;
 }
