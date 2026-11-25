@@ -178,6 +178,7 @@ export async function createSettlementPayment(data: {
   fromFamilyMemberId: string;
   toFamilyMemberId: string;
   amountHuf: number;
+  costId?: string | null;
   note?: string | null;
 }): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
@@ -193,9 +194,18 @@ export async function createSettlementPayment(data: {
   const access = await requireTripEditor(parsed.data.tripId, user.id);
   if (!access.ok) return { success: false, error: access.error };
 
+  if (parsed.data.costId) {
+    const cost = await prisma.cost.findFirst({
+      where: { id: parsed.data.costId, tripId: parsed.data.tripId },
+      select: { id: true },
+    });
+    if (!cost) return { success: false, error: "A költség nem található ezen az utazáson" };
+  }
+
   const payment = await prisma.settlementPayment.create({
     data: {
       tripId: parsed.data.tripId,
+      costId: parsed.data.costId ?? null,
       fromFamilyMemberId: parsed.data.fromFamilyMemberId,
       toFamilyMemberId: parsed.data.toFamilyMemberId,
       amountHuf: parsed.data.amountHuf,
@@ -522,7 +532,7 @@ export async function getUserReminders() {
     buildReminders,
     buildTripSettlement,
     buildSettlementAliasMap,
-    applySettlementPayments,
+    buildRemainingTransfers,
     DEFAULT_HUF_RATES,
     mapInboxNotificationsToReminders,
   } = await import("@csaladi-utazas/shared");
@@ -609,8 +619,8 @@ export async function getUserReminders() {
       rates
     );
 
-    const remaining = applySettlementPayments(
-      settlement.transfers,
+    const remaining = buildRemainingTransfers(
+      settlement.balances,
       trip.settlementPayments.map((p) => ({
         fromFamilyMemberId: p.fromFamilyMemberId,
         toFamilyMemberId: p.toFamilyMemberId,

@@ -4,7 +4,8 @@ import { useConfirmDelete } from "@/components/ui/confirm-dialog";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { ArrowRight, Check, CheckCircle2, Info, Printer, Trash2 } from "lucide-react";
 import {
-  applySettlementPayments,
+  buildRemainingTransfers,
+  buildCostSettlementStatuses,
   buildSettlementAliasMap,
   buildTripSettlement,
   formatAmountInput,
@@ -68,6 +69,7 @@ interface TripSettlementPanelProps {
       toFamilyMemberId: string;
       amountHuf: number;
       paidAt: Date | string;
+      costId?: string | null;
       fromMember?: { name: string };
       toMember?: { name: string };
     }[];
@@ -132,58 +134,81 @@ export function TripSettlementPanel({
     setPayments(serverPayments ?? []);
   }, [serverPayments]);
 
-  const settlement = useMemo(
-    () =>
-      buildTripSettlement(
-        {
-          participants: trip.participants.map((p) => ({
-            id: p.familyMember.id,
-            name: p.familyMember.name,
-            isChild: p.familyMember.isChild ?? childSet.has(p.familyMember.id),
-            linkedUserId: p.familyMember.linkedUserId,
-            ownerUserId: p.familyMember.userId,
-          })),
-          programs: trip.programs.map((p) => ({
-            id: p.id,
-            participantIds: p.participants.map((x) => x.familyMemberId),
-          })),
-          accommodations: (trip.accommodations ?? []).map((a) => ({
-            id: a.id,
-            participantIds: a.participants.map((x) => x.familyMemberId),
-          })),
-          transports: (trip.transports ?? []).map((t) => ({
-            id: t.id,
-            participantIds: t.participants.map((x) => x.familyMemberId),
-          })),
-          costs: trip.costs.map((c) => ({
-            ...c,
-            amountScope: c.amountScope ?? "TOTAL",
-          })),
-        },
-        rates
-      ),
-    [trip, rates, childSet]
+  const settlementCtx = useMemo(
+    () => ({
+      participants: trip.participants.map((p) => ({
+        id: p.familyMember.id,
+        name: p.familyMember.name,
+        isChild: p.familyMember.isChild ?? childSet.has(p.familyMember.id),
+        linkedUserId: p.familyMember.linkedUserId,
+        ownerUserId: p.familyMember.userId,
+      })),
+      programs: trip.programs.map((p) => ({
+        id: p.id,
+        participantIds: p.participants.map((x) => x.familyMemberId),
+      })),
+      accommodations: (trip.accommodations ?? []).map((a) => ({
+        id: a.id,
+        participantIds: a.participants.map((x) => x.familyMemberId),
+      })),
+      transports: (trip.transports ?? []).map((t) => ({
+        id: t.id,
+        participantIds: t.participants.map((x) => x.familyMemberId),
+      })),
+      costs: trip.costs.map((c) => ({
+        ...c,
+        amountScope: c.amountScope ?? "TOTAL",
+      })),
+    }),
+    [trip, childSet]
   );
 
-  const remainingTransfers = useMemo(
+  const settlement = useMemo(
+    () => buildTripSettlement(settlementCtx, rates),
+    [settlementCtx, rates]
+  );
+
+  const costStatuses = useMemo(
     () =>
-      applySettlementPayments(
-        settlement.transfers,
+      buildCostSettlementStatuses(
+        settlementCtx,
+        rates,
         payments.map((p) => ({
           fromFamilyMemberId: p.fromFamilyMemberId,
           toFamilyMemberId: p.toFamilyMemberId,
           amountHuf: p.amountHuf,
-        })),
-        buildSettlementAliasMap(
-          trip.participants.map((p) => ({
-            id: p.familyMember.id,
-            name: p.familyMember.name,
-            linkedUserId: p.familyMember.linkedUserId,
-            ownerUserId: p.familyMember.userId,
-          }))
-        )
+          costId: p.costId,
+        }))
       ),
-    [settlement.transfers, payments, trip.participants]
+    [settlementCtx, rates, payments]
+  );
+
+  const paymentAliases = useMemo(
+    () =>
+      buildSettlementAliasMap(
+        trip.participants.map((p) => ({
+          id: p.familyMember.id,
+          name: p.familyMember.name,
+          linkedUserId: p.familyMember.linkedUserId,
+          ownerUserId: p.familyMember.userId,
+        }))
+      ),
+    [trip.participants]
+  );
+
+  const remainingTransfers = useMemo(
+    () =>
+      buildRemainingTransfers(
+        settlement.balances,
+        payments.map((p) => ({
+          fromFamilyMemberId: p.fromFamilyMemberId,
+          toFamilyMemberId: p.toFamilyMemberId,
+          amountHuf: p.amountHuf,
+          costId: p.costId,
+        })),
+        paymentAliases
+      ),
+    [settlement.balances, payments, paymentAliases]
   );
 
   const tripChildren = useMemo(
@@ -242,12 +267,12 @@ export function TripSettlementPanel({
     });
   }, [settlement.balances, settlement.transfers, remainingTransfers]);
 
-  function transferKey(fromId: string, toId: string) {
-    return `${fromId}->${toId}`;
+  function transferKey(fromId: string, toId: string, costId?: string) {
+    return costId ? `${costId}:${fromId}->${toId}` : `${fromId}->${toId}`;
   }
 
-  function markPaid(fromId: string, toId: string, maxAmount: number) {
-    const key = transferKey(fromId, toId);
+  function markPaid(fromId: string, toId: string, maxAmount: number, costId?: string) {
+    const key = transferKey(fromId, toId, costId);
     const raw = partialAmounts[key];
     const amount = raw?.trim() ? Math.round(parseAmountInput(raw)) : maxAmount;
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -265,6 +290,7 @@ export function TripSettlementPanel({
         fromFamilyMemberId: fromId,
         toFamilyMemberId: toId,
         amountHuf: amount,
+        costId: costId ?? null,
       });
       if (!result.success) toast.error(result.error);
       else {
@@ -276,6 +302,7 @@ export function TripSettlementPanel({
             fromFamilyMemberId: fromId,
             toFamilyMemberId: toId,
             amountHuf: amount,
+            costId: costId ?? null,
             paidAt: new Date().toISOString(),
             fromMember: { name: nameOf(fromId) },
             toMember: { name: nameOf(toId) },
@@ -454,6 +481,101 @@ export function TripSettlementPanel({
         </p>
       ) : null}
 
+      {costStatuses.length > 0 ? (
+        <section className="overflow-hidden rounded-xl border bg-card">
+          <div className="border-b px-4 py-3">
+            <h3 className="text-sm font-semibold tracking-tight">Költségek állapota</h3>
+            <p className="mt-0.5 text-xs text-foreground">
+              Melyik költséget fizették már ki. A kifizetések a költségeket sorrendben fedezik.
+            </p>
+          </div>
+          <ul className="divide-y">
+            {costStatuses.map((cost) => {
+              const remaining = cost.owedHuf - cost.paidHuf;
+              const badge =
+                cost.status === "settled"
+                  ? { label: "Kifizetve", className: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300" }
+                  : cost.status === "partial"
+                    ? { label: "Részben", className: "bg-amber-500/15 text-amber-800 dark:text-amber-300" }
+                    : { label: "Nyitott", className: "bg-destructive/10 text-destructive" };
+              return (
+                <li key={cost.costId} className="space-y-1.5 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate text-sm font-medium">{cost.title}</p>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-md px-2 py-0.5 text-xs font-medium",
+                        badge.className
+                      )}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-foreground">
+                    {huf(cost.totalHuf)} · fizette: {cost.payerName}
+                    {cost.status !== "settled"
+                      ? ` · még hátra: ${huf(remaining)}`
+                      : cost.owedHuf > 0
+                        ? ` · ${huf(cost.owedHuf)} rendezve`
+                        : ""}
+                  </p>
+                  {cost.debtors.length > 0 ? (
+                    <ul className="space-y-1.5 pt-0.5">
+                      {cost.debtors.map((d) => {
+                        const left = d.amountHuf - d.paidHuf;
+                        const key = transferKey(d.id, cost.payerId, cost.costId);
+                        return (
+                          <li
+                            key={d.id}
+                            className="flex flex-wrap items-center justify-between gap-2 text-xs"
+                          >
+                            <span className="min-w-0 truncate text-muted-foreground">
+                              {d.name}:{" "}
+                              <span className="tabular-nums">
+                                {left <= 0
+                                  ? `${huf(d.amountHuf)} ✓`
+                                  : `${huf(d.paidHuf)} / ${huf(d.amountHuf)}`}
+                              </span>
+                            </span>
+                            {left > 0 ? (
+                              <span className="flex shrink-0 items-center gap-1.5 print:hidden">
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder={huf(left)}
+                                  value={partialAmounts[key] ?? ""}
+                                  onChange={(e) =>
+                                    setPartialAmounts((prev) => ({
+                                      ...prev,
+                                      [key]: formatAmountInput(e.target.value),
+                                    }))
+                                  }
+                                  className="h-7 w-24 rounded-md text-xs"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-7 gap-1 rounded-md px-2 text-xs"
+                                  disabled={pending}
+                                  onClick={() => markPaid(d.id, cost.payerId, left, cost.costId)}
+                                >
+                                  <Check className="h-3 w-3" />
+                                  Kifizetve
+                                </Button>
+                              </span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
       {payments.length > 0 ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -477,6 +599,11 @@ export function TripSettlementPanel({
                     <span className="mx-1.5 text-foreground/40">→</span>
                     {p.toMember?.name ?? "?"}
                   </p>
+                  {p.costId ? (
+                    <p className="truncate text-[11px] text-foreground">
+                      Költség: {trip.costs.find((c) => c.id === p.costId)?.title ?? "törölt költség"}
+                    </p>
+                  ) : null}
                   <p className="text-[11px] text-foreground">
                     {new Date(p.paidAt).toLocaleString("hu-HU", {
                       year: "numeric",

@@ -310,6 +310,7 @@ model Cost {
   transport            Transport?     @relation(fields: [transportId], references: [id], onDelete: Cascade)
   paidByFamilyMemberId String?
   paidBy               FamilyMember?  @relation(fields: [paidByFamilyMemberId], references: [id], onDelete: SetNull)
+  settlementPayments   SettlementPayment[]
   amount               Float
   currency             String         @default("HUF")
   amountScope          String         @default("TOTAL")
@@ -380,6 +381,9 @@ model SettlementPayment {
   fromMember         FamilyMember @relation("SettlementFrom", fields: [fromFamilyMemberId], references: [id], onDelete: Cascade)
   toFamilyMemberId   String
   toMember           FamilyMember @relation("SettlementTo", fields: [toFamilyMemberId], references: [id], onDelete: Cascade)
+  /// Melyik költség kiegyenlítésére szól (üres: általános kifizetés)
+  costId             String?
+  cost               Cost?        @relation(fields: [costId], references: [id], onDelete: SetNull)
   amountHuf          Int
   note               String?
   paidAt             DateTime     @default(now())
@@ -387,6 +391,7 @@ model SettlementPayment {
   createdBy          User         @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([tripId])
+  @@index([costId])
   @@map("settlement_payments")
 }
 
