@@ -261,7 +261,7 @@ export function buildTripSettlement(
 
   return {
     balances,
-    transfers: simplifyTransfers(balances),
+    transfers: buildPairwiseTransfers(allocations, adults),
     unsettledCosts,
     settledCostCount: allocations.length,
     totalCostCount,
@@ -333,7 +333,8 @@ export function buildCostSettlementStatuses(
   const settlementAll = buildTripSettlement(rawCtx, rates);
   const everythingSettled =
     settlementAll.transfers.length > 0 &&
-    buildRemainingTransfers(settlementAll.balances, payments, aliases).length === 0;
+    buildRemainingTransfers(settlementAll.transfers, settlementAll.balances, payments, aliases)
+      .length === 0;
 
   // 3) A fennmaradó (költség nélküli) kifizetések sorrendben fedezik a költségeket
   return allocations.map((alloc) => {
@@ -367,26 +368,83 @@ export function buildCostSettlementStatuses(
 }
 
 /**
- * A fennmaradó átutalások: a rögzített kifizetések az egyenlegeket módosítják
- * (a fizető tartozása csökken, a kedvezményezett követelése is), majd újra egyszerűsítünk.
- * Így akkor is helyes, ha a kifizetés nem pontosan az ajánlott átutalás párosa.
+ * Átutalások a költségek szerint: minden tartozó közvetlenül annak a fizetőnek tartozik,
+ * aki a költséget kifizette; a két ember közötti oda-vissza tartozások összevonódnak.
+ * Aki több embernek tartozik, annak külön sora van, aki egynek, annak az összege nő.
+ */
+function buildPairwiseTransfers(
+  allocations: CostAllocation[],
+  adults: CostParticipant[]
+): SettlementTransfer[] {
+  const nameOf = new Map(adults.map((p) => [p.id, p.name]));
+  const owed = new Map<string, number>(); // "debtor|payer" -> amount
+  for (const alloc of allocations) {
+    for (const [id, amount] of alloc.debits) {
+      if (id === alloc.payerId || amount <= 0) continue;
+      const key = `${id}|${alloc.payerId}`;
+      owed.set(key, (owed.get(key) ?? 0) + amount);
+    }
+  }
+  const transfers: SettlementTransfer[] = [];
+  for (const [key, amount] of owed) {
+    const [from, to] = key.split("|") as [string, string];
+    const back = owed.get(`${to}|${from}`) ?? 0;
+    const net = amount - back;
+    // Minden párt csak egyszer, a nagyobb tartozás irányában adunk hozzá
+    if (net > 0) {
+      transfers.push({
+        fromId: from,
+        fromName: nameOf.get(from) ?? "?",
+        toId: to,
+        toName: nameOf.get(to) ?? "?",
+        amountHuf: net,
+      });
+    }
+  }
+  return transfers.sort(
+    (x, y) => x.fromName.localeCompare(y.fromName, "hu") || y.amountHuf - x.amountHuf
+  );
+}
+
+/**
+ * A fennmaradó átutalások: a rögzített kifizetések levonódnak az adott fizető → kedvezményezett
+ * átutalásból. Ha egy kifizetés nem illeszkedik egyetlen átutalásra sem (régi, egyszerűsített
+ * átutalásra rögzítették), az egyenlegekből számolunk újra.
  */
 export function buildRemainingTransfers(
+  transfers: SettlementTransfer[],
   balances: PersonBalance[],
   payments: RecordedSettlementPaymentLike[],
   aliases: Map<string, string> = new Map()
 ): SettlementTransfer[] {
   const canon = (id: string) => aliases.get(id) ?? id;
+  const remaining = transfers.map((t) => ({ ...t }));
   const adjusted = new Map(balances.map((b) => [b.id, b.balanceHuf]));
+  let unmatched = false;
+
   for (const pay of payments) {
     const from = canon(pay.fromFamilyMemberId);
     const to = canon(pay.toFamilyMemberId);
     if (adjusted.has(from)) adjusted.set(from, adjusted.get(from)! + pay.amountHuf);
     if (adjusted.has(to)) adjusted.set(to, adjusted.get(to)! - pay.amountHuf);
+
+    let left = pay.amountHuf;
+    for (const t of remaining) {
+      if (left <= 0) break;
+      if (t.fromId !== from || t.toId !== to) continue;
+      const applied = Math.min(t.amountHuf, left);
+      t.amountHuf -= applied;
+      left -= applied;
+    }
+    if (left > 0) unmatched = true;
   }
-  return simplifyTransfers(
-    balances.map((b) => ({ ...b, balanceHuf: adjusted.get(b.id) ?? b.balanceHuf }))
-  );
+
+  if (unmatched) {
+    return simplifyTransfers(
+      balances.map((b) => ({ ...b, balanceHuf: adjusted.get(b.id) ?? b.balanceHuf }))
+    );
+  }
+  return remaining.filter((t) => t.amountHuf > 0);
 }
 
 function simplifyTransfers(balances: PersonBalance[]): SettlementTransfer[] {

@@ -620,6 +620,7 @@ export async function getUserReminders() {
     );
 
     const remaining = buildRemainingTransfers(
+      settlement.transfers,
       settlement.balances,
       trip.settlementPayments.map((p) => ({
         fromFamilyMemberId: p.fromFamilyMemberId,

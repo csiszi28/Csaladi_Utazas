@@ -215,9 +215,70 @@ describe("költséghez rendelt kifizetés", () => {
       { id: "a", name: "A", balanceHuf: 2000 },
       { id: "b", name: "B", balanceHuf: -2000 },
     ];
-    const rest = buildRemainingTransfers(balances, [
-      { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 500, costId: "c1" },
-    ]);
+    const rest = buildRemainingTransfers(
+      [{ fromId: "b", fromName: "B", toId: "a", toName: "A", amountHuf: 2000 }],
+      balances,
+      [
+        { fromFamilyMemberId: "b", toFamilyMemberId: "a", amountHuf: 500, costId: "c1" },
+      ]
+    );
     expect(rest).toEqual([expect.objectContaining({ fromId: "b", toId: "a", amountHuf: 1500 })]);
+  });
+});
+
+describe("átutalások a fizetők szerint", () => {
+  const three = [
+    { id: "a", name: "A" },
+    { id: "b", name: "B" },
+    { id: "c", name: "C" },
+  ];
+
+  it("aki két embernek tartozik, annak külön sora van a pontos összegekkel", () => {
+    const s = buildTripSettlement(
+      {
+        participants: three,
+        programs: [],
+        costs: [
+          { id: "c1", title: "Egy", amount: 3000, currency: "HUF", paidByFamilyMemberId: "a" },
+          { id: "c2", title: "Kettő", amount: 6000, currency: "HUF", paidByFamilyMemberId: "b" },
+        ],
+      },
+      rates
+    );
+    const cToA = s.transfers.find((t) => t.fromId === "c" && t.toId === "a");
+    const cToB = s.transfers.find((t) => t.fromId === "c" && t.toId === "b");
+    expect(cToA?.amountHuf).toBe(1000);
+    expect(cToB?.amountHuf).toBe(2000);
+  });
+
+  it("aki csak egy embernek tartozik, annak az összege nő az új költséggel", () => {
+    const s = buildTripSettlement(
+      {
+        participants: three,
+        programs: [],
+        costs: [
+          { id: "c1", title: "Egy", amount: 3000, currency: "HUF", paidByFamilyMemberId: "a" },
+          { id: "c2", title: "Kettő", amount: 3000, currency: "HUF", paidByFamilyMemberId: "a" },
+        ],
+      },
+      rates
+    );
+    expect(s.transfers.filter((t) => t.fromId === "c")).toEqual([
+      expect.objectContaining({ toId: "a", amountHuf: 2000 }),
+    ]);
+  });
+
+  it("a régi, egyszerűsített átutalásra rögzített kifizetés az egyenlegekből számolódik", () => {
+    const balances = [
+      { id: "a", name: "A", balanceHuf: 1000 },
+      { id: "b", name: "B", balanceHuf: 0 },
+      { id: "c", name: "C", balanceHuf: -1000 },
+    ];
+    const rest = buildRemainingTransfers(
+      [{ fromId: "c", fromName: "C", toId: "b", toName: "B", amountHuf: 1000 }],
+      balances,
+      [{ fromFamilyMemberId: "c", toFamilyMemberId: "a", amountHuf: 400 }]
+    );
+    expect(rest).toEqual([expect.objectContaining({ fromId: "c", toId: "a", amountHuf: 600 })]);
   });
 });
