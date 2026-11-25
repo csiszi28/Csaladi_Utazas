@@ -196,9 +196,25 @@ export function TripSettlementPanel({
     [trip.participants]
   );
 
+  /** Nyitott és részben fizetett költségek felül; tartozók között is a még nem fizetettek elöl */
+  const sortedCostStatuses = useMemo(() => {
+    const rank = { open: 0, partial: 1, settled: 2 } as const;
+    return costStatuses
+      .map((cost) => ({
+        ...cost,
+        debtors: [...cost.debtors].sort(
+          (a, b) =>
+            Number(a.paidHuf >= a.amountHuf) - Number(b.paidHuf >= b.amountHuf) ||
+            b.amountHuf - b.paidHuf - (a.amountHuf - a.paidHuf)
+        ),
+      }))
+      .sort((a, b) => rank[a.status] - rank[b.status]);
+  }, [costStatuses]);
+
   const remainingTransfers = useMemo(
     () =>
       buildRemainingTransfers(
+        settlement.transfers,
         settlement.balances,
         payments.map((p) => ({
           fromFamilyMemberId: p.fromFamilyMemberId,
@@ -208,7 +224,7 @@ export function TripSettlementPanel({
         })),
         paymentAliases
       ),
-    [settlement.balances, payments, paymentAliases]
+    [settlement.transfers, settlement.balances, payments, paymentAliases]
   );
 
   const tripChildren = useMemo(
@@ -481,7 +497,7 @@ export function TripSettlementPanel({
         </p>
       ) : null}
 
-      {costStatuses.length > 0 ? (
+      {sortedCostStatuses.length > 0 ? (
         <section className="overflow-hidden rounded-xl border bg-card">
           <div className="border-b px-4 py-3">
             <h3 className="text-sm font-semibold tracking-tight">Költségek állapota</h3>
@@ -490,7 +506,7 @@ export function TripSettlementPanel({
             </p>
           </div>
           <ul className="divide-y">
-            {costStatuses.map((cost) => {
+            {sortedCostStatuses.map((cost) => {
               const remaining = cost.owedHuf - cost.paidHuf;
               const badge =
                 cost.status === "settled"
@@ -525,20 +541,17 @@ export function TripSettlementPanel({
                         const left = d.amountHuf - d.paidHuf;
                         const key = transferKey(d.id, cost.payerId, cost.costId);
                         return (
-                          <li
-                            key={d.id}
-                            className="flex flex-wrap items-center justify-between gap-2 text-xs"
-                          >
-                            <span className="min-w-0 truncate text-muted-foreground">
-                              {d.name}:{" "}
-                              <span className="tabular-nums">
+                          <li key={d.id} className="space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 truncate text-muted-foreground">{d.name}</span>
+                              <span className="shrink-0 tabular-nums text-muted-foreground">
                                 {left <= 0
                                   ? `${huf(d.amountHuf)} ✓`
                                   : `${huf(d.paidHuf)} / ${huf(d.amountHuf)}`}
                               </span>
-                            </span>
+                            </div>
                             {left > 0 ? (
-                              <span className="flex shrink-0 items-center gap-1.5 print:hidden">
+                              <div className="flex items-center justify-end gap-1.5 print:hidden">
                                 <Input
                                   type="text"
                                   inputMode="numeric"
@@ -550,19 +563,19 @@ export function TripSettlementPanel({
                                       [key]: formatAmountInput(e.target.value),
                                     }))
                                   }
-                                  className="h-7 w-24 rounded-md text-xs"
+                                  className="h-8 w-28 rounded-md text-xs"
                                 />
                                 <Button
                                   type="button"
                                   size="sm"
-                                  className="h-7 gap-1 rounded-md px-2 text-xs"
+                                  className="h-8 gap-1 rounded-md px-2.5 text-xs"
                                   disabled={pending}
                                   onClick={() => markPaid(d.id, cost.payerId, left, cost.costId)}
                                 >
                                   <Check className="h-3 w-3" />
                                   Kifizetve
                                 </Button>
-                              </span>
+                              </div>
                             ) : null}
                           </li>
                         );
